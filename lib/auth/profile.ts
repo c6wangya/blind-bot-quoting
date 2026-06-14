@@ -10,6 +10,7 @@ import { createClient } from "@/lib/supabase/server";
  */
 export async function ensureProfileLinked(): Promise<void> {
   const supabase = await createClient();
+  if (!supabase) return;
   const {
     data: { user },
   } = await supabase.auth.getUser();

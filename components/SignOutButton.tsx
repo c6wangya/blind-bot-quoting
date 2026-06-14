@@ -10,6 +10,7 @@ export default function SignOutButton({ className }: { className?: string }) {
   return (
     <button
       onClick={async () => {
+        if (!supabase) return;
         await supabase.auth.signOut();
         router.refresh();
       }}

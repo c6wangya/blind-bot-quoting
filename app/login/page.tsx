@@ -22,9 +22,7 @@ export default async function LoginPage({
   const { error, next: rawNext } = await searchParams;
   const next = safeNext(rawNext);
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = supabase ? (await supabase.auth.getUser()).data.user : null;
 
   // Already signed in and arriving via a handoff → go straight through.
   if (user && next) redirect(next);

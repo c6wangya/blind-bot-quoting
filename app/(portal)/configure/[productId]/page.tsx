@@ -26,15 +26,19 @@ export default async function ConfigurePage({
   // import params, so it is NOT gated.
   if (imported) {
     const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      const qs = new URLSearchParams();
-      if (lineParam) qs.set("line", lineParam);
-      if (img) qs.set("img", img);
-      if (cfg) qs.set("cfg", cfg);
-      redirect(`/login?next=${encodeURIComponent(`/configure/${productId}?${qs.toString()}`)}`);
+    // When auth isn't configured (no Supabase env), skip the gate so the import
+    // still works — the handoff just isn't login-protected in that case.
+    if (supabase) {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        const qs = new URLSearchParams();
+        if (lineParam) qs.set("line", lineParam);
+        if (img) qs.set("img", img);
+        if (cfg) qs.set("cfg", cfg);
+        redirect(`/login?next=${encodeURIComponent(`/configure/${productId}?${qs.toString()}`)}`);
+      }
     }
   }
 

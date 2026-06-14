@@ -16,6 +16,17 @@ export default function LoginForm({ initialError, next }: { initialError?: strin
   const [error, setError] = useState<string | null>(initialError ?? null);
   const [info, setInfo] = useState<string | null>(null);
 
+  if (!supabase) {
+    return (
+      <div className="w-full max-w-sm text-center">
+        <h1 className="text-2xl font-semibold tracking-tight text-ink">Trade Portal</h1>
+        <p className="mt-3 text-sm text-muted">
+          Sign-in isn&apos;t configured yet — add the Supabase environment variables to enable login.
+        </p>
+      </div>
+    );
+  }
+
   const google = async () => {
     setError(null);
     const redirectTo = `${location.origin}/auth/callback?next=${encodeURIComponent(dest)}`;
