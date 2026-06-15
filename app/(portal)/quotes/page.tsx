@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { Badge, Card, EmptyState, LinkButton, PageHeader } from "@/components/ui";
+import { requireUserId } from "@/lib/auth/user";
 import { getQuotes } from "@/lib/db";
 import { fmtDate, usd } from "@/lib/format";
 
 export default async function QuotesPage() {
-  const quotes = await getQuotes();
+  const ownerId = await requireUserId("/quotes");
+  const quotes = await getQuotes(ownerId);
 
   return (
     <div>

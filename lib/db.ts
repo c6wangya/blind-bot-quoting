@@ -224,12 +224,13 @@ async function nextRef(table: "quotes" | "orders", prefix: string): Promise<stri
   return nextRefFrom(count ?? 0, prefix);
 }
 
-export async function getDraftQuote(): Promise<QuoteRow | undefined> {
+export async function getDraftQuote(ownerId: string): Promise<QuoteRow | undefined> {
   await ensureSeeded();
   const { data, error } = await admin()
     .from("quotes")
     .select(QUOTE_COLS)
     .eq("status", "draft")
+    .eq("owner_id", ownerId)
     .order("id", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -237,13 +238,13 @@ export async function getDraftQuote(): Promise<QuoteRow | undefined> {
   return (data ?? undefined) as QuoteRow | undefined;
 }
 
-export async function getOrCreateDraftQuote(projectName?: string): Promise<QuoteRow> {
-  const existing = await getDraftQuote();
+export async function getOrCreateDraftQuote(ownerId: string, projectName?: string): Promise<QuoteRow> {
+  const existing = await getDraftQuote(ownerId);
   if (existing) return existing;
   const ref = await nextRef("quotes", "Q");
   const { data, error } = await admin()
     .from("quotes")
-    .insert({ ref, retailer: DEMO_RETAILER, status: "draft", project_name: projectName ?? null })
+    .insert({ ref, retailer: DEMO_RETAILER, status: "draft", owner_id: ownerId, project_name: projectName ?? null })
     .select(QUOTE_COLS)
     .single();
   if (error) throw error;
@@ -272,9 +273,13 @@ export async function removeQuoteItem(itemId: number): Promise<void> {
   if (error) throw error;
 }
 
-export async function getQuotes(): Promise<(QuoteRow & { itemCount: number; total: number })[]> {
+export async function getQuotes(ownerId: string): Promise<(QuoteRow & { itemCount: number; total: number })[]> {
   await ensureSeeded();
-  const { data: quotes, error } = await admin().from("quotes").select(QUOTE_COLS).order("id", { ascending: false });
+  const { data: quotes, error } = await admin()
+    .from("quotes")
+    .select(QUOTE_COLS)
+    .or(`owner_id.eq.${ownerId},owner_id.is.null`)
+    .order("id", { ascending: false });
   if (error) throw error;
   const { data: items, error: e2 } = await admin().from("quote_items").select("quoteId:quote_id, qty, computation");
   if (e2) throw e2;
@@ -344,7 +349,7 @@ export type OrderListRow = OrderRow & {
   total: number;
 };
 
-export async function getOrders(): Promise<OrderListRow[]> {
+export async function getOrders(ownerId?: string): Promise<OrderListRow[]> {
   await ensureSeeded();
   const { data: orders, error } = await admin().from("orders").select(ORDER_COLS).order("id", { ascending: false });
   if (error) throw error;
@@ -354,27 +359,33 @@ export async function getOrders(): Promise<OrderListRow[]> {
   const quoteIds = [...new Set(orderRows.map((o) => o.quoteId))];
   const { data: quotes } = await admin()
     .from("quotes")
-    .select("id, ref, retailer, projectName:project_name")
+    .select("id, ref, retailer, ownerId:owner_id, projectName:project_name")
     .in("id", quoteIds);
   const { data: items } = await admin().from("quote_items").select("quoteId:quote_id, qty, computation").in("quote_id", quoteIds);
   const qById = new Map(
-    ((quotes ?? []) as unknown as { id: number; ref: string; retailer: string; projectName: string | null }[]).map((q) => [q.id, q])
+    ((quotes ?? []) as unknown as { id: number; ref: string; retailer: string; ownerId: string | null; projectName: string | null }[]).map((q) => [q.id, q])
   );
   const aggs = (items ?? []) as unknown as ItemAgg[];
 
-  return orderRows.map((o) => {
-    const q = qById.get(o.quoteId);
-    const its = aggs.filter((i) => i.quoteId === o.quoteId);
-    const total = round2(its.reduce((s, i) => s + (i.computation?.unitPrice ?? 0) * i.qty, 0));
-    return {
-      ...o,
-      quoteRef: q?.ref ?? "",
-      retailer: q?.retailer ?? "",
-      projectName: q?.projectName ?? null,
-      itemCount: its.length,
-      total,
-    };
-  });
+  return orderRows
+    .filter((o) => {
+      if (!ownerId) return true; // back-office (Supplier Console): all orders
+      const owner = qById.get(o.quoteId)?.ownerId ?? null;
+      return owner === null || owner === ownerId; // mine + public demo samples
+    })
+    .map((o) => {
+      const q = qById.get(o.quoteId);
+      const its = aggs.filter((i) => i.quoteId === o.quoteId);
+      const total = round2(its.reduce((s, i) => s + (i.computation?.unitPrice ?? 0) * i.qty, 0));
+      return {
+        ...o,
+        quoteRef: q?.ref ?? "",
+        retailer: q?.retailer ?? "",
+        projectName: q?.projectName ?? null,
+        itemCount: its.length,
+        total,
+      };
+    });
 }
 
 export async function getOrder(
@@ -414,16 +425,24 @@ export async function updateOrder(
   return data as unknown as OrderRow;
 }
 
-export async function getRecentEvents(limit = 10): Promise<(OrderEventRow & { orderRef: string })[]> {
+export async function getRecentEvents(limit = 10, ownerId?: string): Promise<(OrderEventRow & { orderRef: string })[]> {
   await ensureSeeded();
   const { data, error } = await admin()
     .from("order_events")
-    .select(`${EVENT_COLS}, orders(ref)`)
+    .select(`${EVENT_COLS}, orders(ref, quotes(owner_id))`)
     .order("id", { ascending: false })
-    .limit(limit);
+    .limit(ownerId ? 200 : limit);
   if (error) throw error;
-  const rows = (data ?? []) as unknown as (OrderEventRow & { orders: { ref: string } | null })[];
-  return rows.map((e) => ({
+  const rows = (data ?? []) as unknown as (OrderEventRow & {
+    orders: { ref: string; quotes: { owner_id: string | null } | null } | null;
+  })[];
+  const filtered = ownerId
+    ? rows.filter((e) => {
+        const owner = e.orders?.quotes?.owner_id ?? null;
+        return owner === null || owner === ownerId; // mine + public demo samples
+      })
+    : rows;
+  return filtered.slice(0, limit).map((e) => ({
     id: e.id,
     orderId: e.orderId,
     status: e.status,

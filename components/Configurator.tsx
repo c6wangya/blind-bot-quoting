@@ -138,6 +138,10 @@ export default function Configurator({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ productId: product.id, config, qty }),
       });
+      if (r.status === 401) {
+        window.location.href = `/login?next=${encodeURIComponent(location.pathname + location.search)}`;
+        return;
+      }
       const data = await r.json();
       if (!r.ok) throw new Error(data.error ?? "Could not add to quote");
       setLastAdded({ quoteRef: data.quoteRef, key: configKey });

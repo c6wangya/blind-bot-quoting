@@ -146,7 +146,7 @@ npm run dev -- -p 3001    # ⚠️ 必须 3001（Google origin / Supabase Site U
 ## 7. 下一步（建议优先级）
 
 1. **真人跑一遍登录**,确认 profiles 建行 + 邮箱关联。
-2. ✅ **已完成** —— quotes/orders/pricing 已迁到 Supabase/Postgres,`lib/db.ts` 走 service_role,better-sqlite3 已移除。**接下来 1b**:把报价/订单挂到登录用户名下（quotes 已加 nullable `owner_id` 列,待启用）+ 按 owner 过滤 + RLS。
+2. ✅ **已完成（1a + 1b）** —— quotes/orders/pricing 已迁到 Supabase/Postgres（`lib/db.ts` 走 service_role，better-sqlite3 已移除）;**1b** 也已完成:报价/订单按 `owner_id` 归属、零售商页面（Dashboard/Quotes/Pre-Orders）登录闸 + 只看自己的（+ 那 2 条公共示例 owner=null）、加入报价需登录、供应商后台仍看全部。**RLS 仍留作生产级兜底（未做）**;明细页 `/quotes/[id]`、`/orders/[id]` 暂未做逐条所有权校验。
 3. **子项目 4 真实变体映射**:把 `mapImportedConfig` 从 no-op 升级为真实的产品/颜色/遮光/选项映射 + 自动预选(需先定"quote 产品是否与 blind-bot 对齐"的产品决策)。
 4. **白标收尾**(任务 6):侧边栏/整体改名换 logo 换色、图片代理、(i) id 化 handoff。
 5. **phase 2:"Continue with BlindBot"** —— blind-bot server 加对外"校验身份+返 profile"接口(可复用 `middleware/adminAuth.js` 的 JWT 校验);解决按钮命名与白标冲突。
