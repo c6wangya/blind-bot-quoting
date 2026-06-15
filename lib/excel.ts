@@ -1,4 +1,5 @@
 import ExcelJS from "exceljs";
+import { BRAND } from "./brand";
 import { OPACITY_LABELS } from "./catalog-data";
 import { getLine, getOrder, getProduct } from "./db";
 
@@ -29,7 +30,7 @@ export async function buildOrderWorkbook(orderId: number): Promise<{ buffer: Buf
   if (!order) throw new Error("Order not found");
 
   const wb = new ExcelJS.Workbook();
-  wb.creator = "BlindBots Trade Portal";
+  wb.creator = `${BRAND.name} ${BRAND.tagline}`;
   const ws = wb.addWorksheet("订单 Order", {
     pageSetup: { orientation: "landscape", fitToPage: true },
   });
@@ -43,7 +44,7 @@ export async function buildOrderWorkbook(orderId: number): Promise<{ buffer: Buf
   // ---- header block ----
   ws.mergeCells("A1:M1");
   const title = ws.getCell("A1");
-  title.value = "预订单 PRE-ORDER — BlindBots Trade";
+  title.value = `预订单 PRE-ORDER — ${BRAND.name}`;
   title.font = { size: 16, bold: true, color: { argb: "FF1F2A44" } };
   ws.getRow(1).height = 26;
 
@@ -150,7 +151,7 @@ export async function buildOrderWorkbook(orderId: number): Promise<{ buffer: Buf
   const info = wb.addWorksheet("说明 Instructions");
   info.columns = [{ width: 100 }];
   [
-    "1. 本预订单由 BlindBots Trade Portal 自动生成。 This pre-order was generated automatically by the BlindBots Trade Portal.",
+    `1. 本预订单由 ${BRAND.name} 自动生成。 This pre-order was generated automatically by ${BRAND.name}.`,
     "2. 请在确认后回传供应商订单号。 Please return the supplier order number upon confirmation.",
     "3. 发货后请提供运单号以同步物流状态。 Provide the tracking number at dispatch so logistics status can sync.",
     "4. 所有尺寸为成品尺寸，单位厘米。 All dimensions are finished sizes, in centimeters.",
@@ -160,5 +161,5 @@ export async function buildOrderWorkbook(orderId: number): Promise<{ buffer: Buf
   });
 
   const buffer = Buffer.from(await wb.xlsx.writeBuffer());
-  return { buffer, filename: `${order.ref}_BlindBots_PreOrder.xlsx` };
+  return { buffer, filename: `${order.ref}_${BRAND.slug}_PreOrder.xlsx` };
 }
