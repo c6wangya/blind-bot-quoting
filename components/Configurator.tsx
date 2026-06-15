@@ -39,7 +39,7 @@ export default function Configurator({
   // Seam for upstream-design import. No-op today (see lib/import.ts): returns {}, so the
   // initial state below falls back to product defaults. When real mapping lands, these
   // prefilled values flow straight into the form with no further wiring.
-  const prefill = mapImportedConfig(imported?.cfg ?? {});
+  const prefill = mapImportedConfig(imported?.cfg ?? {}, product, line);
 
   const [colorId, setColorId] = useState(prefill.colorId ?? product.colors[0].id);
   const [opacityId, setOpacityId] = useState<OpacityId>(prefill.opacityId ?? product.validOpacities[0]);

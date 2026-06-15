@@ -1,4 +1,4 @@
-import type { ItemConfig } from "./types";
+import type { ItemConfig, OpacityId, Product, ProductLine } from "./types";
 
 /**
  * Bridge for designs carried in from the upstream visualization tool.
@@ -56,15 +56,67 @@ export function parseImportPayload(
   return { img, cfg: parsed };
 }
 
+/** Normalize a blind-bot translucency term → quote opacity id (or undefined). */
+function mapOpacity(translucency: string | undefined, validOpacities: OpacityId[]): OpacityId | undefined {
+  const t = (translucency ?? "").toLowerCase();
+  let candidate: OpacityId | undefined;
+  if (t.includes("blackout")) candidate = "blackout";
+  else if (t.includes("room") || t.includes("darken")) candidate = "room-darkening";
+  else if (t.includes("filter") || t.includes("privacy")) candidate = "light-filtering";
+  else if (t.includes("sheer") || t.includes("solar") || t.includes("screen")) candidate = "sheer";
+  // only apply if this product can actually be produced in that opacity
+  return candidate && validOpacities.includes(candidate) ? candidate : undefined;
+}
+
+function mapMount(mountType: string | undefined): string | undefined {
+  const m = (mountType ?? "").toLowerCase();
+  if (m.includes("inside")) return "inside";
+  if (m.includes("outside")) return "outside";
+  return undefined;
+}
+
+function mapControl(control: string | undefined): string | undefined {
+  const c = (control ?? "").toLowerCase();
+  if (c.includes("motor")) return "motorized";
+  if (c.includes("cord") || c.includes("chain")) return "chain-plastic";
+  return undefined;
+}
+
 /**
- * Seam for the future variation mapping. Given the upstream selections, return the
- * subset of this product's config to pre-select. Intentionally a no-op for now — the
- * upstream vocabulary (translucency, lighting, valance, texture, hemStyle, …) does not
- * map cleanly onto this catalog's colors/opacity/options yet. When real mapping lands,
- * return { colorId, opacityId, options, dimensions } here and the configurator will
- * initialize from it automatically.
+ * Map upstream (blind-bot) selections onto this product's config — best-effort,
+ * always respecting the product's constraints. Only fields that map cleanly are
+ * returned; everything else falls back to the configurator's defaults.
+ *
+ * Grounded in blind-bot's real vocabulary:
+ *  - translucency ("Sheer"/"Solar", "Light Filtering"/"Privacy", "Room Darkening",
+ *    "Blackout") → opacityId, gated on validOpacities.
+ *  - mountType ("Inside/Outside Mount") → mount; control ("Motorized" / cord / chain)
+ *    → control — each applied only if that option exists on this product line.
+ *  - color: exact case-insensitive name match against this product's palette (rare).
+ *  - dimensions: blind-bot has none → left for the user.
  */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- `cfg` is unused only while this is a no-op seam; it's the interface real mapping will consume.
-export function mapImportedConfig(cfg: ImportedConfig): Partial<ItemConfig> {
-  return {};
+export function mapImportedConfig(
+  cfg: ImportedConfig,
+  product: Product,
+  line: ProductLine
+): Partial<ItemConfig> {
+  const out: Partial<ItemConfig> = {};
+
+  const opacityId = mapOpacity(cfg.translucency, product.validOpacities);
+  if (opacityId) out.opacityId = opacityId;
+
+  const color = product.colors.find((c) => c.name.toLowerCase() === (cfg.color ?? "").toLowerCase());
+  if (color) out.colorId = color.id;
+
+  const options: Record<string, string> = {};
+  const setIfValid = (groupKey: string, value: string | undefined) => {
+    if (!value) return;
+    const group = line.optionGroups.find((g) => g.key === groupKey);
+    if (group?.options.some((o) => o.id === value)) options[groupKey] = value;
+  };
+  setIfValid("mount", mapMount(cfg.mountType));
+  setIfValid("control", mapControl(cfg.control));
+  if (Object.keys(options).length > 0) out.options = options;
+
+  return out;
 }
