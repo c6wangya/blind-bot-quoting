@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 import { cx } from "./ui";
 
 const NAV = [
@@ -27,14 +28,24 @@ export default function Sidebar({
   draftCount,
   accountName,
   accountSub,
+  signedIn,
 }: {
   draftCount: number;
   accountName: string;
   accountSub: string;
+  signedIn: boolean;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const initials =
     accountName.trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase() || "?";
+
+  const handleSignOut = async () => {
+    const supabase = createClient();
+    if (supabase) await supabase.auth.signOut();
+    router.push("/login");
+    router.refresh();
+  };
 
   return (
     <aside className="fixed inset-y-0 left-0 z-30 flex w-60 flex-col bg-[#1a2336] text-white">
@@ -93,13 +104,30 @@ export default function Sidebar({
 
       <div className="border-t border-white/10 px-5 py-4">
         <div className="flex items-center gap-3">
-          <div className="flex size-8 items-center justify-center rounded-full bg-gradient-to-br from-[#5b6b8f] to-[#3a4763] text-xs font-semibold">
+          <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#5b6b8f] to-[#3a4763] text-xs font-semibold">
             {initials}
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <div className="truncate text-[12.5px] font-medium">{accountName}</div>
             <div className="truncate text-[10.5px] text-white/40">{accountSub}</div>
           </div>
+          {signedIn && (
+            <button
+              type="button"
+              onClick={handleSignOut}
+              title="Sign out"
+              aria-label="Sign out"
+              className="shrink-0 rounded-lg p-1.5 text-white/40 transition-colors hover:bg-white/10 hover:text-white/80"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="size-4">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15M12 9l3 3m0 0-3 3m3-3H2.25"
+                />
+              </svg>
+            </button>
+          )}
         </div>
       </div>
     </aside>

@@ -16,7 +16,7 @@ export default async function PortalLayout({ children }: Readonly<{ children: Re
 
   return (
     <>
-      <Sidebar draftCount={draftCount} accountName={accountName} accountSub={accountSub} />
+      <Sidebar draftCount={draftCount} accountName={accountName} accountSub={accountSub} signedIn={!!ownerId} />
       <main className="ml-60 min-h-screen">
         <div className="mx-auto max-w-6xl px-8 py-10">{children}</div>
       </main>
