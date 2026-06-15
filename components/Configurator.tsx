@@ -41,6 +41,9 @@ export default function Configurator({
   // prefilled values flow straight into the form with no further wiring.
   const prefill = mapImportedConfig(imported?.cfg ?? {}, product, line);
 
+  // Route the carried-over image through our own origin so the upstream host is hidden.
+  const carriedImageSrc = imported ? `/api/img?src=${encodeURIComponent(imported.img)}` : null;
+
   // Carried-over reference chips — keep only user-meaningful selections, dropping
   // blind-bot's internal fields (pattern ids, cassette overlays, render mode, …).
   const importedChips = imported
@@ -137,6 +140,22 @@ export default function Configurator({
     };
   }, [fetchPrice]);
 
+  // Once the import payload has been read (server-side, into props), drop the handoff
+  // params from the visible URL so the upstream image URL doesn't linger in the address
+  // bar or browser history.
+  useEffect(() => {
+    if (!imported) return;
+    const url = new URL(window.location.href);
+    if (url.searchParams.has("img") || url.searchParams.has("cfg") || url.searchParams.has("line")) {
+      url.searchParams.delete("img");
+      url.searchParams.delete("cfg");
+      url.searchParams.delete("line");
+      window.history.replaceState(null, "", url.pathname + url.search);
+    }
+    // run once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const addToQuote = async () => {
     if (!computation) return;
     setAdding(true);
@@ -174,7 +193,7 @@ export default function Configurator({
               <>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={imported.img}
+                  src={carriedImageSrc ?? ""}
                   alt="Carried over design"
                   className="h-full w-full object-cover"
                 />

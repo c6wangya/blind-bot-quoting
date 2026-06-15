@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { BRAND } from "@/lib/brand";
 import { cx } from "./ui";
 
 const NAV = [
@@ -51,11 +52,11 @@ export default function Sidebar({
     <aside className="fixed inset-y-0 left-0 z-30 flex w-60 flex-col bg-[#1a2336] text-white">
       <Link href="/" className="flex items-center gap-3 px-5 pb-5 pt-6">
         <div className="flex size-9 items-center justify-center rounded-xl bg-gradient-to-br from-brass to-[#8a6a39] text-base font-bold shadow-md">
-          B
+          {BRAND.monogram}
         </div>
         <div>
-          <div className="text-[15px] font-semibold leading-tight tracking-tight">BlindBots</div>
-          <div className="text-[10px] font-medium uppercase tracking-[0.22em] text-white/45">Trade Portal</div>
+          <div className="text-[15px] font-semibold leading-tight tracking-tight">{BRAND.name}</div>
+          <div className="text-[10px] font-medium uppercase tracking-[0.22em] text-white/45">{BRAND.tagline}</div>
         </div>
       </Link>
 

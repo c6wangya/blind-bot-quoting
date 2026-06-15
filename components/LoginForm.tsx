@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { BRAND } from "@/lib/brand";
 import { cx } from "./ui";
 
 export default function LoginForm({ initialError, next }: { initialError?: string; next?: string }) {
@@ -19,7 +20,7 @@ export default function LoginForm({ initialError, next }: { initialError?: strin
   if (!supabase) {
     return (
       <div className="w-full max-w-sm text-center">
-        <h1 className="text-2xl font-semibold tracking-tight text-ink">Trade Portal</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-ink">{BRAND.name}</h1>
         <p className="mt-3 text-sm text-muted">
           Sign-in isn&apos;t configured yet — add the Supabase environment variables to enable login.
         </p>
@@ -67,7 +68,7 @@ export default function LoginForm({ initialError, next }: { initialError?: strin
   return (
     <div className="w-full max-w-sm">
       <div className="text-center">
-        <h1 className="text-2xl font-semibold tracking-tight text-ink">Trade Portal</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-ink">{BRAND.name}</h1>
         <p className="mt-1 text-sm text-muted">Sign in to quote and pre-order.</p>
       </div>
 
