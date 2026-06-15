@@ -41,6 +41,14 @@ export default function Configurator({
   // prefilled values flow straight into the form with no further wiring.
   const prefill = mapImportedConfig(imported?.cfg ?? {}, product, line);
 
+  // Carried-over reference chips — keep only user-meaningful selections, dropping
+  // blind-bot's internal fields (pattern ids, cassette overlays, render mode, …).
+  const importedChips = imported
+    ? Object.entries(imported.cfg).filter(
+        ([k, v]) => v && !/pattern|cassette|variant|asset|overlay|rendermode|top_treatment|fabric/i.test(k)
+      )
+    : [];
+
   const [colorId, setColorId] = useState(prefill.colorId ?? product.colors[0].id);
   const [opacityId, setOpacityId] = useState<OpacityId>(prefill.opacityId ?? product.validOpacities[0]);
   const [options, setOptions] = useState<Record<string, string>>(() => ({
@@ -206,14 +214,14 @@ export default function Configurator({
             )}
           </div>
           {imported ? (
-            Object.keys(imported.cfg).length > 0 && (
+            importedChips.length > 0 && (
               <div className="flex flex-wrap items-center gap-1.5 border-t border-line px-5 py-3.5">
-                {Object.entries(imported.cfg).map(([k, v]) => (
+                {importedChips.map(([k, v]) => (
                   <span
                     key={k}
                     className="rounded-md bg-[#f1efe9] px-2 py-0.5 text-[11px] text-ink-soft"
                   >
-                    <span className="font-medium capitalize">{k}</span>: {v}
+                    <span className="font-medium capitalize">{k.replace(/_/g, " ")}</span>: {v}
                   </span>
                 ))}
               </div>

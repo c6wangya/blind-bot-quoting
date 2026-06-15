@@ -78,7 +78,22 @@ function mapMount(mountType: string | undefined): string | undefined {
 function mapControl(control: string | undefined): string | undefined {
   const c = (control ?? "").toLowerCase();
   if (c.includes("motor")) return "motorized";
-  if (c.includes("cord") || c.includes("chain")) return "chain-plastic";
+  if (c.includes("cord") || c.includes("chain") || c.includes("manual")) return "chain-plastic";
+  return undefined;
+}
+
+/**
+ * Case-insensitive lookup across the aliases an upstream field might use. blind-bot
+ * template variations send names like "Transparency" / "Installation" / "Control_type"
+ * / "Color" — not the RenderOptions field keys — so we try several spellings.
+ */
+function pick(cfg: ImportedConfig, ...keys: string[]): string | undefined {
+  const lower: Record<string, string> = {};
+  for (const [k, v] of Object.entries(cfg)) lower[k.toLowerCase()] = v;
+  for (const key of keys) {
+    const v = lower[key.toLowerCase()];
+    if (v) return v;
+  }
   return undefined;
 }
 
@@ -102,10 +117,11 @@ export function mapImportedConfig(
 ): Partial<ItemConfig> {
   const out: Partial<ItemConfig> = {};
 
-  const opacityId = mapOpacity(cfg.translucency, product.validOpacities);
+  const opacityId = mapOpacity(pick(cfg, "transparency", "translucency", "opacity"), product.validOpacities);
   if (opacityId) out.opacityId = opacityId;
 
-  const color = product.colors.find((c) => c.name.toLowerCase() === (cfg.color ?? "").toLowerCase());
+  const colorName = pick(cfg, "color");
+  const color = product.colors.find((c) => c.name.toLowerCase() === (colorName ?? "").toLowerCase());
   if (color) out.colorId = color.id;
 
   const options: Record<string, string> = {};
@@ -114,8 +130,8 @@ export function mapImportedConfig(
     const group = line.optionGroups.find((g) => g.key === groupKey);
     if (group?.options.some((o) => o.id === value)) options[groupKey] = value;
   };
-  setIfValid("mount", mapMount(cfg.mountType));
-  setIfValid("control", mapControl(cfg.control));
+  setIfValid("mount", mapMount(pick(cfg, "installation", "mounttype", "mount")));
+  setIfValid("control", mapControl(pick(cfg, "control_type", "control")));
   if (Object.keys(options).length > 0) out.options = options;
 
   return out;
