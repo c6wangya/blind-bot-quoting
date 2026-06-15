@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getCurrentUserId, isAdmin } from "@/lib/auth/user";
 import { getOrder, updateOrder } from "@/lib/db";
 import type { OrderStatus } from "@/lib/types";
 
@@ -31,6 +32,9 @@ const rand = (len: number) => {
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
+  const uid = await getCurrentUserId();
+  if (!uid) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!(await isAdmin(uid))) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const orderId = Number(id);
   const order = await getOrder(orderId);
   if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
