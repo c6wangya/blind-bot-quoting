@@ -51,14 +51,43 @@ export function getProduct(productId: string): Product | undefined {
 }
 
 /** The signed-in retailer's profile fields used for the account display. */
-export async function getProfile(userId: string): Promise<{ email: string; company: string | null } | null> {
+export async function getProfile(
+  userId: string
+): Promise<{ email: string; company: string | null; role: "retailer" | "admin" } | null> {
   const { data, error } = await admin()
     .from("profiles")
-    .select("email, company")
+    .select("email, company, role")
     .eq("id", userId)
     .maybeSingle();
-  if (error) throw error;
-  return (data ?? null) as { email: string; company: string | null } | null;
+  if (error) {
+    // The `role` column is added by an out-of-band migration; until it lands, fall back
+    // to reading the always-present columns and treat everyone as a retailer.
+    const { data: d2, error: e2 } = await admin()
+      .from("profiles")
+      .select("email, company")
+      .eq("id", userId)
+      .maybeSingle();
+    if (e2) throw e2;
+    if (!d2) return null;
+    const r = d2 as { email: string; company: string | null };
+    return { email: r.email, company: r.company, role: "retailer" };
+  }
+  if (!data) return null;
+  const row = data as { email: string; company: string | null; role: string | null };
+  return { email: row.email, company: row.company, role: row.role === "admin" ? "admin" : "retailer" };
+}
+
+/** Owner of a quote: a user id, null for public demo samples, or undefined if not found. */
+export async function getQuoteOwnerId(quoteId: number): Promise<string | null | undefined> {
+  const { data } = await admin().from("quotes").select("owner_id").eq("id", quoteId).maybeSingle();
+  return data ? (data as { owner_id: string | null }).owner_id : undefined;
+}
+
+/** Owner of an order (via its quote): a user id, null for public demo samples, or undefined if not found. */
+export async function getOrderOwnerId(orderId: number): Promise<string | null | undefined> {
+  const { data: o } = await admin().from("orders").select("quote_id").eq("id", orderId).maybeSingle();
+  if (!o) return undefined;
+  return getQuoteOwnerId((o as { quote_id: number }).quote_id);
 }
 
 // ---------------- seed (runs once per process, idempotent) ----------------
