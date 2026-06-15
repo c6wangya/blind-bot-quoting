@@ -13,10 +13,11 @@ export default async function PortalLayout({ children }: Readonly<{ children: Re
   const profile = ownerId ? await getProfile(ownerId) : null;
   const accountName = profile?.company || profile?.email || "Guest";
   const accountSub = profile ? (profile.company ? profile.email : "Retailer account") : "Not signed in";
+  const isAdmin = profile?.role === "admin";
 
   return (
     <>
-      <Sidebar draftCount={draftCount} accountName={accountName} accountSub={accountSub} signedIn={!!ownerId} />
+      <Sidebar draftCount={draftCount} accountName={accountName} accountSub={accountSub} signedIn={!!ownerId} isAdmin={isAdmin} />
       <main className="ml-60 min-h-screen">
         <div className="mx-auto max-w-6xl px-8 py-10">{children}</div>
       </main>

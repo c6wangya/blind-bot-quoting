@@ -1,5 +1,6 @@
 import { Badge, Card, PageHeader } from "@/components/ui";
 import { OPACITY_LABELS, TIER_LABELS } from "@/lib/catalog-data";
+import { requireAdminPage } from "@/lib/auth/user";
 import { getAllPricingVersions, getLines } from "@/lib/db";
 import { fmtDate, usd } from "@/lib/format";
 import type { DraperyPricingConfig, RollerPricingConfig } from "@/lib/types";
@@ -96,6 +97,7 @@ function DraperyFormula({ cfg }: { cfg: DraperyPricingConfig }) {
 }
 
 export default async function PricingPage() {
+  await requireAdminPage("/pricing");
   const versions = await getAllPricingVersions();
   const lines = getLines();
 

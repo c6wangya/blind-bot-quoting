@@ -30,11 +30,13 @@ export default function Sidebar({
   accountName,
   accountSub,
   signedIn,
+  isAdmin,
 }: {
   draftCount: number;
   accountName: string;
   accountSub: string;
   signedIn: boolean;
+  isAdmin: boolean;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -61,7 +63,7 @@ export default function Sidebar({
       </Link>
 
       <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-2">
-        {NAV.map((group) => (
+        {NAV.filter((group) => group.section !== "Supply Chain" || isAdmin).map((group) => (
           <div key={group.section}>
             <div className="px-2.5 pb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/35">
               {group.section}
