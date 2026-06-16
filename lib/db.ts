@@ -100,7 +100,7 @@ export async function getOrderOwnerId(orderId: number): Promise<string | null | 
 
 // ---------------- seed (runs once per process, idempotent) ----------------
 
-export const DEMO_RETAILER = "Harbor & Lane Interiors";
+const DEMO_RETAILER = "Harbor & Lane Interiors";
 
 let seedPromise: Promise<void> | null = null;
 function ensureSeeded(): Promise<void> {
@@ -432,13 +432,16 @@ export async function submitPreOrder(quoteId: number, sb: SupabaseClient = admin
   if (quote.items.length === 0) throw new Error("Quote has no items");
 
   const ref = await nextRef("orders", "PO"); // count across all orders → service_role
-  await sb.from("quotes").update({ status: "converted", updated_at: new Date().toISOString() }).eq("id", quoteId);
+  // Create the order FIRST, then flip the quote — so a failed insert can never strand the
+  // quote as `converted` with no order. (Not a true transaction; the order-first ordering
+  // is the cheap safeguard.)
   const { data: order, error } = await sb
     .from("orders")
     .insert({ ref, quote_id: quoteId, status: "submitted" })
     .select(ORDER_COLS)
     .single();
   if (error) throw error;
+  await sb.from("quotes").update({ status: "converted", updated_at: new Date().toISOString() }).eq("id", quoteId);
   await sb.from("order_events").insert({
     order_id: (order as unknown as OrderRow).id,
     status: "submitted",
@@ -448,7 +451,7 @@ export async function submitPreOrder(quoteId: number, sb: SupabaseClient = admin
   return order as unknown as OrderRow;
 }
 
-export type OrderListRow = OrderRow & {
+type OrderListRow = OrderRow & {
   quoteRef: string;
   retailer: string;
   projectName: string | null;
@@ -518,7 +521,8 @@ export async function getOrder(
 export async function updateOrder(
   id: number,
   patch: Partial<Pick<OrderRow, "status" | "supplierOrderNo" | "trackingNo" | "carrier" | "etaDate">>,
-  event: { status: OrderStatus | "note"; note: string; actor: OrderEventRow["actor"] }
+  event: { status: OrderStatus | "note"; note: string; actor: OrderEventRow["actor"] },
+  sb: SupabaseClient = admin()
 ): Promise<OrderRow> {
   const dbPatch: Record<string, unknown> = { updated_at: new Date().toISOString() };
   if (patch.status !== undefined) dbPatch.status = patch.status;
@@ -527,9 +531,9 @@ export async function updateOrder(
   if (patch.carrier !== undefined) dbPatch.carrier = patch.carrier;
   if (patch.etaDate !== undefined) dbPatch.eta_date = patch.etaDate;
 
-  const { data, error } = await admin().from("orders").update(dbPatch).eq("id", id).select(ORDER_COLS).single();
+  const { data, error } = await sb.from("orders").update(dbPatch).eq("id", id).select(ORDER_COLS).single();
   if (error) throw error;
-  await admin().from("order_events").insert({ order_id: id, status: event.status, note: event.note, actor: event.actor });
+  await sb.from("order_events").insert({ order_id: id, status: event.status, note: event.note, actor: event.actor });
   return data as unknown as OrderRow;
 }
 

@@ -29,3 +29,11 @@ export const ORDER_STATUS_META: Record<
   in_transit: { label: "In Transit", description: "Linehaul to destination", tone: "teal" },
   delivered: { label: "Delivered", description: "Signed for at destination", tone: "green" },
 };
+
+/** Display name for an order_event actor (retailer is shown as "You"). */
+export const ACTOR_LABEL: Record<string, string> = {
+  retailer: "You",
+  supplier: "Supplier",
+  logistics: "Logistics",
+  system: "System",
+};

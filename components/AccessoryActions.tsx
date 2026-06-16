@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { cx } from "./ui";
 
 /** Add an orderable accessory (A-OK motor) to the draft quote — qty stepper + Add. */
@@ -11,6 +11,8 @@ export function AddAccessoryButton({ modelId }: { modelId: string }) {
   const [busy, setBusy] = useState(false);
   const [added, setAdded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const addedTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(addedTimer.current), []);
 
   const add = async () => {
     setBusy(true);
@@ -29,7 +31,8 @@ export function AddAccessoryButton({ modelId }: { modelId: string }) {
       if (!r.ok) throw new Error(data.error ?? "Could not add to quote");
       setAdded(true);
       router.refresh();
-      setTimeout(() => setAdded(false), 2500);
+      clearTimeout(addedTimer.current);
+      addedTimer.current = setTimeout(() => setAdded(false), 2500);
     } catch (e) {
       setError((e as Error).message);
     } finally {

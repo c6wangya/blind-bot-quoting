@@ -1,13 +1,13 @@
 import type { ItemConfig, OpacityId, Product, ProductLine } from "./types";
 
 /**
- * Bridge for designs carried in from the upstream visualization tool.
+ * Bridge for designs carried in from the upstream visualization tool (blind-bot).
  *
- * Skeleton scope (see docs/superpowers/specs/2026-06-14-result-to-configurator-import-skeleton-design.md):
- * the inbound configuration is shown to the user as a reference only — it is NOT
- * auto-applied to the form yet, because the upstream option vocabulary does not line
- * up with this catalog. `mapImportedConfig` is the seam where that real mapping will
- * live later; today it is intentionally a no-op.
+ * The inbound configuration is both shown to the user as reference chips AND best-effort
+ * mapped onto the product's config to prefill the configurator (`mapImportedConfig`,
+ * below). Mapping is conservative: the upstream option vocabulary doesn't line up 1:1 with
+ * this catalog, so only fields that translate cleanly and are valid for the product are
+ * applied; everything else falls back to the configurator's defaults.
  */
 
 /** Upstream selections, a flat string dictionary (e.g. { color, translucency, ... }). */

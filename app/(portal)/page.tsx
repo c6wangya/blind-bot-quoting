@@ -2,15 +2,8 @@ import Link from "next/link";
 import { Badge, Card, LinkButton, PageHeader, Stat, StatusBadge } from "@/components/ui";
 import { requireUserId, userClient } from "@/lib/auth/user";
 import { getOrders, getProduct, getQuotes, getRecentEvents } from "@/lib/db";
-import { fmtDateTime, ORDER_STATUS_META, usd } from "@/lib/format";
+import { ACTOR_LABEL, fmtDateTime, ORDER_STATUS_META, usd } from "@/lib/format";
 import { ORDER_STATUSES } from "@/lib/types";
-
-const ACTOR_LABEL: Record<string, string> = {
-  retailer: "You",
-  supplier: "Supplier",
-  logistics: "Logistics",
-  system: "System",
-};
 
 export default async function Dashboard() {
   const ownerId = await requireUserId("/");

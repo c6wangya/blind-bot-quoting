@@ -7,15 +7,8 @@ import { getLine, getOrder, getOrderOwnerId, getProduct } from "@/lib/db";
 import { accessoryImage, getAccessoryModel } from "@/lib/accessories-data";
 import { describeConfig } from "@/lib/describe";
 import { isAccessoryConfig } from "@/lib/types";
-import { fmtDate, fmtDateTime, ORDER_STATUS_META, usd } from "@/lib/format";
+import { ACTOR_LABEL, fmtDate, fmtDateTime, ORDER_STATUS_META, usd } from "@/lib/format";
 import { ORDER_STATUSES } from "@/lib/types";
-
-const ACTOR_LABEL: Record<string, string> = {
-  retailer: "You",
-  supplier: "Supplier",
-  logistics: "Logistics",
-  system: "System",
-};
 
 export default async function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

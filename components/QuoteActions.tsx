@@ -125,17 +125,26 @@ export function RemoveItemButton({ itemId, className }: { itemId: number; classN
   const router = useRouter();
   const [busy, setBusy] = useState(false);
 
+  const remove = async () => {
+    setBusy(true);
+    try {
+      const r = await fetch("/api/quote-items", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ itemId }),
+      });
+      if (!r.ok) throw new Error();
+      router.refresh();
+    } catch {
+      // surface failure by re-enabling the button so the user can retry
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <button
-      onClick={async () => {
-        setBusy(true);
-        await fetch("/api/quote-items", {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ itemId }),
-        });
-        router.refresh();
-      }}
+      onClick={remove}
       disabled={busy}
       className={cx("text-xs font-medium text-muted transition-colors hover:text-red-500", className)}
       title="Remove line"

@@ -9,7 +9,8 @@ import { cx } from "./ui";
 export default function LoginForm({ initialError, next }: { initialError?: string; next?: string }) {
   const router = useRouter();
   const supabase = createClient();
-  const dest = next && next.startsWith("/") ? next : "/";
+  // Internal paths only — reject protocol-relative "//evil.com" (matches the server safeNext guards).
+  const dest = next && next.startsWith("/") && !next.startsWith("//") ? next : "/";
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

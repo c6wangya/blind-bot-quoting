@@ -35,9 +35,9 @@ export default function Configurator({
 }) {
   const router = useRouter();
 
-  // Seam for upstream-design import. No-op today (see lib/import.ts): returns {}, so the
-  // initial state below falls back to product defaults. When real mapping lands, these
-  // prefilled values flow straight into the form with no further wiring.
+  // Best-effort prefill from the carried-over upstream design (see lib/import.ts). Only
+  // cleanly-mappable, product-valid fields are returned; the initial state below falls
+  // back to product defaults for everything else.
   const prefill = mapImportedConfig(imported?.cfg ?? {}, product, line);
 
   // Route the carried-over image through our own origin so the upstream host is hidden.
