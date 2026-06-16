@@ -58,11 +58,11 @@ export default async function HandoffChoosePage({
           <h1 className="text-xl font-semibold tracking-tight text-ink">Continue to {BRAND.name}?</h1>
           <p className="mt-2 text-sm leading-relaxed text-muted">
             <span className="font-medium text-ink-soft">{BRAND.name}</span> is a separate quoting
-            service. We’ll bring your BlindBot design over and sign you in as{" "}
+            service. We’ll bring your BlindBot design over and continue as{" "}
             <span className="font-medium text-ink">{sessionEmail}</span>.
           </p>
           <div className="mt-4 rounded-xl bg-[#f1efe9] px-4 py-3 text-left text-[12.5px] text-ink-soft">
-            Your BlindBot password is never shared. You’ll only see this once.
+            BlindBot will share your email with {BRAND.name}. You’ll only see this once.
           </div>
           <div className="mt-6">
             <ConsentContinueButton next={next} brand={BRAND.name} />
@@ -114,7 +114,7 @@ export default async function HandoffChoosePage({
         </div>
 
         <p className="border-t border-line bg-[#fafaf7] px-7 py-4 text-center text-[11px] leading-relaxed text-muted">
-          {BRAND.name} is a separate service. Your BlindBot password is never shared.
+          BlindBot will share your email with {BRAND.name} to continue.
         </p>
       </Card>
     </div>
