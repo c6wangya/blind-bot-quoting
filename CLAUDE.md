@@ -7,35 +7,85 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-npm install          # required before anything (also installs node_modules/next/dist/docs/, see AGENTS.md)
-npm run dev          # dev server at http://localhost:3000
+npm install          # required first (also installs node_modules/next/dist/docs/, see AGENTS.md)
+npm run dev -- -p 3001   # dev server — use port 3001 (Google OAuth / Supabase redirect URLs are configured for it)
 npm run build        # production build
 npm run lint         # eslint
 ```
 
-There is no test suite. The SQLite database is created and seeded automatically at `data/app.db` on first request; delete the `data/` folder to reset to a fresh demo state.
+There is **no test suite**. The data layer is **Supabase/Postgres** — the app needs `.env.local`
+(see `.env.example` and `DEPLOY.md`); there is no local-file DB fallback. Demo data
+(2 sample quotes/orders + pricing versions) is seeded into Supabase on first request when the
+tables are empty. To reset, clear the rows (`node scripts/db-admin.mjs reseed`).
 
 ## What this is
 
-A working prototype of a B2B quoting & pre-order portal for window treatments (Linear ticket THE-772): catalog → configure → SVG render → auto-quote → pre-order → supplier Excel → status tracking to delivery. Auth, billing, and real supplier/logistics integrations are intentionally out of scope — the Supplier Console page (`app/supplier`) simulates the supplier side.
+A B2B quoting & pre-order portal for window treatments (Linear THE-772): catalog → configure →
+auto-quote → pre-order → bilingual supplier Excel → status tracking to delivery. It is
+white-labeled (default brand "Loom & Shade") and sits downstream of the **blind-bot** visualizer,
+which hands off "Get a quote" designs. Real supplier/logistics integrations are simulated by the
+admin-only Supplier Console (`app/(portal)/supplier`).
 
 ## Architecture
 
-Next.js 16 App Router (no `src/` dir — `app/`, `components/`, `lib/` at the root, imported via `@/`). React 19, TypeScript, Tailwind v4 (design tokens in `app/globals.css`, shared primitives in `components/ui.tsx`).
+Next.js 16 App Router (no `src/` — `app/`, `components/`, `lib/` at root, imported via `@/`).
+React 19, TypeScript, Tailwind v4 (tokens in `app/globals.css`, primitives in `components/ui.tsx`).
+Routes live under the `app/(portal)/` group (sidebar layout); `app/login`, `app/handoff`, and
+`app/api` are outside it.
 
-**Data flow:** Server components import query helpers from `lib/db.ts` directly. Client components (`Configurator`, `QuoteActions`, `SupplierActions`) mutate through the API routes under `app/api/`. The client is never trusted with prices — `POST /api/quote-items` re-prices server-side before storing.
+**Data layer — Supabase/Postgres.** Two clients in `lib/supabase/`:
+- `admin.ts` → `admin()` = service_role (bypasses RLS). Used for seed, ref-numbering, system
+  reads (pricing), back-office (Supplier Console), and ownership-guard lookups.
+- `server.ts` → `createClient()` = cookie/JWT client (subject to RLS). For retailer-facing
+  reads/writes so the DB enforces ownership.
 
-- `lib/db.ts` — the single DB access layer: lazy singleton (`db()`) that opens SQLite via better-sqlite3, runs schema migration and demo seed on first call, and exports all query helpers. No ORM; raw prepared statements.
-- `lib/catalog-data.ts` — the catalog (product lines, products, colors, pricing configs) is **static TypeScript data, not DB rows**. Only pricing versions, quotes, orders, and order events live in SQLite.
-- `lib/pricing.ts` — pure, isomorphic quote engine. Two pricing kinds: `roller-grid` (size-band price grid) and `drapery-formula` (cut-and-make from fabric math). Pricing configs are versioned rows in `pricing_versions`; each quote line snapshots its full `config` + computed `computation` + pricing version, so old quotes are immune to pricing changes.
-- Producibility is data, not code: each product's `validOpacities` constrains the configurator, and `validateConfig` enforces it server-side (`POST /api/price` returns 422 on non-producible combos).
-- **Order state machine:** `submitted → acknowledged → in_production → shipped → in_transit → delivered`. Transitions go through `POST /api/orders/:id/advance`, which guards preconditions (409 on out-of-order actions) and writes an `order_events` row for every transition — events are the retailer-facing update channel (timeline, dashboard feed).
-- `lib/excel.ts` — bilingual (中文/EN) supplier order workbook via exceljs, served by `GET /api/orders/:id/excel`.
-- `components/renders.tsx` — parameterized SVG product renders (roller / drapery / swatch); the stand-in for a real visualization engine.
+`lib/db.ts` is the single access layer: every retailer query helper takes an optional Supabase
+client defaulting to `admin()`; retailer call sites pass `userClient()` (from `lib/auth/user.ts`)
+so **RLS applies**. RLS policies live in `supabase/migrations/0001_rls.sql` (must be run once in
+the Supabase SQL editor — see `DEPLOY.md`). Ownership: `quotes.owner_id` (NULL = public demo);
+children inherit via the parent quote; admins (`profiles.role`) see all. App-layer guards
+(`canAccessOwned`, `requireAdminPage` in `lib/auth/user.ts`) are kept as defense-in-depth.
 
-`next.config.ts` marks `better-sqlite3` and `exceljs` as `serverExternalPackages` — keep them out of client bundles.
+**Catalog (static TS, real data).**
+- `lib/catalog-data.ts` — full products (Roller Shade + Drapery), imported from blind-bot beta.
+  Per-line opacity vocab + option groups; pricing configs.
+- `lib/accessories-data.ts` — A-OK parts (motors/controls/power), imported from the 2025 pricing
+  PDF. 3-level browse (brand → category → model) at `app/(portal)/catalog/accessories`. Motor
+  categories are orderable; others reference-only.
+- Real product photos live in `public/catalog/`; the `imageUrl`/category image is shown (the old
+  programmatic SVG `components/renders.tsx` Swatch is only a small fallback).
+
+**Pricing & quotes.** `lib/pricing.ts` — pure quote engine, kinds `roller-grid` and
+`drapery-formula`; versioned `pricing_versions` rows; each quote line snapshots its `config` +
+`computation` + version. Accessories are fixed-price quote lines (`lineId="accessory"`,
+`AccessoryConfig`, see `isAccessoryConfig`), so they flow through the same pipeline. The client is
+never trusted with prices — `POST /api/quote-items` re-prices server-side. Producibility is data
+(`validOpacities` + `validateConfig`; `POST /api/price` returns 422 on non-producible combos).
+
+**Order state machine:** `submitted → acknowledged → in_production → shipped → in_transit →
+delivered`, via `POST /api/orders/:id/advance` (admin; 409 on out-of-order). Every transition
+writes an `order_events` row — the retailer-facing update channel. `lib/excel.ts` builds the
+bilingual (中文/EN) supplier workbook (`GET /api/orders/:id/excel`).
+
+**Auth & blind-bot handoff.**
+- Supabase auth: Google + email/password + the blind-bot handoff. `lib/auth/blindbot-handoff.ts`
+  verifies a signed HMAC token (shared `QUOTE_HANDOFF_SECRET`) and provisions/links a quote
+  account (`completeBlindbotHandoff`).
+- Inbound "Get a quote" → `POST /api/handoff` (cross-site, so it can't read the session cookie):
+  it verifies the token and 303s to the same-origin `app/handoff/choose`, which reads the session
+  and decides — no session → `/login`; same email → first-time consent then silent
+  (`user_metadata.bb_handoff_consented`); different email → account chooser.
+- Reverse "Continue with BlindBot" (on `/login`) → bounces to blind-bot's `/authorize-quote`
+  consent page → `GET /api/handoff/callback` completes the handoff.
+- `lib/site-url.ts` `publicOrigin(req)` builds redirect origins from `x-forwarded-*` (behind a
+  proxy like Render, `req.url` is the internal port).
+- `lib/brand.ts` — white-label brand from `NEXT_PUBLIC_BRAND_*`.
+
+`next.config.ts` marks `exceljs` as a `serverExternalPackage` (keep it out of client bundles).
 
 ## Conventions
 
-- Route handler and page props are async in this Next.js version: `params` and `searchParams` are `Promise`s that must be awaited.
-- Domain types are centralized in `lib/types.ts`; DB rows with JSON columns (`config`, `computation`, pricing `config`) are parsed at the `lib/db.ts` boundary so everything above it works with typed objects.
+- Route handler / page props are async: `params` and `searchParams` are `Promise`s — await them.
+- Domain types are centralized in `lib/types.ts`; DB rows use snake_case→camelCase column aliases
+  in `lib/db.ts` so everything above works with the camelCase domain types.
+- Feature work follows a spec-first flow: design specs + plans under `docs/superpowers/`.
