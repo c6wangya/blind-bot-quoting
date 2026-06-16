@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { RemoveItemButton, SubmitPreOrderButton } from "@/components/QuoteActions";
+import { DeleteDraftButton, RemoveItemButton, SubmitPreOrderButton } from "@/components/QuoteActions";
 import { Swatch } from "@/components/renders";
 import { Badge, Card, EmptyState, LinkButton, PageHeader } from "@/components/ui";
 import { canAccessOwned, requireUserId, userClient } from "@/lib/auth/user";
@@ -164,7 +164,10 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
               </Card>
 
               {quote.status === "draft" ? (
-                <SubmitPreOrderButton quoteId={quote.id} total={usd(quote.total)} />
+                <>
+                  <SubmitPreOrderButton quoteId={quote.id} total={usd(quote.total)} />
+                  <DeleteDraftButton quoteId={quote.id} />
+                </>
               ) : (
                 order && (
                   <LinkButton href={`/orders/${order.id}`} className="w-full justify-center">

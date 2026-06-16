@@ -326,6 +326,13 @@ export async function removeQuoteItem(itemId: number, sb: SupabaseClient = admin
   if (error) throw error;
 }
 
+/** Delete a draft quote and all its items. Items first (in case the FK isn't cascade). */
+export async function deleteQuote(quoteId: number, sb: SupabaseClient = admin()): Promise<void> {
+  await sb.from("quote_items").delete().eq("quote_id", quoteId);
+  const { error } = await sb.from("quotes").delete().eq("id", quoteId);
+  if (error) throw error;
+}
+
 /**
  * Add an A-OK accessory (e.g. a motor) to a quote — fixed price, no dimensions/config.
  * Stored in the same quote_items table as full products so it flows through the same
