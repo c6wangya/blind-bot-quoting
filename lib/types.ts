@@ -84,6 +84,15 @@ export interface ItemConfig {
   dimensions: Record<string, number>;
 }
 
+/** Config stored on an accessory (e.g. A-OK motor) quote line — no dimensions/options. */
+export interface AccessoryConfig {
+  kind: "accessory";
+  sku: string;
+  name: string;
+  brand: string;
+  category: string;
+}
+
 export interface BreakdownLine {
   label: string;
   detail?: string;
@@ -105,11 +114,16 @@ export interface QuoteItemRow {
   id: number;
   quoteId: number;
   productId: string;
-  lineId: ProductLineId;
+  lineId: ProductLineId | "accessory";
   qty: number;
-  config: ItemConfig;
+  config: ItemConfig | AccessoryConfig;
   computation: QuoteComputation;
   createdAt: string;
+}
+
+/** True for an accessory (e.g. A-OK motor) quote line. */
+export function isAccessoryConfig(c: ItemConfig | AccessoryConfig): c is AccessoryConfig {
+  return (c as AccessoryConfig).kind === "accessory";
 }
 
 export interface QuoteRow {

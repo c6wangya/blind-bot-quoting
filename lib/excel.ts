@@ -2,6 +2,7 @@ import ExcelJS from "exceljs";
 import { BRAND } from "./brand";
 import { OPACITY_LABELS } from "./catalog-data";
 import { getLine, getOrder, getProduct } from "./db";
+import { isAccessoryConfig } from "./types";
 
 const HEADER_FILL: ExcelJS.Fill = {
   type: "pattern",
@@ -94,38 +95,44 @@ export async function buildOrderWorkbook(orderId: number): Promise<{ buffer: Buf
   headerRow.height = 30;
 
   order.quote.items.forEach((item, idx) => {
-    const product = getProduct(item.productId)!;
-    const line = getLine(item.lineId)!;
-    const color = product.colors.find((c) => c.id === item.config.colorId);
-    const dims = item.config.dimensions;
-    const width = dims.width ?? dims.rodWidth ?? 0;
-    const height = dims.height ?? 0;
-
-    const optionText = line.optionGroups
-      .map((g) => {
-        const picked = g.options.find((o) => o.id === item.config.options[g.key]);
-        return picked ? `${g.label}: ${picked.name}` : null;
-      })
-      .filter(Boolean)
-      .join("\n");
     const factsText = item.computation.facts.map((f) => `${f.label}: ${f.value}`).join("\n");
-
     const row = ws.getRow(headerRowIdx + 1 + idx);
-    const values = [
-      idx + 1,
-      line.name,
-      product.sku,
-      product.name,
-      color?.name ?? item.config.colorId,
-      OPACITY_LABELS[item.config.opacityId],
-      width,
-      height,
-      optionText,
-      factsText,
-      item.qty,
-      item.computation.unitPrice,
-      "",
-    ];
+
+    let values: (string | number)[];
+    if (isAccessoryConfig(item.config)) {
+      // Accessory (A-OK motor): no pattern/color/dimensions/options.
+      const cfg = item.config;
+      values = [idx + 1, cfg.category, cfg.sku, cfg.name, "—", "—", "", "", `Brand: ${cfg.brand}`, factsText, item.qty, item.computation.unitPrice, ""];
+    } else {
+      const product = getProduct(item.productId)!;
+      const line = getLine(item.lineId as string)!;
+      const cfg = item.config;
+      const color = product.colors.find((c) => c.id === cfg.colorId);
+      const width = cfg.dimensions.width ?? cfg.dimensions.rodWidth ?? 0;
+      const height = cfg.dimensions.height ?? 0;
+      const optionText = line.optionGroups
+        .map((g) => {
+          const picked = g.options.find((o) => o.id === cfg.options[g.key]);
+          return picked ? `${g.label}: ${picked.name}` : null;
+        })
+        .filter(Boolean)
+        .join("\n");
+      values = [
+        idx + 1,
+        line.name,
+        product.sku,
+        product.name,
+        color?.name ?? cfg.colorId,
+        OPACITY_LABELS[cfg.opacityId],
+        width,
+        height,
+        optionText,
+        factsText,
+        item.qty,
+        item.computation.unitPrice,
+        "",
+      ];
+    }
     values.forEach((v, i) => {
       const cell = row.getCell(i + 1);
       cell.value = v as ExcelJS.CellValue;

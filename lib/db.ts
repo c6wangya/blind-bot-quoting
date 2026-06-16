@@ -6,9 +6,16 @@ import {
   ROLLER_PRICING_V2,
 } from "./catalog-data";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  ACCESSORY_BRAND,
+  ACCESSORY_PRICING_VERSION,
+  getAccessoryCategory,
+  type AccessoryModel,
+} from "./accessories-data";
 import { computeQuote } from "./pricing";
 import { admin } from "./supabase/admin";
 import type {
+  AccessoryConfig,
   ItemConfig,
   OrderEventRow,
   OrderRow,
@@ -317,6 +324,46 @@ export async function addQuoteItem(
 export async function removeQuoteItem(itemId: number, sb: SupabaseClient = admin()): Promise<void> {
   const { error } = await sb.from("quote_items").delete().eq("id", itemId);
   if (error) throw error;
+}
+
+/**
+ * Add an A-OK accessory (e.g. a motor) to a quote — fixed price, no dimensions/config.
+ * Stored in the same quote_items table as full products so it flows through the same
+ * quote → pre-order → Excel → tracking pipeline. lineId = "accessory".
+ */
+export async function addAccessoryItem(
+  quoteId: number,
+  model: AccessoryModel,
+  qty: number,
+  sb: SupabaseClient = admin()
+): Promise<QuoteItemRow> {
+  const category = getAccessoryCategory(model.categoryId);
+  const config: AccessoryConfig = {
+    kind: "accessory",
+    sku: model.sku,
+    name: model.name,
+    brand: ACCESSORY_BRAND.name,
+    category: category?.name ?? model.categoryId,
+  };
+  const price = model.price ?? 0;
+  const computation: QuoteComputation = {
+    unitPrice: price,
+    currency: "USD",
+    lines: [{ label: "Unit price", detail: model.sku, amount: price }],
+    facts: [
+      { label: "Brand", value: ACCESSORY_BRAND.name },
+      { label: "Model #", value: model.sku },
+    ],
+    pricingVersion: ACCESSORY_PRICING_VERSION,
+  };
+  const { data, error } = await sb
+    .from("quote_items")
+    .insert({ quote_id: quoteId, product_id: model.id, line_id: "accessory", qty, config, computation })
+    .select(ITEM_COLS)
+    .single();
+  if (error) throw error;
+  await sb.from("quotes").update({ updated_at: new Date().toISOString() }).eq("id", quoteId);
+  return data as unknown as QuoteItemRow;
 }
 
 export async function getQuotes(

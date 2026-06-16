@@ -4,7 +4,9 @@ import { Swatch } from "@/components/renders";
 import { Badge, Card, cx, PageHeader, StatusBadge } from "@/components/ui";
 import { canAccessOwned, requireUserId, userClient } from "@/lib/auth/user";
 import { getLine, getOrder, getOrderOwnerId, getProduct } from "@/lib/db";
+import { accessoryImage, getAccessoryModel } from "@/lib/accessories-data";
 import { describeConfig } from "@/lib/describe";
+import { isAccessoryConfig } from "@/lib/types";
 import { fmtDate, fmtDateTime, ORDER_STATUS_META, usd } from "@/lib/format";
 import { ORDER_STATUSES } from "@/lib/types";
 
@@ -88,8 +90,35 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
             </div>
             <ul className="divide-y divide-line/70">
               {order.quote.items.map((item) => {
+                if (isAccessoryConfig(item.config)) {
+                  const cfg = item.config;
+                  const acc = getAccessoryModel(item.productId);
+                  return (
+                    <li key={item.id} className="flex items-center gap-4 px-5 py-3.5">
+                      {acc && (
+                        /* eslint-disable-next-line @next/next/no-img-element */
+                        <img src={accessoryImage(acc)} alt={cfg.name} className="size-11 shrink-0 rounded-lg bg-[#0e0e10] object-contain p-1" />
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <div className="text-[13.5px] font-semibold text-ink">
+                          {cfg.name}
+                          <span className="ml-2 font-normal text-muted">{cfg.brand} · {cfg.sku}</span>
+                        </div>
+                        <div className="mt-0.5 truncate text-xs text-muted">{cfg.category}</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-sm font-semibold tabular-nums text-ink">
+                          {usd(item.computation.unitPrice * item.qty)}
+                        </div>
+                        <div className="text-[11px] text-muted">
+                          {item.qty} × {usd(item.computation.unitPrice)}
+                        </div>
+                      </div>
+                    </li>
+                  );
+                }
                 const product = getProduct(item.productId)!;
-                const line = getLine(item.lineId)!;
+                const line = getLine(item.lineId as string)!;
                 const desc = describeConfig(line, product, item.config);
                 return (
                   <li key={item.id} className="flex items-center gap-4 px-5 py-3.5">

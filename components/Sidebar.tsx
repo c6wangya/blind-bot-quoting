@@ -11,7 +11,8 @@ const NAV = [
     section: "Retailer Portal",
     items: [
       { href: "/", label: "Dashboard", icon: "▦" },
-      { href: "/catalog", label: "Catalog", icon: "❖" },
+      { href: "/catalog", label: "Catalog · Products", icon: "❖" },
+      { href: "/catalog/accessories", label: "Catalog · Accessories", icon: "⚙" },
       { href: "/quotes", label: "Quotes", icon: "≣" },
       { href: "/orders", label: "Pre-Orders", icon: "⬡" },
     ],
@@ -71,7 +72,11 @@ export default function Sidebar({
             <div className="space-y-0.5">
               {group.items.map((item) => {
                 const active =
-                  item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+                  item.href === "/"
+                    ? pathname === "/"
+                    : item.href === "/catalog"
+                      ? pathname === "/catalog" || pathname.startsWith("/configure")
+                      : pathname.startsWith(item.href);
                 return (
                   <Link
                     key={item.href}

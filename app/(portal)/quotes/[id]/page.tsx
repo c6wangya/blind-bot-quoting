@@ -5,8 +5,10 @@ import { Swatch } from "@/components/renders";
 import { Badge, Card, EmptyState, LinkButton, PageHeader } from "@/components/ui";
 import { canAccessOwned, requireUserId, userClient } from "@/lib/auth/user";
 import { getLine, getOrderRefByQuote, getProduct, getQuote, getQuoteOwnerId } from "@/lib/db";
+import { accessoryImage, getAccessoryModel } from "@/lib/accessories-data";
 import { describeConfig } from "@/lib/describe";
 import { fmtDate, usd } from "@/lib/format";
+import { isAccessoryConfig } from "@/lib/types";
 
 export default async function QuoteDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -45,8 +47,47 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="space-y-4 lg:col-span-2">
             {quote.items.map((item) => {
+              // Accessory line (A-OK motor): fixed price, no color/dimensions.
+              if (isAccessoryConfig(item.config)) {
+                const cfg = item.config;
+                const acc = getAccessoryModel(item.productId);
+                return (
+                  <Card key={item.id} className="px-5 py-4">
+                    <div className="flex gap-4">
+                      {acc && (
+                        /* eslint-disable-next-line @next/next/no-img-element */
+                        <img src={accessoryImage(acc)} alt={cfg.name} className="size-[72px] shrink-0 rounded-2xl bg-[#0e0e10] object-contain p-1.5" />
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <div className="text-[15px] font-semibold text-ink">{cfg.name}</div>
+                            <div className="mt-0.5 text-xs text-muted">
+                              {cfg.brand} · {cfg.category} · {cfg.sku}
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="font-semibold tabular-nums text-ink">
+                              {usd(item.computation.unitPrice * item.qty)}
+                            </div>
+                            <div className="text-xs text-muted">
+                              {item.qty} × {usd(item.computation.unitPrice)}
+                            </div>
+                          </div>
+                        </div>
+                        {quote.status === "draft" && (
+                          <div className="mt-2 flex justify-end">
+                            <RemoveItemButton itemId={item.id} />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </Card>
+                );
+              }
+
               const product = getProduct(item.productId)!;
-              const line = getLine(item.lineId)!;
+              const line = getLine(item.lineId as string)!;
               const desc = describeConfig(line, product, item.config);
               return (
                 <Card key={item.id} className="px-5 py-4">
