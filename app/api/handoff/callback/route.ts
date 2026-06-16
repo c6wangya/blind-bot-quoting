@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { completeBlindbotHandoff } from "@/lib/auth/blindbot-handoff";
+import { publicOrigin } from "@/lib/site-url";
 
 /**
  * Reverse "Continue with BlindBot" callback (login-initiated SSO). blind-bot's
@@ -12,7 +13,8 @@ import { completeBlindbotHandoff } from "@/lib/auth/blindbot-handoff";
  * 5-minute expiry.
  */
 export async function GET(req: Request) {
-  const { searchParams, origin } = new URL(req.url);
+  const { searchParams } = new URL(req.url);
+  const origin = publicOrigin(req);
   const token = searchParams.get("token") ?? "";
   const rawNext = searchParams.get("next");
   const next = rawNext && rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : "/";

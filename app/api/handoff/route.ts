@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { publicOrigin } from "@/lib/site-url";
 
 // Quote owns the catalog: map blind-bot's QuoteLine to the default product line page.
 const QUOTE_DEFAULT_PRODUCT: Record<string, string> = {
@@ -28,7 +29,7 @@ export async function POST(req: Request) {
   if (cfg) params.set("cfg", cfg);
   if (line) params.set("line", line);
   const dest = `/configure/${product}?${params.toString()}`;
-  const origin = new URL(req.url).origin;
+  const origin = publicOrigin(req);
 
   // 303: turn the cross-origin POST into a GET of /login, carrying the design in `next`.
   return NextResponse.redirect(`${origin}/login?next=${encodeURIComponent(dest)}`, { status: 303 });
