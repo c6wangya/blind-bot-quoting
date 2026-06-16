@@ -1,6 +1,6 @@
 // One-off DB admin for the quote Supabase project. Loads .env.local, then:
 //   node scripts/db-admin.mjs inspect   — counts + product ids referenced + owner breakdown
-//   node scripts/db-admin.mjs reseed    — wipe demo+seed tables so lib/db.ts reseeds fresh
+//   node scripts/db-admin.mjs reseed    — wipe demo+seed tables so lib/db reseeds fresh
 import { readFileSync } from "node:fs";
 import { createClient } from "@supabase/supabase-js";
 
@@ -36,7 +36,7 @@ async function reseed() {
     const { error } = await sb.from(t).delete().neq("id", 0);
     console.log(`  cleared ${t}: ${error ? "ERR " + error.message : "ok"}`);
   }
-  console.log("done — lib/db.ts will reseed on next request");
+  console.log("done — lib/db will reseed on next request");
 }
 
 await (cmd === "reseed" ? reseed() : inspect());
