@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { verifyHandoffToken } from "@/lib/auth/blindbot-handoff";
+import { createClient } from "@/lib/supabase/server";
 import { publicOrigin } from "@/lib/site-url";
 
 // Quote owns the catalog: map blind-bot's QuoteLine to the default product line page.
@@ -8,17 +10,19 @@ const QUOTE_DEFAULT_PRODUCT: Record<string, string> = {
 };
 
 /**
- * Inbound "Get a quote" from blind-bot. Quote is a SEPARATE service, so we do NOT silently
- * create a quote session here. Instead the user lands on quote's own /login (carrying the
- * design via ?next=) and explicitly chooses how to continue — Continue with Google or
- * Continue with BlindBot. The BlindBot choice then completes the verified handoff via the
- * authorize page → /api/handoff/callback.
+ * Inbound "Get a quote" from blind-bot. Quote is a SEPARATE service with its own accounts,
+ * so we never silently sign anyone in. blind-bot POSTs the carried design plus a signed
+ * handoff token (when handoff is enabled) that carries the blind-bot user's email. We use
+ * it to decide where to land:
  *
- * If the visitor already has a quote session, /login forwards straight through to the
- * configurator, so returning users stay seamless; only signed-out users see the choice.
+ *  - no quote session            → /login (carrying the design) — pick how to continue
+ *  - signed in, SAME email        → straight through to the configurator
+ *  - signed in, DIFFERENT email   → account chooser (continue as current, or switch)
+ *  - no/invalid token             → /login (can't compare identities)
  */
 export async function POST(req: Request) {
   const form = await req.formData();
+  const token = String(form.get("token") ?? "");
   const line = String(form.get("line") ?? "");
   const img = String(form.get("img") ?? "");
   const cfg = String(form.get("cfg") ?? "");
@@ -30,7 +34,20 @@ export async function POST(req: Request) {
   if (line) params.set("line", line);
   const dest = `/configure/${product}?${params.toString()}`;
   const origin = publicOrigin(req);
+  const to = (path: string) => NextResponse.redirect(`${origin}${path}`, { status: 303 });
+  const loginDest = `/login?next=${encodeURIComponent(dest)}`;
 
-  // 303: turn the cross-origin POST into a GET of /login, carrying the design in `next`.
-  return NextResponse.redirect(`${origin}/login?next=${encodeURIComponent(dest)}`, { status: 303 });
+  const blindbotEmail = token ? verifyHandoffToken(token) : null;
+
+  const supabase = await createClient();
+  const sessionEmail = supabase ? (await supabase.auth.getUser()).data.user?.email ?? null : null;
+
+  // Not signed in (or can't compare): land on quote's own login, carrying the design.
+  if (!sessionEmail || !blindbotEmail) return to(loginDest);
+
+  // Same person on both services → straight through.
+  if (sessionEmail.toLowerCase() === blindbotEmail.toLowerCase()) return to(dest);
+
+  // Different account signed in to quote than the one coming from blind-bot → let the user choose.
+  return to(`/handoff/choose?next=${encodeURIComponent(dest)}&token=${encodeURIComponent(token)}`);
 }

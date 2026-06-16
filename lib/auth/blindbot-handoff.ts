@@ -10,7 +10,7 @@ import { ensureProfileLinked } from "@/lib/auth/profile";
  * QUOTE_HANDOFF_SECRET. Returns the email on success, or null (bad sig / expired / unset
  * secret). The raw token only carries an email + short expiry — it can't act on blind-bot.
  */
-function verifyHandoffToken(token: string): string | null {
+export function verifyHandoffToken(token: string): string | null {
   const secret = process.env.QUOTE_HANDOFF_SECRET;
   if (!secret) return null;
   const dot = token.indexOf(".");
