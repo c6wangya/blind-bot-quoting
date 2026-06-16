@@ -63,6 +63,10 @@ export async function completeBlindbotHandoff(token: string): Promise<boolean> {
     });
     if (otpErr) return false;
 
+    // This flow is itself an explicit "use BlindBot here" action, so mark handoff consent —
+    // future same-account handoffs then pass through silently (no repeat consent).
+    await supabase.auth.updateUser({ data: { bb_handoff_consented: true } }).catch(() => {});
+
     await ensureProfileLinked();
     return true;
   } catch {
