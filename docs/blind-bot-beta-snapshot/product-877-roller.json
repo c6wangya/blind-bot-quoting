@@ -1,0 +1,1031 @@
+{
+  "id": "prod-877",
+  "name": "Roller Shade",
+  "type": "product",
+  "productId": "877",
+  "categoryId": "a619768c-a7f7-4ee3-af61-392994f9145d",
+  "sortOrder": 3,
+  "description": "Roller shade",
+  "aiDescription": "product_type: Flat, single-plane textile panel wound around a horizontal top roller mechanism.; structural_geometry: Single planar sheet of flexible material with no pleats, cells, or folds, operating via vertical rolling action into a cylindrical coil at the head.; fabric_appearance: Flexible textile substrate with a woven structure ranging from tight, dense fiber arrangement to open, mesh-like grid, presenting a uniform surface texture.; visible_hardware: Rigid, weighted horizontal bottom rail attached to the fabric edge. Top roller assembly consisting of a cylindrical tube mechanism, with varying degrees of concealment by a rigid cassette or valance structure. No visible lift cords on the fabric face.; edges_and_details: Straight, clean vertical cut lines along side edges. Bottom edge terminated by a rigid horizontal bar that maintains fabric tension and flatness.; proportions: Extremely slim vertical profile when extended into a flat plane. Retracts into a compact cylindrical stack at the top headrail position.; mounting_topology: Top-mounted installation located at the head of the window opening, positioned either recessed within the frame or on the surface above the frame.",
+  "imageUrl": "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/chat-uploads/header-images/1771124295556_0_family-room-roller-shades.jpg",
+  "productFileUrl": "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/chat-uploads/product-files/1771124392533_0_roller_shade_product.pdf",
+  "galleryImages": [
+    "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/chat-uploads/gallery-images/1771124437368_0_677c02153ab7e60a379153e4_676509bfd99af4f4636594a9_1.jpg",
+    "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/chat-uploads/gallery-images/1771124439904_0_contemporary-roller-blinds-1200x800.jpg",
+    "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/chat-uploads/gallery-images/1771124443512_0_graber-blinds-roller-shade-60004.jpg",
+    "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/chat-uploads/gallery-images/1771124445429_0_HDDesignerRollersittingroom_1200x.jpg",
+    "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/chat-uploads/gallery-images/1771124447050_0_modern_farmhouse_roller_shades_with_an_outside_mount_interior_design.jpg"
+  ],
+  "restrictions": "",
+  "createdAt": "2026-03-29T09:28:19.786246+00:00",
+  "updatedAt": "2026-06-11T14:21:36.966772+00:00",
+  "status": "active",
+  "publishedAt": "2026-05-22T13:23:45.054+00:00",
+  "archivedAt": null,
+  "archiveNote": null,
+  "globalSubcategoryId": 1,
+  "subcategoryName": "Roller Shade",
+  "globalCategoryName": "Shade",
+  "variationSchemaId": 150,
+  "variationsJson": {
+    "color": {
+      "options": [
+        {
+          "hex": "#FFFFFF",
+          "label": "white",
+          "value": "white",
+          "var_opt_id": ""
+        },
+        {
+          "hex": "#FFFDD0",
+          "meta": {
+            "under_testing": true
+          },
+          "label": "Cream",
+          "value": "cream",
+          "var_opt_id": ""
+        },
+        {
+          "hex": "#D2B48C",
+          "meta": {
+            "under_testing": true
+          },
+          "label": "Tan",
+          "value": "tan",
+          "var_opt_id": ""
+        },
+        {
+          "hex": "#808080",
+          "label": "Gray",
+          "value": "gray",
+          "var_opt_id": ""
+        },
+        {
+          "hex": "#36454F",
+          "label": "Charcoal",
+          "value": "charcoal",
+          "var_opt_id": ""
+        },
+        {
+          "hex": "#000000",
+          "label": "black",
+          "value": "black",
+          "var_opt_id": ""
+        }
+      ],
+      "required": true,
+      "sort_order": 0,
+      "option_type": "color_swatch",
+      "display_name": "Color",
+      "_options_sync": false
+    },
+    "fabrics": {
+      "options": [
+        {
+          "hex": null,
+          "label": "Fabric",
+          "value": "Fabric",
+          "var_opt_id": "3d105f58-3fe7-40a3-8c6a-089cbc248406"
+        },
+        {
+          "hex": null,
+          "meta": {
+            "under_testing": true
+          },
+          "label": "Textured Materials",
+          "value": "Textured Materials",
+          "var_opt_id": "6197cce1-275e-4bbc-8b44-a84f3dc2afae"
+        }
+      ],
+      "required": false,
+      "sort_order": 1,
+      "option_type": "dropdown",
+      "display_name": "Fabrics",
+      "_options_sync": true
+    },
+    "control_type": {
+      "options": [
+        {
+          "hex": null,
+          "meta": {
+            "image_url": "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/product-gallery/variations/control_type/dbb038dbecc4c23fb877f10c2eb32022.jpg",
+            "description": "Manual: Bead chain on the side; absence of motorized components; simple operation."
+          },
+          "label": "Manual",
+          "value": "Manual",
+          "var_opt_id": "19301b99-3154-45fc-8c47-5f5245581f3b"
+        },
+        {
+          "hex": null,
+          "meta": {
+            "image_url": "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/product-gallery/variations/control_type/99492245a71d9af62ddcb7fd1a4ad955.jpg",
+            "description": "Motorized: Remote control operation; up/down and a \"my\" button; wall-mounted remote holder.",
+            "under_testing": true
+          },
+          "label": "Motorized",
+          "value": "Motorized",
+          "var_opt_id": "e399898b-3277-4e9a-a588-05bf432f6109"
+        },
+        {
+          "hex": null,
+          "meta": {
+            "image_url": "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/product-gallery/variations/control_type/9732187fd6ed4f03210a0385a6204387.jpg",
+            "description": "Cordless: No visible cords or strings; clean facade; smooth operation by hand; lift-from-bottom design."
+          },
+          "label": "Cordless",
+          "value": "Cordless",
+          "var_opt_id": "1335f550-3660-4c05-8df8-34e0774fe991"
+        }
+      ],
+      "required": false,
+      "sort_order": 2,
+      "option_type": "dropdown",
+      "display_name": "Control Type",
+      "_options_sync": true
+    },
+    "installation": {
+      "options": [
+        {
+          "hex": null,
+          "meta": {
+            "image_url": "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/product-gallery/variations/installation/ba1c448261499225f57c436028d7c0b9.jpg",
+            "description": "Inside Mount: Mounted inside the window frame; snug fit; clean lines; minimal projection.",
+            "under_testing": true
+          },
+          "label": "Inside Mount",
+          "value": "Inside Mount",
+          "var_opt_id": "f908bf45-39ac-45b4-8c3f-9fb00d0bd76f"
+        },
+        {
+          "hex": null,
+          "meta": {
+            "image_url": "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/product-gallery/variations/installation/db0137f8ae07493232d731d650ca774e.jpg",
+            "description": "Outside Mount: covers entire window plus trim; overlaps the window frame; extends beyond the window opening.",
+            "under_testing": true
+          },
+          "label": "Outside Mount",
+          "value": "Outside Mount",
+          "var_opt_id": "ddd8e677-a821-47a1-acbc-bd1498d90698"
+        },
+        {
+          "hex": null,
+          "meta": {
+            "under_testing": true
+          },
+          "label": "Ceiling Mount",
+          "value": "Ceiling Mount",
+          "var_opt_id": "6cd1cadd-e4f5-41e5-b3e5-30cce8c7ca3c"
+        }
+      ],
+      "required": false,
+      "sort_order": 3,
+      "option_type": "dropdown",
+      "display_name": "Installation",
+      "_options_sync": true
+    },
+    "transparency": {
+      "options": [
+        {
+          "hex": null,
+          "meta": {
+            "image_url": "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/product-gallery/variations/transparency/2992e67145a3820bc7aa3cb7170d7b18.jpg",
+            "description": "Glare Reduction: Privacy; significant diffusion; UV protection.",
+            "under_testing": true
+          },
+          "label": "Light Filtering",
+          "value": "Light Filtering",
+          "var_opt_id": "47d54d10-5b95-44c3-9476-e5bfeb6544a6"
+        },
+        {
+          "hex": null,
+          "meta": {
+            "image_url": "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/product-gallery/variations/transparency/da9c3bdd38fedea7e9516a8b1d5bea96.webp",
+            "description": "Opaque: near-zero transmission; total privacy; superior glare reduction; UV blocking."
+          },
+          "label": "Blackout",
+          "value": "Blackout",
+          "var_opt_id": "fe360d16-4426-46d7-ad45-6c601c76a680"
+        },
+        {
+          "hex": null,
+          "meta": {
+            "image_url": "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/product-gallery/variations/transparency/ea0d07e3933f48b5f73a9c84420b24aa.jpg",
+            "description": "Privacy: near-zero transmission; high opacity; blocks outdoor viewing; increased privacy."
+          },
+          "label": "Privacy",
+          "value": "Privacy",
+          "var_opt_id": "7cb51f4d-64aa-4f2c-82d6-ac718d287710"
+        },
+        {
+          "hex": null,
+          "meta": {
+            "image_url": "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/product-gallery/variations/transparency/11f7088bf60d8441b969d824a2a629ec.jpg",
+            "description": "Sheer: High transmission; minimal privacy; reduced glare; low UV blockage."
+          },
+          "label": "Sheer",
+          "value": "Sheer",
+          "var_opt_id": "922969d7-ddab-427e-a3f6-4291a36fd0a1"
+        }
+      ],
+      "required": true,
+      "sort_order": 4,
+      "option_type": "dropdown",
+      "display_name": "Transparency",
+      "_options_sync": true
+    },
+    "fabric_pattern": {
+      "options": [
+        {
+          "meta": {
+            "image_url": "https://hwyucxmmdqbvsiuuskfw.supabase.co/storage/v1/object/public/chat-uploads/pattern-artifacts/e975fbad-4835-46ad-a216-edeba89892a0/1780365443781_canonical-extract.png",
+            "opacities": [],
+            "swatch_height": 2,
+            "woven_texture": false,
+            "pattern_repeat": true,
+            "pattern_asset_id": "e975fbad-4835-46ad-a216-edeba89892a0",
+            "pattern_variants": [
+              {
+                "id": "9d405e68-1aec-8a97-8ce3-35f83173df11",
+                "url": "https://hwyucxmmdqbvsiuuskfw.supabase.co/storage/v1/object/public/chat-uploads/pattern-artifacts/e975fbad-4835-46ad-a216-edeba89892a0/manual/1778952313726_scale-anchor.png",
+                "error": null,
+                "label": "Manual",
+                "method": "scale_anchor_reference",
+                "preset": "precise",
+                "status": "ready",
+                "assetId": "e975fbad-4835-46ad-a216-edeba89892a0",
+                "modelId": null,
+                "clientId": "04abe46a-2cef-4619-8e9f-51de188bd938",
+                "cropWindow": {
+                  "rect": {
+                    "x": 539,
+                    "y": 228,
+                    "width": 507,
+                    "height": 217
+                  },
+                  "source": "sheet",
+                  "aspectRatio": "21:9",
+                  "scaleFactor": 3.1242603550295858
+                },
+                "derivation": {
+                  "kind": "diffusion_strip_to_sheet_to_scale_anchor",
+                  "sheet": {
+                    "url": "https://hwyucxmmdqbvsiuuskfw.supabase.co/storage/v1/object/public/chat-uploads/pattern-artifacts/e975fbad-4835-46ad-a216-edeba89892a0/1778854669894_scale-sheet.png",
+                    "modelId": "nano-banana-2-beta",
+                    "provider": "EVOLINK",
+                    "dimensions": {
+                      "width": 1584,
+                      "height": 672,
+                      "mimeType": "image/png"
+                    },
+                    "promptHash": "a43317ea13d16b2302e5fd1cc93ae7d0dcce6c2fbb990d5ce745c75110a3e4c0",
+                    "aspectRatio": "21:9",
+                    "promptVersion": "scale-sheet:v4"
+                  },
+                  "strip": {
+                    "url": "https://hwyucxmmdqbvsiuuskfw.supabase.co/storage/v1/object/public/chat-uploads/pattern-artifacts/e975fbad-4835-46ad-a216-edeba89892a0/1778854525983_scale-strip.png",
+                    "modelId": "nano-banana-2-beta",
+                    "provider": "EVOLINK",
+                    "dimensions": {
+                      "width": 352,
+                      "height": 2928,
+                      "mimeType": "image/png"
+                    },
+                    "promptHash": "59da65a31c970a669e1b56f92578dd29dbdca0ca347d3426f5c2d8b9931c1da1",
+                    "aspectRatio": "1:8",
+                    "promptVersion": "scale-strip:v4"
+                  },
+                  "cropWindow": {
+                    "rect": {
+                      "x": 539,
+                      "y": 228,
+                      "width": 507,
+                      "height": 217
+                    },
+                    "source": "sheet",
+                    "aspectRatio": "21:9",
+                    "scaleFactor": 3.1242603550295858
+                  },
+                  "scaleAnchor": {
+                    "url": "https://hwyucxmmdqbvsiuuskfw.supabase.co/storage/v1/object/public/chat-uploads/pattern-artifacts/e975fbad-4835-46ad-a216-edeba89892a0/manual/1778952313726_scale-anchor.png",
+                    "dimensions": {
+                      "width": 507,
+                      "height": 217,
+                      "mimeType": "image/png"
+                    },
+                    "aspectRatio": "21:9"
+                  }
+                },
+                "dimensions": {
+                  "width": 507,
+                  "height": 217,
+                  "mimeType": "image/png"
+                },
+                "motifScale": 1,
+                "promptHash": null,
+                "recipeHash": "086604ec382733863182f61be82a0f1eb5b5a30597ef7e40c81ef63ff785aa1c",
+                "scaleSheet": {
+                  "sheet": {
+                    "url": "https://hwyucxmmdqbvsiuuskfw.supabase.co/storage/v1/object/public/chat-uploads/pattern-artifacts/e975fbad-4835-46ad-a216-edeba89892a0/1778854669894_scale-sheet.png",
+                    "modelId": "nano-banana-2-beta",
+                    "provider": "EVOLINK",
+                    "dimensions": {
+                      "width": 1584,
+                      "height": 672,
+                      "mimeType": "image/png"
+                    },
+                    "promptHash": "a43317ea13d16b2302e5fd1cc93ae7d0dcce6c2fbb990d5ce745c75110a3e4c0",
+                    "aspectRatio": "21:9",
+                    "promptVersion": "scale-sheet:v4"
+                  },
+                  "strip": {
+                    "url": "https://hwyucxmmdqbvsiuuskfw.supabase.co/storage/v1/object/public/chat-uploads/pattern-artifacts/e975fbad-4835-46ad-a216-edeba89892a0/1778854525983_scale-strip.png",
+                    "modelId": "nano-banana-2-beta",
+                    "provider": "EVOLINK",
+                    "dimensions": {
+                      "width": 352,
+                      "height": 2928,
+                      "mimeType": "image/png"
+                    },
+                    "promptHash": "59da65a31c970a669e1b56f92578dd29dbdca0ca347d3426f5c2d8b9931c1da1",
+                    "aspectRatio": "1:8",
+                    "promptVersion": "scale-strip:v4"
+                  }
+                },
+                "productName": "Roller Shade",
+                "promptIntent": "scale_anchor_frequency_reference",
+                "promptVersion": "scale-anchor-reference:v1",
+                "recipeVersion": "pattern-variant-recipe:v1",
+                "referenceMode": "product_scale_anchor",
+                "renderStrategy": "roller_shade",
+                "scaleAnchorUrl": "https://hwyucxmmdqbvsiuuskfw.supabase.co/storage/v1/object/public/chat-uploads/pattern-artifacts/e975fbad-4835-46ad-a216-edeba89892a0/manual/1778952313726_scale-anchor.png",
+                "productCategory": "Shade",
+                "outputAspectRatio": "21:9",
+                "productSubcategory": "Roller Shade",
+                "sourceCanonicalUrl": "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/product-gallery/patterns/5ab409bc-afe6-4988-916e-07ce7bf2008a/fabric_pattern/1773713214316_tiger_cropped.jpg",
+                "visualFrequencyScore": null,
+                "productProfileVersion": "pattern-product-profiles:v2"
+              },
+              {
+                "id": "5560f064-22fc-0d24-30d5-f9d15d4053cd",
+                "url": "https://hwyucxmmdqbvsiuuskfw.supabase.co/storage/v1/object/public/chat-uploads/pattern-artifacts/e975fbad-4835-46ad-a216-edeba89892a0/1780365443781_canonical-extract.png",
+                "error": null,
+                "label": "Auto",
+                "method": "identity",
+                "preset": "auto",
+                "status": "ready",
+                "assetId": "e975fbad-4835-46ad-a216-edeba89892a0",
+                "modelId": "gpt-image-2",
+                "clientId": "04abe46a-2cef-4619-8e9f-51de188bd938",
+                "cropWindow": null,
+                "derivation": null,
+                "dimensions": {
+                  "width": 512,
+                  "height": 512
+                },
+                "motifScale": 1,
+                "promptHash": null,
+                "recipeHash": null,
+                "scaleSheet": null,
+                "productName": null,
+                "promptIntent": null,
+                "promptVersion": null,
+                "recipeVersion": null,
+                "referenceMode": "flat_visual_frequency",
+                "renderStrategy": null,
+                "scaleAnchorUrl": null,
+                "productCategory": null,
+                "outputAspectRatio": null,
+                "productSubcategory": null,
+                "sourceCanonicalUrl": "https://hwyucxmmdqbvsiuuskfw.supabase.co/storage/v1/object/public/chat-uploads/pattern-artifacts/e975fbad-4835-46ad-a216-edeba89892a0/1780365443781_canonical-extract.png",
+                "visualFrequencyScore": null,
+                "productProfileVersion": null
+              }
+            ],
+            "default_variant_id": "9dcec2cb-3379-ac5d-38f3-299b29f6643c",
+            "swatch_height_unit": "inch",
+            "default_variant_url": "https://hwyucxmmdqbvsiuuskfw.supabase.co/storage/v1/object/public/chat-uploads/pattern-artifacts/e975fbad-4835-46ad-a216-edeba89892a0/1780365443781_canonical-extract.png"
+          },
+          "label": "tiger",
+          "value": "tiger",
+          "var_opt_id": "",
+          "patternAssetId": "e975fbad-4835-46ad-a216-edeba89892a0",
+          "defaultVariantId": "9dcec2cb-3379-ac5d-38f3-299b29f6643c"
+        },
+        {
+          "meta": {
+            "image_url": "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/product-gallery/patterns/5ab409bc-afe6-4988-916e-07ce7bf2008a/fabric_pattern/1774472574884_test_1_cropped.jpg",
+            "pattern_asset_id": "a4dc2a31-d41f-4e71-bb28-1dfd43a7575e",
+            "pattern_variants": [
+              {
+                "id": "6ebc29bb-441e-9654-c03c-73e6d314aff7",
+                "url": "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/product-gallery/patterns/5ab409bc-afe6-4988-916e-07ce7bf2008a/fabric_pattern/1774472574884_test_1_cropped.jpg",
+                "error": null,
+                "label": "Small",
+                "method": "identity",
+                "preset": "small",
+                "status": "ready",
+                "assetId": "a4dc2a31-d41f-4e71-bb28-1dfd43a7575e",
+                "motifScale": 1
+              }
+            ],
+            "default_variant_id": "6ebc29bb-441e-9654-c03c-73e6d314aff7",
+            "default_variant_url": "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/product-gallery/patterns/5ab409bc-afe6-4988-916e-07ce7bf2008a/fabric_pattern/1774472574884_test_1_cropped.jpg"
+          },
+          "label": "test 1",
+          "value": "test 1",
+          "var_opt_id": "",
+          "patternAssetId": "a4dc2a31-d41f-4e71-bb28-1dfd43a7575e",
+          "defaultVariantId": "6ebc29bb-441e-9654-c03c-73e6d314aff7"
+        },
+        {
+          "meta": {
+            "image_url": "https://hwyucxmmdqbvsiuuskfw.supabase.co/storage/v1/object/public/product-gallery/patterns/04abe46a-2cef-4619-8e9f-51de188bd938/fabric_pattern/3660d417-a5c0-4fed-abd2-74d400e93705/1779035322307_Floral_test_cropped.png",
+            "swatch_height": 2,
+            "woven_texture": false,
+            "pattern_repeat": true,
+            "pattern_asset_id": "3660d417-a5c0-4fed-abd2-74d400e93705",
+            "pattern_variants": [
+              {
+                "id": "3bde10e4-0c28-4585-b6d5-c5f75de586de",
+                "url": "https://hwyucxmmdqbvsiuuskfw.supabase.co/storage/v1/object/public/product-gallery/patterns/04abe46a-2cef-4619-8e9f-51de188bd938/fabric_pattern/3660d417-a5c0-4fed-abd2-74d400e93705/1779035322307_Floral_test_cropped.png",
+                "error": null,
+                "label": "Small",
+                "method": "identity",
+                "preset": "small",
+                "status": "ready",
+                "assetId": "3660d417-a5c0-4fed-abd2-74d400e93705",
+                "modelId": null,
+                "clientId": "04abe46a-2cef-4619-8e9f-51de188bd938",
+                "cropWindow": null,
+                "derivation": null,
+                "dimensions": {
+                  "width": 291,
+                  "height": 294
+                },
+                "motifScale": 1,
+                "promptHash": null,
+                "recipeHash": null,
+                "scaleSheet": null,
+                "productName": null,
+                "promptIntent": null,
+                "promptVersion": null,
+                "recipeVersion": null,
+                "referenceMode": "flat_visual_frequency",
+                "renderStrategy": null,
+                "scaleAnchorUrl": null,
+                "productCategory": null,
+                "outputAspectRatio": null,
+                "productSubcategory": null,
+                "sourceCanonicalUrl": "https://hwyucxmmdqbvsiuuskfw.supabase.co/storage/v1/object/public/product-gallery/patterns/04abe46a-2cef-4619-8e9f-51de188bd938/fabric_pattern/3660d417-a5c0-4fed-abd2-74d400e93705/1779035322307_Floral_test_cropped.png",
+                "visualFrequencyScore": null,
+                "productProfileVersion": null
+              }
+            ],
+            "default_variant_id": "3bde10e4-0c28-4585-b6d5-c5f75de586de",
+            "swatch_height_unit": "inch",
+            "default_variant_url": "https://hwyucxmmdqbvsiuuskfw.supabase.co/storage/v1/object/public/product-gallery/patterns/04abe46a-2cef-4619-8e9f-51de188bd938/fabric_pattern/3660d417-a5c0-4fed-abd2-74d400e93705/1779035322307_Floral_test_cropped.png"
+          },
+          "label": "Floral test",
+          "value": "Floral test",
+          "var_opt_id": ""
+        },
+        {
+          "meta": {
+            "image_url": "https://hwyucxmmdqbvsiuuskfw.supabase.co/storage/v1/object/public/product-gallery/patterns/04abe46a-2cef-4619-8e9f-51de188bd938/fabric_pattern/6c1a19cc-a34a-479c-9012-8ebe7ef36697/1779112481599_anushka-_cropped.png",
+            "swatch_height": 2,
+            "woven_texture": false,
+            "pattern_repeat": true,
+            "pattern_asset_id": "6c1a19cc-a34a-479c-9012-8ebe7ef36697",
+            "pattern_variants": [
+              {
+                "id": "50833e02-4024-40d7-8b96-2c3c7a5afeef",
+                "url": "https://hwyucxmmdqbvsiuuskfw.supabase.co/storage/v1/object/public/product-gallery/patterns/04abe46a-2cef-4619-8e9f-51de188bd938/fabric_pattern/6c1a19cc-a34a-479c-9012-8ebe7ef36697/1779112481599_anushka-_cropped.png",
+                "error": null,
+                "label": "Small",
+                "method": "identity",
+                "preset": "small",
+                "status": "ready",
+                "assetId": "6c1a19cc-a34a-479c-9012-8ebe7ef36697",
+                "modelId": null,
+                "clientId": "04abe46a-2cef-4619-8e9f-51de188bd938",
+                "cropWindow": null,
+                "derivation": null,
+                "dimensions": {
+                  "width": 375,
+                  "height": 379
+                },
+                "motifScale": 1,
+                "promptHash": null,
+                "recipeHash": null,
+                "scaleSheet": null,
+                "productName": null,
+                "promptIntent": null,
+                "promptVersion": null,
+                "recipeVersion": null,
+                "referenceMode": "flat_visual_frequency",
+                "renderStrategy": null,
+                "scaleAnchorUrl": null,
+                "productCategory": null,
+                "outputAspectRatio": null,
+                "productSubcategory": null,
+                "sourceCanonicalUrl": "https://hwyucxmmdqbvsiuuskfw.supabase.co/storage/v1/object/public/product-gallery/patterns/04abe46a-2cef-4619-8e9f-51de188bd938/fabric_pattern/6c1a19cc-a34a-479c-9012-8ebe7ef36697/1779112481599_anushka-_cropped.png",
+                "visualFrequencyScore": null,
+                "productProfileVersion": null
+              }
+            ],
+            "default_variant_id": "50833e02-4024-40d7-8b96-2c3c7a5afeef",
+            "swatch_height_unit": "inch",
+            "default_variant_url": "https://hwyucxmmdqbvsiuuskfw.supabase.co/storage/v1/object/public/product-gallery/patterns/04abe46a-2cef-4619-8e9f-51de188bd938/fabric_pattern/6c1a19cc-a34a-479c-9012-8ebe7ef36697/1779112481599_anushka-_cropped.png"
+          },
+          "label": "anushka",
+          "value": "anushka-",
+          "var_opt_id": ""
+        },
+        {
+          "meta": {
+            "image_url": "https://hwyucxmmdqbvsiuuskfw.supabase.co/storage/v1/object/public/product-gallery/patterns/04abe46a-2cef-4619-8e9f-51de188bd938/fabric_pattern/0bde3c2d-3a98-4a9e-8920-1ad4d485334a/1779112521615_bandhani_cropped.png",
+            "swatch_height": 2,
+            "woven_texture": true,
+            "pattern_repeat": true,
+            "pattern_asset_id": "0bde3c2d-3a98-4a9e-8920-1ad4d485334a",
+            "pattern_variants": [
+              {
+                "id": "640fff6f-d798-4ee2-8634-84ac3e08441e",
+                "url": "https://hwyucxmmdqbvsiuuskfw.supabase.co/storage/v1/object/public/product-gallery/patterns/04abe46a-2cef-4619-8e9f-51de188bd938/fabric_pattern/0bde3c2d-3a98-4a9e-8920-1ad4d485334a/1779112521615_bandhani_cropped.png",
+                "error": null,
+                "label": "Small",
+                "method": "identity",
+                "preset": "small",
+                "status": "ready",
+                "assetId": "0bde3c2d-3a98-4a9e-8920-1ad4d485334a",
+                "modelId": null,
+                "clientId": "04abe46a-2cef-4619-8e9f-51de188bd938",
+                "cropWindow": null,
+                "derivation": null,
+                "dimensions": {
+                  "width": 377,
+                  "height": 382
+                },
+                "motifScale": 1,
+                "promptHash": null,
+                "recipeHash": null,
+                "scaleSheet": null,
+                "productName": null,
+                "promptIntent": null,
+                "promptVersion": null,
+                "recipeVersion": null,
+                "referenceMode": "flat_visual_frequency",
+                "renderStrategy": null,
+                "scaleAnchorUrl": null,
+                "productCategory": null,
+                "outputAspectRatio": null,
+                "productSubcategory": null,
+                "sourceCanonicalUrl": "https://hwyucxmmdqbvsiuuskfw.supabase.co/storage/v1/object/public/product-gallery/patterns/04abe46a-2cef-4619-8e9f-51de188bd938/fabric_pattern/0bde3c2d-3a98-4a9e-8920-1ad4d485334a/1779112521615_bandhani_cropped.png",
+                "visualFrequencyScore": null,
+                "productProfileVersion": null
+              }
+            ],
+            "default_variant_id": "640fff6f-d798-4ee2-8634-84ac3e08441e",
+            "swatch_height_unit": "inch",
+            "default_variant_url": "https://hwyucxmmdqbvsiuuskfw.supabase.co/storage/v1/object/public/product-gallery/patterns/04abe46a-2cef-4619-8e9f-51de188bd938/fabric_pattern/0bde3c2d-3a98-4a9e-8920-1ad4d485334a/1779112521615_bandhani_cropped.png"
+          },
+          "label": "bandhani",
+          "value": "bandhani",
+          "var_opt_id": ""
+        },
+        {
+          "meta": {
+            "pattern_asset_id": "69d07567-7bc9-4a95-b484-d6bce871d9a4",
+            "default_variant_url": "https://hwyucxmmdqbvsiuuskfw.supabase.co/storage/v1/object/public/product-gallery/patterns/04abe46a-2cef-4619-8e9f-51de188bd938/fabric_pattern/69d07567-7bc9-4a95-b484-d6bce871d9a4/1779283372589_S_14_17003_cropped.png"
+          },
+          "label": "S_14_17003",
+          "value": "S_14_17003",
+          "var_opt_id": ""
+        },
+        {
+          "meta": {
+            "pattern_asset_id": "58ab68d3-7ac0-4f50-a525-b79bf1a1f6c5",
+            "default_variant_url": "https://hwyucxmmdqbvsiuuskfw.supabase.co/storage/v1/object/public/product-gallery/patterns/04abe46a-2cef-4619-8e9f-51de188bd938/fabric_pattern/58ab68d3-7ac0-4f50-a525-b79bf1a1f6c5/1779283393961_S_14_16304_V1_cropped.png"
+          },
+          "label": "S_14_16304_V1",
+          "value": "S_14_16304_V1",
+          "var_opt_id": ""
+        },
+        {
+          "meta": {
+            "pattern_asset_id": "89d187bb-0cae-4cd7-ad9c-776eb8b7d9b5",
+            "default_variant_url": "https://hwyucxmmdqbvsiuuskfw.supabase.co/storage/v1/object/public/product-gallery/patterns/04abe46a-2cef-4619-8e9f-51de188bd938/fabric_pattern/89d187bb-0cae-4cd7-ad9c-776eb8b7d9b5/1779283411465_S_14_13702_cropped.png"
+          },
+          "label": "S_14_13702",
+          "value": "S_14_13702",
+          "var_opt_id": ""
+        },
+        {
+          "meta": {
+            "pattern_asset_id": "882a623c-7711-4d66-9eb6-d23f204af26e",
+            "default_variant_url": "https://hwyucxmmdqbvsiuuskfw.supabase.co/storage/v1/object/public/product-gallery/patterns/04abe46a-2cef-4619-8e9f-51de188bd938/fabric_pattern/882a623c-7711-4d66-9eb6-d23f204af26e/1779283439889_S_14_13105_cropped.png"
+          },
+          "label": "S_14_13105",
+          "value": "S_14_13105",
+          "var_opt_id": ""
+        },
+        {
+          "meta": {
+            "pattern_asset_id": "45d03c47-60c1-4e50-b56e-2cc53e8488d5",
+            "default_variant_url": "https://hwyucxmmdqbvsiuuskfw.supabase.co/storage/v1/object/public/product-gallery/patterns/04abe46a-2cef-4619-8e9f-51de188bd938/fabric_pattern/45d03c47-60c1-4e50-b56e-2cc53e8488d5/1779283458865_S_14_4621_cropped.png"
+          },
+          "label": "S_14_4621",
+          "value": "S_14_4621",
+          "var_opt_id": ""
+        },
+        {
+          "meta": {
+            "pattern_asset_id": "0cd816b3-5c84-46e3-b282-0516e2ce7526",
+            "default_variant_url": "https://hwyucxmmdqbvsiuuskfw.supabase.co/storage/v1/object/public/product-gallery/patterns/04abe46a-2cef-4619-8e9f-51de188bd938/fabric_pattern/0cd816b3-5c84-46e3-b282-0516e2ce7526/1779283562182_S_07_3475_cropped.png"
+          },
+          "label": "S_07_3475",
+          "value": "S_07_3475",
+          "var_opt_id": ""
+        },
+        {
+          "meta": {
+            "pattern_asset_id": "9f84d56a-ab79-48ce-b266-7a2ae4c0da35",
+            "default_variant_url": "https://hwyucxmmdqbvsiuuskfw.supabase.co/storage/v1/object/public/product-gallery/patterns/04abe46a-2cef-4619-8e9f-51de188bd938/fabric_pattern/9f84d56a-ab79-48ce-b266-7a2ae4c0da35/1779283596322_peacock_cropped.png"
+          },
+          "label": "peacock",
+          "value": "peacock",
+          "var_opt_id": ""
+        },
+        {
+          "meta": {
+            "pattern_asset_id": "52629338-4c04-425b-892c-14d0528a637e",
+            "default_variant_url": "https://hwyucxmmdqbvsiuuskfw.supabase.co/storage/v1/object/public/product-gallery/patterns/04abe46a-2cef-4619-8e9f-51de188bd938/fabric_pattern/52629338-4c04-425b-892c-14d0528a637e/1779283621573_tigers2_cropped.png"
+          },
+          "label": "tigers2",
+          "value": "tigers2",
+          "var_opt_id": ""
+        },
+        {
+          "meta": {
+            "pattern_asset_id": "2bc57586-36a5-43d1-8650-82194dd25072",
+            "default_variant_url": "https://hwyucxmmdqbvsiuuskfw.supabase.co/storage/v1/object/public/product-gallery/patterns/04abe46a-2cef-4619-8e9f-51de188bd938/fabric_pattern/2bc57586-36a5-43d1-8650-82194dd25072/1779283687219_pillow_cropped.png"
+          },
+          "label": "pillow",
+          "value": "pillow",
+          "var_opt_id": ""
+        },
+        {
+          "meta": {
+            "image_url": "https://hwyucxmmdqbvsiuuskfw.supabase.co/storage/v1/object/public/product-gallery/patterns/04abe46a-2cef-4619-8e9f-51de188bd938/fabric_pattern/f2d05c4b-74ca-4ccd-8bd5-02af2a3a682b/1779456141645_bird_cropped.png",
+            "pattern_asset_id": "f2d05c4b-74ca-4ccd-8bd5-02af2a3a682b",
+            "default_variant_url": "https://hwyucxmmdqbvsiuuskfw.supabase.co/storage/v1/object/public/product-gallery/patterns/04abe46a-2cef-4619-8e9f-51de188bd938/fabric_pattern/f2d05c4b-74ca-4ccd-8bd5-02af2a3a682b/1779456141645_bird_cropped.png"
+          },
+          "label": "bird",
+          "value": "bird",
+          "var_opt_id": ""
+        },
+        {
+          "meta": {
+            "image_url": "https://hwyucxmmdqbvsiuuskfw.supabase.co/storage/v1/object/public/chat-uploads/pattern-artifacts/553cad93-2b8b-4260-9176-87cfb4d4ff5a/1779555576971_canonical-extract.png",
+            "swatch_height": 3,
+            "woven_texture": false,
+            "pattern_repeat": true,
+            "pattern_asset_id": "553cad93-2b8b-4260-9176-87cfb4d4ff5a",
+            "pattern_variants": [
+              {
+                "id": "5df073ee-d1e6-4082-b604-ba989749220c",
+                "url": "https://hwyucxmmdqbvsiuuskfw.supabase.co/storage/v1/object/public/chat-uploads/pattern-artifacts/553cad93-2b8b-4260-9176-87cfb4d4ff5a/1779555576971_canonical-extract.png",
+                "error": null,
+                "label": "Auto",
+                "method": "identity",
+                "preset": "auto",
+                "status": "ready",
+                "assetId": "553cad93-2b8b-4260-9176-87cfb4d4ff5a",
+                "modelId": "gpt-image-2",
+                "clientId": "04abe46a-2cef-4619-8e9f-51de188bd938",
+                "cropWindow": null,
+                "derivation": null,
+                "dimensions": {
+                  "width": 512,
+                  "height": 512
+                },
+                "motifScale": 1,
+                "promptHash": null,
+                "recipeHash": null,
+                "scaleSheet": null,
+                "productName": null,
+                "promptIntent": null,
+                "promptVersion": null,
+                "recipeVersion": null,
+                "referenceMode": "flat_visual_frequency",
+                "renderStrategy": null,
+                "scaleAnchorUrl": null,
+                "productCategory": null,
+                "outputAspectRatio": null,
+                "productSubcategory": null,
+                "sourceCanonicalUrl": "https://hwyucxmmdqbvsiuuskfw.supabase.co/storage/v1/object/public/chat-uploads/pattern-artifacts/553cad93-2b8b-4260-9176-87cfb4d4ff5a/1779555576971_canonical-extract.png",
+                "visualFrequencyScore": null,
+                "productProfileVersion": null
+              }
+            ],
+            "default_variant_id": "5df073ee-d1e6-4082-b604-ba989749220c",
+            "swatch_height_unit": "inch",
+            "default_variant_url": "https://hwyucxmmdqbvsiuuskfw.supabase.co/storage/v1/object/public/chat-uploads/pattern-artifacts/553cad93-2b8b-4260-9176-87cfb4d4ff5a/1779555576971_canonical-extract.png"
+          },
+          "label": "test",
+          "value": "test",
+          "var_opt_id": "",
+          "patternAssetId": "553cad93-2b8b-4260-9176-87cfb4d4ff5a",
+          "defaultVariantId": "5df073ee-d1e6-4082-b604-ba989749220c"
+        },
+        {
+          "meta": {
+            "image_url": "https://hwyucxmmdqbvsiuuskfw.supabase.co/storage/v1/object/public/chat-uploads/pattern-artifacts/b7815116-a627-4187-8c49-bbda104dcd26/1779551248292_canonical-extract.png",
+            "swatch_height": 3,
+            "woven_texture": false,
+            "pattern_repeat": true,
+            "pattern_asset_id": "b7815116-a627-4187-8c49-bbda104dcd26",
+            "pattern_variants": [
+              {
+                "id": "273efe81-cba0-405e-923c-380c74ba584d",
+                "url": "https://hwyucxmmdqbvsiuuskfw.supabase.co/storage/v1/object/public/chat-uploads/pattern-artifacts/b7815116-a627-4187-8c49-bbda104dcd26/1779551248292_canonical-extract.png",
+                "error": null,
+                "label": "Auto",
+                "method": "identity",
+                "preset": "auto",
+                "status": "ready",
+                "assetId": "b7815116-a627-4187-8c49-bbda104dcd26",
+                "modelId": "gpt-image-2",
+                "clientId": "04abe46a-2cef-4619-8e9f-51de188bd938",
+                "cropWindow": null,
+                "derivation": null,
+                "dimensions": {
+                  "width": 512,
+                  "height": 512
+                },
+                "motifScale": 1,
+                "promptHash": null,
+                "recipeHash": null,
+                "scaleSheet": null,
+                "productName": null,
+                "promptIntent": null,
+                "promptVersion": null,
+                "recipeVersion": null,
+                "referenceMode": "flat_visual_frequency",
+                "renderStrategy": null,
+                "scaleAnchorUrl": null,
+                "productCategory": null,
+                "outputAspectRatio": null,
+                "productSubcategory": null,
+                "sourceCanonicalUrl": "https://hwyucxmmdqbvsiuuskfw.supabase.co/storage/v1/object/public/chat-uploads/pattern-artifacts/b7815116-a627-4187-8c49-bbda104dcd26/1779551248292_canonical-extract.png",
+                "visualFrequencyScore": null,
+                "productProfileVersion": null
+              }
+            ],
+            "default_variant_id": "273efe81-cba0-405e-923c-380c74ba584d",
+            "swatch_height_unit": "inch",
+            "default_variant_url": "https://hwyucxmmdqbvsiuuskfw.supabase.co/storage/v1/object/public/chat-uploads/pattern-artifacts/b7815116-a627-4187-8c49-bbda104dcd26/1779551248292_canonical-extract.png"
+          },
+          "label": "test2",
+          "value": "test2",
+          "var_opt_id": "",
+          "patternAssetId": "b7815116-a627-4187-8c49-bbda104dcd26",
+          "defaultVariantId": "273efe81-cba0-405e-923c-380c74ba584d"
+        },
+        {
+          "meta": {
+            "image_url": "https://hwyucxmmdqbvsiuuskfw.supabase.co/storage/v1/object/public/product-gallery/patterns/04abe46a-2cef-4619-8e9f-51de188bd938/fabric_pattern/c7755723-6f42-4aa4-ba0f-eedd2ebd1e53/1780308341811_test3_cropped.png",
+            "opacities": [],
+            "swatch_height": 3,
+            "woven_texture": false,
+            "pattern_repeat": true,
+            "pattern_asset_id": "c7755723-6f42-4aa4-ba0f-eedd2ebd1e53",
+            "pattern_variants": [
+              {
+                "id": "2dac260b-6c7b-4e46-94d8-8236594a9570",
+                "url": "https://hwyucxmmdqbvsiuuskfw.supabase.co/storage/v1/object/public/product-gallery/patterns/04abe46a-2cef-4619-8e9f-51de188bd938/fabric_pattern/c7755723-6f42-4aa4-ba0f-eedd2ebd1e53/1780308341811_test3_cropped.png",
+                "error": null,
+                "label": "Auto",
+                "method": "identity",
+                "preset": "auto",
+                "status": "ready",
+                "assetId": "c7755723-6f42-4aa4-ba0f-eedd2ebd1e53",
+                "modelId": null,
+                "clientId": "04abe46a-2cef-4619-8e9f-51de188bd938",
+                "cropWindow": null,
+                "derivation": null,
+                "dimensions": {
+                  "width": 590,
+                  "height": 382
+                },
+                "motifScale": 1,
+                "promptHash": null,
+                "recipeHash": null,
+                "scaleSheet": null,
+                "productName": null,
+                "promptIntent": null,
+                "promptVersion": null,
+                "recipeVersion": null,
+                "referenceMode": "flat_visual_frequency",
+                "renderStrategy": null,
+                "scaleAnchorUrl": null,
+                "productCategory": null,
+                "outputAspectRatio": null,
+                "productSubcategory": null,
+                "sourceCanonicalUrl": "https://hwyucxmmdqbvsiuuskfw.supabase.co/storage/v1/object/public/product-gallery/patterns/04abe46a-2cef-4619-8e9f-51de188bd938/fabric_pattern/c7755723-6f42-4aa4-ba0f-eedd2ebd1e53/1780308341811_test3_cropped.png",
+                "visualFrequencyScore": null,
+                "productProfileVersion": null
+              }
+            ],
+            "default_variant_id": "2dac260b-6c7b-4e46-94d8-8236594a9570",
+            "swatch_height_unit": "inch",
+            "default_variant_url": "https://hwyucxmmdqbvsiuuskfw.supabase.co/storage/v1/object/public/product-gallery/patterns/04abe46a-2cef-4619-8e9f-51de188bd938/fabric_pattern/c7755723-6f42-4aa4-ba0f-eedd2ebd1e53/1780308341811_test3_cropped.png"
+          },
+          "label": "test3",
+          "value": "test3",
+          "var_opt_id": "",
+          "patternAssetId": "c7755723-6f42-4aa4-ba0f-eedd2ebd1e53",
+          "defaultVariantId": "2dac260b-6c7b-4e46-94d8-8236594a9570"
+        },
+        {
+          "meta": {
+            "image_url": "https://hwyucxmmdqbvsiuuskfw.supabase.co/storage/v1/object/public/chat-uploads/pattern-artifacts/595a6864-0eee-403b-9b0e-2700158d70a5/1781187694655_canonical-extract.png",
+            "opacities": [],
+            "swatch_height": 3,
+            "woven_texture": false,
+            "pattern_repeat": true,
+            "pattern_asset_id": "595a6864-0eee-403b-9b0e-2700158d70a5",
+            "pattern_variants": [
+              {
+                "id": "993d67e0-9f4c-4c18-b162-9e3d30aa695e",
+                "url": "https://hwyucxmmdqbvsiuuskfw.supabase.co/storage/v1/object/public/chat-uploads/pattern-artifacts/595a6864-0eee-403b-9b0e-2700158d70a5/1781187694655_canonical-extract.png",
+                "error": null,
+                "label": "Auto",
+                "method": "identity",
+                "preset": "auto",
+                "status": "ready",
+                "assetId": "595a6864-0eee-403b-9b0e-2700158d70a5",
+                "modelId": "gpt-image-2",
+                "clientId": "04abe46a-2cef-4619-8e9f-51de188bd938",
+                "cropWindow": null,
+                "derivation": null,
+                "dimensions": {
+                  "width": 512,
+                  "height": 512
+                },
+                "motifScale": 1,
+                "promptHash": null,
+                "recipeHash": null,
+                "scaleSheet": null,
+                "productName": null,
+                "promptIntent": null,
+                "promptVersion": null,
+                "recipeVersion": null,
+                "referenceMode": "flat_visual_frequency",
+                "renderStrategy": null,
+                "scaleAnchorUrl": null,
+                "productCategory": null,
+                "outputAspectRatio": null,
+                "productSubcategory": null,
+                "sourceCanonicalUrl": "https://hwyucxmmdqbvsiuuskfw.supabase.co/storage/v1/object/public/chat-uploads/pattern-artifacts/595a6864-0eee-403b-9b0e-2700158d70a5/1781187694655_canonical-extract.png",
+                "visualFrequencyScore": null,
+                "productProfileVersion": null
+              }
+            ],
+            "default_variant_id": "993d67e0-9f4c-4c18-b162-9e3d30aa695e",
+            "swatch_height_unit": "inch",
+            "default_variant_url": "https://hwyucxmmdqbvsiuuskfw.supabase.co/storage/v1/object/public/chat-uploads/pattern-artifacts/595a6864-0eee-403b-9b0e-2700158d70a5/1781187694655_canonical-extract.png"
+          },
+          "label": "123",
+          "value": "123",
+          "var_opt_id": "",
+          "patternAssetId": "595a6864-0eee-403b-9b0e-2700158d70a5",
+          "defaultVariantId": "993d67e0-9f4c-4c18-b162-9e3d30aa695e"
+        }
+      ],
+      "required": false,
+      "sort_order": 6,
+      "option_type": "pattern_image",
+      "display_name": "Fabric Pattern",
+      "_options_sync": false
+    },
+    "top_treatment_style": {
+      "options": [
+        {
+          "hex": null,
+          "meta": {
+            "image_url": "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/product-gallery/variations/top_treatment_style/61d5cd790084a6dfca9c12664ec89cea.png",
+            "description": "Cassette: headrail wrapped in matching material; flat, squared-off end caps; fabric texture."
+          },
+          "label": "White Cassette",
+          "value": "White Cassette",
+          "var_opt_id": "292725bb-f89d-41fc-8a24-6385bb40bf90"
+        },
+        {
+          "hex": null,
+          "meta": {
+            "image_url": "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/product-gallery/variations/top_treatment_style/c867afe8e7679756dc9f3f0893e13ed3.png",
+            "description": "Valance: Structured overhang; matching material; flat front."
+          },
+          "label": "Valance",
+          "value": "Valance",
+          "var_opt_id": "991e98e4-5e83-4ff2-be6b-e95783466ef9"
+        },
+        {
+          "hex": null,
+          "meta": {
+            "image_url": "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/product-gallery/variations/top_treatment_style/7a62fb9c9f2dbfd85a2a93ca986c5792.jpg",
+            "description": "Open Roll: Fabric rolls openly; no headrail or fascia; visible hardware; minimalist."
+          },
+          "label": "Open Roll",
+          "value": "Open Roll",
+          "var_opt_id": "dfb8081e-90af-49df-910f-6a822e1fdf8c"
+        },
+        {
+          "hex": null,
+          "meta": {
+            "image_url": "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/product-gallery/variations/top_treatment_style/ef5fed0d1490f05d7f177631bef747de.png",
+            "description": "Fascia: Fabric-wrapped; semi-cylindrical shape; front-facing covering."
+          },
+          "label": "Fascia",
+          "value": "Fascia",
+          "var_opt_id": "6d6e508b-dd6c-45b9-9f3e-07c81cd09927"
+        },
+        {
+          "hex": null,
+          "meta": {
+            "image_url": "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/product-gallery/variations/top_treatment_style/5499675b459145431ad0c4e8778757ad.png",
+            "description": "Cassette: Square valance; fully encloses the roller mechanism; straight edges."
+          },
+          "label": "Black Cassette",
+          "value": "Black Cassette",
+          "var_opt_id": "98decd32-4867-4e77-a8af-e726dea4765e"
+        },
+        {
+          "hex": null,
+          "meta": {
+            "image_url": "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/product-gallery/variations/top_treatment_style/021f0ba2b9651c338329e7d68e02b3c7.png",
+            "description": "Cassette: Rectangular valance; encloses the top; curved front edge; visible screw details."
+          },
+          "label": "Brown Cassette",
+          "value": "Brown Cassette",
+          "var_opt_id": "e26380d6-17d0-436a-adaf-4e433c07f2e2"
+        },
+        {
+          "hex": null,
+          "meta": {
+            "image_url": "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/product-gallery/variations/top_treatment_style/184c0c578775ce7e28af9f5b55625519.png",
+            "description": "Cassette Valance: Valance with a flat front face; squared edges; slim profile."
+          },
+          "label": "Grey Cassette",
+          "value": "Grey Cassette",
+          "var_opt_id": "b254316a-e4d7-4d16-80cf-6c6506fbdd19"
+        }
+      ],
+      "required": false,
+      "sort_order": 5,
+      "option_type": "dropdown",
+      "display_name": "Top Treatment Style",
+      "_options_sync": true
+    }
+  },
+  "variationMode": "template",
+  "brandId": null,
+  "brandName": "",
+  "variationsLocked": false,
+  "availableVariants": [
+    {
+      "key": "side_channel",
+      "required": false,
+      "sort_order": 7,
+      "option_type": "dropdown",
+      "display_name": "Side Channel",
+      "default_options": [
+        {
+          "meta": {},
+          "label": "No Side Channel",
+          "value": "No Side Channel",
+          "var_opt_id": "70d067e2-19d6-4610-90dc-62c0833c4550"
+        },
+        {
+          "meta": {},
+          "label": "Black Side Channel",
+          "value": "Black Side Channel",
+          "var_opt_id": "a0b091db-2b2d-4bbb-aa2d-3e0cf2493678"
+        },
+        {
+          "meta": {},
+          "label": "White Side Channel",
+          "value": "White Side Channel",
+          "var_opt_id": "465501be-4148-4646-9216-40ce9211e60d"
+        },
+        {
+          "meta": {},
+          "label": "Brown Side Channel",
+          "value": "Brown Side Channel",
+          "var_opt_id": "7062d181-db13-4216-8d7d-1dd98d624ed5"
+        }
+      ]
+    }
+  ]
+}

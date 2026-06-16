@@ -2,7 +2,12 @@
 
 export type ProductLineId = "roller-shade" | "drapery";
 
-export type OpacityId = "sheer" | "light-filtering" | "room-darkening" | "blackout";
+/**
+ * Opacity (translucency) ids are defined per product line — the roller and drapery
+ * vocabularies differ (e.g. roller "privacy" vs drapery "semi-sheer"), sourced from
+ * blind-bot's real subcategory schemas. Each line lists its own `opacities`.
+ */
+export type OpacityId = string;
 
 export interface DimensionField {
   key: string;
@@ -33,6 +38,8 @@ export interface ProductLine {
   description: string;
   leadTimeDays: number;
   dimensionFields: DimensionField[];
+  /** the line's opacity/translucency vocabulary (the producibility + pricing axis) */
+  opacities: OptionChoice[];
   optionGroups: OptionGroup[];
 }
 
@@ -55,9 +62,14 @@ export interface Product {
   name: string;
   description: string;
   tier: PriceTier;
+  /** real product photo (local, under /public/catalog/...) shown in the configurator + cards */
+  imageUrl: string;
+  /** additional real photos for the product gallery */
+  galleryImages?: string[];
+  /** fallback fabric pattern for the small color Swatch (no per-color photos upstream) */
   patternStyle: PatternStyle;
   colors: ProductColor[];
-  /** the variation constraint: only these opacities are producible for this pattern */
+  /** the variation constraint: only these opacity ids (from the line's vocab) are producible */
   validOpacities: OpacityId[];
   featured?: boolean;
 }

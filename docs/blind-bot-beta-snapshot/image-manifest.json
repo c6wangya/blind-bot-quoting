@@ -1,0 +1,61 @@
+{
+  "roller-shade": [
+    {
+      "idx": 0,
+      "file": "/catalog/roller-shade/00.jpg",
+      "bytes": 267396
+    },
+    {
+      "idx": 1,
+      "file": "/catalog/roller-shade/01.jpg",
+      "bytes": 220097
+    },
+    {
+      "idx": 2,
+      "file": "/catalog/roller-shade/02.jpg",
+      "bytes": 157954
+    },
+    {
+      "idx": 3,
+      "file": "/catalog/roller-shade/03.jpg",
+      "bytes": 73803
+    },
+    {
+      "idx": 4,
+      "file": "/catalog/roller-shade/04.jpg",
+      "bytes": 87196
+    },
+    {
+      "idx": 5,
+      "file": "/catalog/roller-shade/05.jpg",
+      "bytes": 70016
+    }
+  ],
+  "drapery": [
+    {
+      "idx": 0,
+      "file": "/catalog/drapery/00.jpg",
+      "bytes": 67504
+    },
+    {
+      "idx": 1,
+      "file": "/catalog/drapery/01.jpg",
+      "bytes": 369372
+    },
+    {
+      "idx": 2,
+      "file": "/catalog/drapery/02.jpg",
+      "bytes": 268692
+    },
+    {
+      "idx": 3,
+      "file": "/catalog/drapery/03.jpg",
+      "bytes": 71578
+    },
+    {
+      "idx": 4,
+      "file": "/catalog/drapery/04.jpg",
+      "bytes": 792234
+    }
+  ]
+}

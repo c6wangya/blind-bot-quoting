@@ -109,7 +109,9 @@ function priceDrapery(
 ): QuoteComputation {
   const { rodWidth, height } = config.dimensions;
   const fullness = cfg.fullnessFactor[config.options.fullness];
-  const panels = config.options.panels === "pair" ? 2 : 1;
+  // blind-bot has no "panels" concept — derive it from stack direction:
+  // a split stack draws to both sides (a pair); left/right stack is a single panel.
+  const panels = config.options.stack === "split" ? 2 : 1;
   if (!fullness) throw new PricingError("Invalid fullness");
 
   const requiredFabricWidth = rodWidth * fullness;
@@ -124,7 +126,7 @@ function priceDrapery(
   const makingRate = cfg.makingPerWidth[config.options.header] ?? 0;
   const makingCost = round2(makingRate * totalWidths);
 
-  const liningRate = cfg.liningPerMeter[config.options.lining] ?? 0;
+  const liningRate = cfg.liningPerMeter[config.options.liner] ?? 0;
   const liningCost = round2(liningRate * fabricMeters);
 
   const controlCost = cfg.controlFlat[config.options.control] ?? 0;

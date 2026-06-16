@@ -158,27 +158,27 @@ async function seed(): Promise<void> {
 
   const q1 = await mkQuote("Q-2026-0001", "Maple St. Townhomes — Unit 4B", "2026-05-12 09:14:00", "converted", [
     {
-      productId: "rs-aria",
+      productId: "rs-roller-shade",
       qty: 6,
-      config: { colorId: "chalk", opacityId: "room-darkening", options: { mount: "inside", headrail: "cassette", control: "chain-metal" }, dimensions: { width: 120, height: 160 } },
+      config: { colorId: "gray", opacityId: "privacy", options: { mount: "inside", control: "cordless", headrail: "white-cassette", sideChannel: "none" }, dimensions: { width: 120, height: 160 } },
     },
     {
-      productId: "rs-midnight",
+      productId: "rs-roller-shade",
       qty: 2,
-      config: { colorId: "graphite", opacityId: "blackout", options: { mount: "outside", headrail: "cassette", control: "motorized" }, dimensions: { width: 180, height: 210 } },
+      config: { colorId: "charcoal", opacityId: "blackout", options: { mount: "outside", control: "motorized", headrail: "fascia", sideChannel: "black" }, dimensions: { width: 180, height: 210 } },
     },
   ]);
 
   const q2 = await mkQuote("Q-2026-0002", "Hotel Meridian — Floor 7 refresh", "2026-05-26 14:40:00", "converted", [
     {
-      productId: "dp-eclipse",
+      productId: "dp-standard-drapery",
       qty: 12,
-      config: { colorId: "flint", opacityId: "blackout", options: { panels: "pair", fullness: "2.5", header: "ripple-fold", lining: "blackout", control: "cord-drawn" }, dimensions: { rodWidth: 320, height: 260 } },
+      config: { colorId: "grey", opacityId: "blackout", options: { fullness: "2.5x", header: "ripplefold", liner: "blackout", control: "cord-draw", stack: "split", rodColor: "matte-black" }, dimensions: { rodWidth: 320, height: 260 } },
     },
     {
-      productId: "dp-voile",
+      productId: "dp-standard-drapery",
       qty: 12,
-      config: { colorId: "white", opacityId: "sheer", options: { panels: "pair", fullness: "3.0", header: "ripple-fold", lining: "none", control: "hand-drawn" }, dimensions: { rodWidth: 320, height: 258 } },
+      config: { colorId: "white", opacityId: "sheer", options: { fullness: "3x", header: "ripplefold", liner: "unlined", control: "baton-draw", stack: "split", rodColor: "matte-black" }, dimensions: { rodWidth: 320, height: 258 } },
     },
   ]);
 

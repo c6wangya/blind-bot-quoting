@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { OPACITY_LABELS, TIER_LABELS } from "@/lib/catalog-data";
+import { TIER_LABELS } from "@/lib/catalog-data";
 import { usd } from "@/lib/format";
 import { mapImportedConfig, type ImportPayload } from "@/lib/import";
 import type {
@@ -13,7 +13,6 @@ import type {
   ProductLine,
   QuoteComputation,
 } from "@/lib/types";
-import { DraperyScene, RollerShadeScene } from "./renders";
 import { Badge, Card, cx } from "./ui";
 
 const DEFAULT_DIMS: Record<string, Record<string, number>> = {
@@ -68,7 +67,11 @@ export default function Configurator({
     return base;
   });
   const [qty, setQty] = useState(1);
-  const [preview, setPreview] = useState(0.65);
+
+  // Real product photos (local). No per-color photos upstream, so changing color/opacity
+  // updates the swatches but not the hero image; the gallery lets the user flip through shots.
+  const gallery = [product.imageUrl, ...(product.galleryImages ?? [])];
+  const [heroImg, setHeroImg] = useState(product.imageUrl);
 
   const [computation, setComputation] = useState<QuoteComputation | null>(null);
   const [priceError, setPriceError] = useState<string | null>(null);
@@ -180,57 +183,21 @@ export default function Configurator({
     }
   };
 
-  const dimsNum = config.dimensions;
-  const isRoller = line.id === "roller-shade";
-
   return (
     <div className="grid gap-6 lg:grid-cols-5">
       {/* ---------- left: render ---------- */}
       <div className="lg:col-span-3">
         <Card className="overflow-hidden">
-          <div className="relative aspect-[4/3]">
-            {imported ? (
-              <>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={carriedImageSrc ?? ""}
-                  alt="Carried over design"
-                  className="h-full w-full object-cover"
-                />
-                <div className="absolute left-4 top-4 rounded-lg bg-white/85 px-2.5 py-1 text-[11px] font-medium text-ink-soft shadow-sm backdrop-blur">
-                  Carried over
-                </div>
-              </>
-            ) : isRoller ? (
-              <RollerShadeScene
-                color={color}
-                patternStyle={product.patternStyle}
-                opacityId={opacityId}
-                widthCm={dimsNum.width || 150}
-                heightCm={dimsNum.height || 180}
-                mount={options.mount}
-                headrail={options.headrail}
-                control={options.control}
-                drop={preview}
-              />
-            ) : (
-              <DraperyScene
-                color={color}
-                patternStyle={product.patternStyle}
-                opacityId={opacityId}
-                rodWidthCm={dimsNum.rodWidth || 280}
-                heightCm={dimsNum.height || 250}
-                panels={options.panels}
-                fullness={options.fullness}
-                header={options.header}
-                openAmount={1 - preview}
-              />
-            )}
-            {!imported && (
-              <div className="absolute left-4 top-4 rounded-lg bg-white/85 px-2.5 py-1 text-[11px] font-medium text-ink-soft shadow-sm backdrop-blur">
-                In-context render · updates live
-              </div>
-            )}
+          <div className="relative aspect-[4/3] bg-[#f1efe9]">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={imported ? carriedImageSrc ?? "" : heroImg}
+              alt={imported ? "Carried over design" : product.name}
+              className="h-full w-full object-cover"
+            />
+            <div className="absolute left-4 top-4 rounded-lg bg-white/85 px-2.5 py-1 text-[11px] font-medium text-ink-soft shadow-sm backdrop-blur">
+              {imported ? "Carried over" : "Real product photo"}
+            </div>
           </div>
           {imported ? (
             importedChips.length > 0 && (
@@ -246,20 +213,24 @@ export default function Configurator({
               </div>
             )
           ) : (
-            <div className="flex items-center gap-4 border-t border-line px-5 py-3.5">
-              <span className="text-xs font-medium text-muted">
-                {isRoller ? "Preview: shade position" : "Preview: panels drawn"}
-              </span>
-              <input
-                type="range"
-                min="0.12"
-                max="1"
-                step="0.01"
-                value={preview}
-                onChange={(e) => setPreview(parseFloat(e.target.value))}
-                className="h-1.5 flex-1 cursor-pointer accent-[#b08d57]"
-              />
-            </div>
+            gallery.length > 1 && (
+              <div className="flex items-center gap-2 overflow-x-auto border-t border-line px-5 py-3.5">
+                {gallery.map((src) => (
+                  <button
+                    key={src}
+                    type="button"
+                    onClick={() => setHeroImg(src)}
+                    className={cx(
+                      "h-14 w-20 shrink-0 overflow-hidden rounded-lg border-2 transition-colors",
+                      src === heroImg ? "border-ink" : "border-transparent hover:border-line"
+                    )}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={src} alt="" className="h-full w-full object-cover" />
+                  </button>
+                ))}
+              </div>
+            )
           )}
         </Card>
 
@@ -339,16 +310,16 @@ export default function Configurator({
             <div className="mt-5">
               <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">Opacity</div>
               <div className="grid grid-cols-2 gap-1.5">
-                {(Object.keys(OPACITY_LABELS) as OpacityId[]).map((o) => {
-                  const valid = product.validOpacities.includes(o);
+                {line.opacities.map((op) => {
+                  const valid = product.validOpacities.includes(op.id);
                   return (
                     <button
-                      key={o}
+                      key={op.id}
                       disabled={!valid}
-                      onClick={() => setOpacityId(o)}
+                      onClick={() => setOpacityId(op.id)}
                       className={cx(
                         "rounded-xl border px-3 py-2 text-left text-[12.5px] font-medium transition-all",
-                        o === opacityId && valid
+                        op.id === opacityId && valid
                           ? "border-ink bg-ink text-white shadow-sm"
                           : valid
                             ? "border-line bg-surface text-ink-soft hover:border-[#cfcabd]"
@@ -356,7 +327,7 @@ export default function Configurator({
                       )}
                       title={valid ? undefined : `Not producible for ${product.name}`}
                     >
-                      {OPACITY_LABELS[o]}
+                      {op.name}
                     </button>
                   );
                 })}

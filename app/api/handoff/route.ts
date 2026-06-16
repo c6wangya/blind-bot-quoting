@@ -3,8 +3,8 @@ import { completeBlindbotHandoff } from "@/lib/auth/blindbot-handoff";
 
 // Quote owns the catalog: map blind-bot's QuoteLine to the default product line page.
 const QUOTE_DEFAULT_PRODUCT: Record<string, string> = {
-  "roller-shade": "rs-aria",
-  drapery: "dp-velluto",
+  "roller-shade": "rs-roller-shade",
+  drapery: "dp-standard-drapery",
 };
 
 /**

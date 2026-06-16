@@ -1,0 +1,507 @@
+{
+  "roller": {
+    "beta_id": "877",
+    "name": "Roller Shade",
+    "description": "Roller shade",
+    "subcat": 1,
+    "images": [
+      "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/chat-uploads/header-images/1771124295556_0_family-room-roller-shades.jpg",
+      "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/chat-uploads/gallery-images/1771124437368_0_677c02153ab7e60a379153e4_676509bfd99af4f4636594a9_1.jpg",
+      "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/chat-uploads/gallery-images/1771124439904_0_contemporary-roller-blinds-1200x800.jpg",
+      "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/chat-uploads/gallery-images/1771124443512_0_graber-blinds-roller-shade-60004.jpg",
+      "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/chat-uploads/gallery-images/1771124445429_0_HDDesignerRollersittingroom_1200x.jpg",
+      "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/chat-uploads/gallery-images/1771124447050_0_modern_farmhouse_roller_shades_with_an_outside_mount_interior_design.jpg"
+    ],
+    "schema": {
+      "color": {
+        "display": "Color",
+        "type": "color_swatch",
+        "required": true,
+        "options": [
+          {
+            "value": "white",
+            "label": "white",
+            "hex": "#FFFFFF"
+          },
+          {
+            "value": "gray",
+            "label": "Gray",
+            "hex": "#808080"
+          },
+          {
+            "value": "charcoal",
+            "label": "Charcoal",
+            "hex": "#36454F"
+          }
+        ]
+      },
+      "fabrics": {
+        "display": "Fabrics",
+        "type": "dropdown",
+        "required": false,
+        "options": [
+          {
+            "value": "Fabric",
+            "label": "Fabric"
+          }
+        ]
+      },
+      "control_type": {
+        "display": "Control Type",
+        "type": "dropdown",
+        "required": false,
+        "options": [
+          {
+            "value": "Manual",
+            "label": "Manual"
+          },
+          {
+            "value": "Cordless",
+            "label": "Cordless"
+          }
+        ]
+      },
+      "installation": {
+        "display": "Installation",
+        "type": "dropdown",
+        "required": false,
+        "options": []
+      },
+      "transparency": {
+        "display": "Transparency",
+        "type": "dropdown",
+        "required": true,
+        "options": [
+          {
+            "value": "Blackout",
+            "label": "Blackout"
+          },
+          {
+            "value": "Privacy",
+            "label": "Privacy"
+          },
+          {
+            "value": "Sheer",
+            "label": "Sheer"
+          },
+          {
+            "value": "15%",
+            "label": "15%"
+          },
+          {
+            "value": "14%",
+            "label": "14%"
+          },
+          {
+            "value": "10%",
+            "label": "10%"
+          },
+          {
+            "value": "9%",
+            "label": "9%"
+          },
+          {
+            "value": "7%",
+            "label": "7%"
+          },
+          {
+            "value": "5%",
+            "label": "5%"
+          },
+          {
+            "value": "3%",
+            "label": "3%"
+          },
+          {
+            "value": "1%",
+            "label": "1%"
+          },
+          {
+            "value": "0.5%",
+            "label": "0.5%"
+          },
+          {
+            "value": "0.0%",
+            "label": "0.0%"
+          }
+        ]
+      },
+      "top_treatment_style": {
+        "display": "Top Treatment Style",
+        "type": "dropdown",
+        "required": false,
+        "options": [
+          {
+            "value": "White Cassette",
+            "label": "White Cassette"
+          },
+          {
+            "value": "Valance",
+            "label": "Valance"
+          },
+          {
+            "value": "Open Roll",
+            "label": "Open Roll"
+          },
+          {
+            "value": "Fascia",
+            "label": "Fascia"
+          },
+          {
+            "value": "Black Cassette",
+            "label": "Black Cassette"
+          },
+          {
+            "value": "Brown Cassette",
+            "label": "Brown Cassette"
+          },
+          {
+            "value": "Grey Cassette",
+            "label": "Grey Cassette"
+          }
+        ]
+      },
+      "fabric_pattern": {
+        "display": "Fabric Pattern",
+        "type": "pattern_image",
+        "required": false,
+        "options": []
+      },
+      "side_channel": {
+        "display": "Side Channel",
+        "type": "dropdown",
+        "required": false,
+        "options": [
+          {
+            "value": "No Side Channel",
+            "label": "No Side Channel"
+          },
+          {
+            "value": "Black Side Channel",
+            "label": "Black Side Channel"
+          },
+          {
+            "value": "White Side Channel",
+            "label": "White Side Channel"
+          },
+          {
+            "value": "Brown Side Channel",
+            "label": "Brown Side Channel"
+          }
+        ]
+      }
+    }
+  },
+  "drapery": {
+    "beta_id": "873",
+    "name": "Standard Drapery",
+    "description": "",
+    "subcat": 17,
+    "images": [
+      "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/chat-uploads/header-images/1771195614027_0_81-I2s-TTpL-1024x1024.jpg",
+      "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/chat-uploads/gallery-images/1771195638299_0_Flax-2.jpg",
+      "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/chat-uploads/gallery-images/1771195638795_1_Gordijnen_aan_venster.jpg",
+      "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/chat-uploads/gallery-images/1771195639493_2_grey-natural-linen-curtains-living-room-pinch-pleat-drapes.jpg",
+      "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/chat-uploads/gallery-images/1771195639760_3_M06081-64339-Goldenrod_db8b7a0a-55b3-4403-81d6-a1df067bfe2a.jpg"
+    ],
+    "schema": {
+      "color": {
+        "display": "Color",
+        "type": "color_swatch",
+        "required": true,
+        "options": [
+          {
+            "value": "white",
+            "label": "white",
+            "hex": "#FFFFFF"
+          },
+          {
+            "value": "grey",
+            "label": "grey",
+            "hex": "#808080"
+          }
+        ]
+      },
+      "control_type": {
+        "display": "Control Type",
+        "type": "dropdown",
+        "required": true,
+        "options": [
+          {
+            "value": "motorized_somfy",
+            "label": "motorized_somfy"
+          },
+          {
+            "value": "baton_draw",
+            "label": "baton_draw"
+          },
+          {
+            "value": "cord_draw",
+            "label": "cord_draw"
+          }
+        ]
+      },
+      "liner": {
+        "display": "Liner",
+        "type": "dropdown",
+        "required": false,
+        "options": [
+          {
+            "value": "unlined",
+            "label": "unlined"
+          },
+          {
+            "value": "privacy_liner",
+            "label": "privacy_liner"
+          },
+          {
+            "value": "blackout_liner",
+            "label": "blackout_liner"
+          },
+          {
+            "value": "interlined",
+            "label": "interlined"
+          },
+          {
+            "value": "15%",
+            "label": "15%"
+          },
+          {
+            "value": "14%",
+            "label": "14%"
+          },
+          {
+            "value": "10%",
+            "label": "10%"
+          },
+          {
+            "value": "9%",
+            "label": "9%"
+          },
+          {
+            "value": "7%",
+            "label": "7%"
+          },
+          {
+            "value": "5%",
+            "label": "5%"
+          },
+          {
+            "value": "3%",
+            "label": "3%"
+          },
+          {
+            "value": "1%",
+            "label": "1%"
+          },
+          {
+            "value": "0.5%",
+            "label": "0.5%"
+          },
+          {
+            "value": "0.0%",
+            "label": "0.0%"
+          }
+        ]
+      },
+      "fullness": {
+        "display": "Fullness",
+        "type": "dropdown",
+        "required": false,
+        "options": [
+          {
+            "value": "2x",
+            "label": "2x"
+          },
+          {
+            "value": "2_5x",
+            "label": "2_5x"
+          },
+          {
+            "value": "3x",
+            "label": "3x"
+          }
+        ]
+      },
+      "header_style": {
+        "display": "Header Style",
+        "type": "dropdown",
+        "required": false,
+        "options": [
+          {
+            "value": "pinch_pleat",
+            "label": "pinch_pleat"
+          },
+          {
+            "value": "euro_pleat",
+            "label": "euro_pleat"
+          },
+          {
+            "value": "goblet_pleat",
+            "label": "goblet_pleat"
+          },
+          {
+            "value": "ripplefold",
+            "label": "ripplefold"
+          },
+          {
+            "value": "grommet",
+            "label": "grommet"
+          },
+          {
+            "value": "rod_pocket",
+            "label": "rod_pocket"
+          },
+          {
+            "value": "ripple",
+            "label": "ripple"
+          },
+          {
+            "value": "back_tab",
+            "label": "back_tab"
+          }
+        ]
+      },
+      "transparency": {
+        "display": "Transparency",
+        "type": "dropdown",
+        "required": false,
+        "options": [
+          {
+            "value": "sheer",
+            "label": "sheer"
+          },
+          {
+            "value": "semi_sheer",
+            "label": "semi_sheer"
+          },
+          {
+            "value": "opaque",
+            "label": "opaque"
+          },
+          {
+            "value": "blackout",
+            "label": "blackout"
+          },
+          {
+            "value": "15%",
+            "label": "15%"
+          },
+          {
+            "value": "14%",
+            "label": "14%"
+          },
+          {
+            "value": "10%",
+            "label": "10%"
+          },
+          {
+            "value": "9%",
+            "label": "9%"
+          },
+          {
+            "value": "7%",
+            "label": "7%"
+          },
+          {
+            "value": "5%",
+            "label": "5%"
+          },
+          {
+            "value": "3%",
+            "label": "3%"
+          },
+          {
+            "value": "1%",
+            "label": "1%"
+          },
+          {
+            "value": "0.5%",
+            "label": "0.5%"
+          },
+          {
+            "value": "0.0%",
+            "label": "0.0%"
+          }
+        ]
+      },
+      "fabric_pattern": {
+        "display": "Fabric Pattern",
+        "type": "pattern_image",
+        "required": false,
+        "options": []
+      },
+      "rod_color": {
+        "display": "Rod Color",
+        "type": "color_swatch",
+        "required": false,
+        "options": [
+          {
+            "value": "white",
+            "label": "White",
+            "hex": "#F5F5F5"
+          },
+          {
+            "value": "matte_black",
+            "label": "Matte Black",
+            "hex": "#1A1A1A"
+          },
+          {
+            "value": "polished_brass",
+            "label": "Polished Brass",
+            "hex": "#B5994E"
+          },
+          {
+            "value": "antique_brass",
+            "label": "Antique Brass",
+            "hex": "#806A35"
+          },
+          {
+            "value": "oil_rubbed_bronze",
+            "label": "Oil-Rubbed Bronze",
+            "hex": "#3E2C20"
+          },
+          {
+            "value": "satin_nickel",
+            "label": "Satin Nickel",
+            "hex": "#9A9A98"
+          },
+          {
+            "value": "polished_chrome",
+            "label": "Polished Chrome",
+            "hex": "#C8CDD0"
+          },
+          {
+            "value": "wood_dark",
+            "label": "Dark Wood",
+            "hex": "#3B2A1F"
+          },
+          {
+            "value": "wood_light",
+            "label": "Light Wood",
+            "hex": "#C5A578"
+          }
+        ]
+      },
+      "stack_direction": {
+        "display": "Stack Direction",
+        "type": "dropdown",
+        "required": false,
+        "options": [
+          {
+            "value": "left",
+            "label": "Left Stack"
+          },
+          {
+            "value": "right",
+            "label": "Right Stack"
+          },
+          {
+            "value": "split",
+            "label": "Split Stack"
+          }
+        ]
+      }
+    }
+  }
+}

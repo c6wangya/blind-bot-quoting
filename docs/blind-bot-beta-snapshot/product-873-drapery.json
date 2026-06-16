@@ -1,0 +1,480 @@
+{
+  "id": "prod-873",
+  "name": "Standard Drapery",
+  "type": "product",
+  "productId": "873",
+  "categoryId": "356560cf-510f-4cff-ac11-088f3a04cf0b",
+  "sortOrder": 0,
+  "description": "",
+  "aiDescription": "product_type: Vertical suspended textile panel system; structural_geometry: Single or multi-layered woven fabric sheet hanging vertically with induced continuous folds extending from the top header to the bottom hem; header_attachment: Top edge structured with specific construction (e.g., sewn pleats, metal grommets, rod pocket, or S-curve tape) to connect to suspension hardware and define fold volume; fabric_appearance: Woven textile construction with visible thread structure and surface texture ranging from smooth and uniform to fibrous and tactile; visible_hardware: Horizontal support element (decorative cylindrical rod with rings or low-profile track with gliders) mounted above the opening; stacking_behavior: Retracts horizontally, compressing into dense, vertical fabric columns positioned at the outer edges of the opening; drape_character: Fabric falls under gravity into vertical columns; fold rigidity, depth, and fluidity are determined by the combined weight and stiffness of the face fabric and any applied lining layers; edges_and_details: Bottom and vertical side edges are finished with sewn hems; top edge defined by the selected header construction style",
+  "imageUrl": "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/chat-uploads/header-images/1771195614027_0_81-I2s-TTpL-1024x1024.jpg",
+  "productFileUrl": "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/chat-uploads/product-files/1771195623022_0_Product__Custom_Drapery_Panels.pdf",
+  "galleryImages": [
+    "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/chat-uploads/gallery-images/1771195638299_0_Flax-2.jpg",
+    "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/chat-uploads/gallery-images/1771195638795_1_Gordijnen_aan_venster.jpg",
+    "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/chat-uploads/gallery-images/1771195639493_2_grey-natural-linen-curtains-living-room-pinch-pleat-drapes.jpg",
+    "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/chat-uploads/gallery-images/1771195639760_3_M06081-64339-Goldenrod_db8b7a0a-55b3-4403-81d6-a1df067bfe2a.jpg"
+  ],
+  "restrictions": "",
+  "createdAt": "2026-03-29T09:28:19.396028+00:00",
+  "updatedAt": "2026-05-19T17:31:18.342941+00:00",
+  "status": "active",
+  "publishedAt": "2026-05-19T17:31:18.301+00:00",
+  "archivedAt": null,
+  "archiveNote": null,
+  "globalSubcategoryId": 17,
+  "subcategoryName": "Drapery Panel",
+  "globalCategoryName": "Draperies",
+  "variationSchemaId": 135,
+  "variationsJson": {
+    "color": {
+      "options": [
+        {
+          "hex": "#FFFFFF",
+          "meta": {
+            "under_testing": true
+          },
+          "label": "white",
+          "value": "white",
+          "var_opt_id": ""
+        },
+        {
+          "hex": "#808080",
+          "label": "grey",
+          "value": "grey",
+          "var_opt_id": ""
+        }
+      ],
+      "required": true,
+      "sort_order": 0,
+      "option_type": "color_swatch",
+      "display_name": "Color",
+      "_options_sync": false
+    },
+    "liner": {
+      "options": [
+        {
+          "hex": null,
+          "meta": {
+            "image_url": "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/product-gallery/variations/liner/267efd65c8cff76d7f037dd1d018db1d.jpg",
+            "description": "unlined: No distinct lining; sheer and semi-transparent fabric; single layer of material; filtering."
+          },
+          "label": "unlined",
+          "value": "unlined",
+          "var_opt_id": "b8543b6f-9d2b-42ee-905d-ad47e8da4d3e"
+        },
+        {
+          "hex": null,
+          "meta": {
+            "image_url": "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/product-gallery/variations/liner/73362115aa4a0994d1340f9cf6b34122.jpg",
+            "description": "privacy_liner: Additional fabric layer; backing; enhanced opacity; minimizes penetration."
+          },
+          "label": "privacy_liner",
+          "value": "privacy_liner",
+          "var_opt_id": "fdf43a03-eb02-4afc-8d4a-b95334d67659"
+        },
+        {
+          "hex": null,
+          "meta": {
+            "image_url": "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/product-gallery/variations/liner/1bc2cd6291c62ecd0da801d0ba58e275.jpg",
+            "description": "blackout_liner: Opaque; prevents passage of illumination; substantial; multi-layered."
+          },
+          "label": "blackout_liner",
+          "value": "blackout_liner",
+          "var_opt_id": "908458a5-79a8-4cd5-a6e4-e3cd9f1d5945"
+        },
+        {
+          "hex": null,
+          "meta": {
+            "image_url": "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/product-gallery/variations/liner/cd81be06abc1c086a5a63ed0c0a1ef4c.jpg",
+            "description": "interlined: Additional layer of fabric between face and lining; increased thickness; enhanced blocking."
+          },
+          "label": "interlined",
+          "value": "interlined",
+          "var_opt_id": "d566d5c1-b8d5-4296-b42f-7ef0dba6863f"
+        }
+      ],
+      "required": false,
+      "sort_order": 2,
+      "option_type": "dropdown",
+      "display_name": "Liner",
+      "_options_sync": true
+    },
+    "fullness": {
+      "options": [
+        {
+          "hex": null,
+          "label": "2x",
+          "value": "2x",
+          "var_opt_id": "3b30b3d8-76fb-424b-b7f9-331d69ffdef4"
+        },
+        {
+          "hex": null,
+          "label": "2_5x",
+          "value": "2_5x",
+          "var_opt_id": "9364dee9-8569-4695-8f22-5110c6e050e1"
+        },
+        {
+          "hex": null,
+          "meta": {
+            "under_testing": true
+          },
+          "label": "3x",
+          "value": "3x",
+          "var_opt_id": "ebbaf88a-25ea-4cd2-9687-b5cd56905c18"
+        }
+      ],
+      "required": false,
+      "sort_order": 3,
+      "option_type": "dropdown",
+      "display_name": "Fullness",
+      "_options_sync": true
+    },
+    "rod_color": {
+      "key": "rod_color",
+      "options": [],
+      "required": false,
+      "sort_order": 7,
+      "option_type": "color_swatch",
+      "display_name": "Rod Color",
+      "_options_sync": false,
+      "default_options": [
+        {
+          "hex": "#F5F5F5",
+          "label": "White",
+          "value": "white",
+          "var_opt_id": "edd1f6da-ee80-4b02-9495-f7a3e23a8939"
+        },
+        {
+          "hex": "#1A1A1A",
+          "label": "Matte Black",
+          "value": "matte_black",
+          "var_opt_id": "1851876c-6316-40df-b211-f05c5ea15437"
+        },
+        {
+          "hex": "#B5994E",
+          "label": "Polished Brass",
+          "value": "polished_brass",
+          "var_opt_id": "b111abb9-85cc-4a5f-bc58-dca5a3776987"
+        },
+        {
+          "hex": "#806A35",
+          "label": "Antique Brass",
+          "value": "antique_brass",
+          "var_opt_id": "10b12c6f-741f-4ed0-836e-c1524f22d846"
+        },
+        {
+          "hex": "#3E2C20",
+          "label": "Oil-Rubbed Bronze",
+          "value": "oil_rubbed_bronze",
+          "var_opt_id": "d3024b1e-8e4c-42e3-8a57-80f58d369294"
+        },
+        {
+          "hex": "#9A9A98",
+          "label": "Satin Nickel",
+          "value": "satin_nickel",
+          "var_opt_id": "3d3953f0-aeec-4438-9394-c234078d7b24"
+        },
+        {
+          "hex": "#C8CDD0",
+          "label": "Polished Chrome",
+          "value": "polished_chrome",
+          "var_opt_id": "5cf51779-d5a0-4081-9fe5-91650db985f4"
+        },
+        {
+          "hex": "#3B2A1F",
+          "label": "Dark Wood",
+          "value": "wood_dark",
+          "var_opt_id": "80427a5e-b8f1-4038-813e-55043492da52"
+        },
+        {
+          "hex": "#C5A578",
+          "label": "Light Wood",
+          "value": "wood_light",
+          "var_opt_id": "53979811-d620-4d8f-a188-534bcf604841"
+        }
+      ]
+    },
+    "control_type": {
+      "options": [
+        {
+          "hex": null,
+          "meta": {
+            "image_url": "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/product-gallery/variations/control_type/99492245a71d9af62ddcb7fd1a4ad955.jpg",
+            "description": "motorized_somfy: Remote control with three buttons; up/down arrows; \"my\" button; wall-mounted holder."
+          },
+          "label": "motorized_somfy",
+          "value": "motorized_somfy",
+          "var_opt_id": "a2f49d61-9184-4e62-95b2-f0be4f430e09"
+        },
+        {
+          "hex": null,
+          "meta": {
+            "image_url": "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/product-gallery/variations/control_type/6ba5cc1e522a95e5ed5219d09db69e24.jpg",
+            "description": "baton_draw: Track; baton for moving curtains; clip to track."
+          },
+          "label": "baton_draw",
+          "value": "baton_draw",
+          "var_opt_id": "4df6a7e6-d13b-42e1-93df-8f899fc8527b"
+        },
+        {
+          "hex": null,
+          "meta": {
+            "image_url": "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/product-gallery/variations/control_type/4247dbe0e271012a9c42c58a9e7fca09.jpg",
+            "description": "cord_draw: Side-mounted hardware; pull cords visible; standard operation."
+          },
+          "label": "cord_draw",
+          "value": "cord_draw",
+          "var_opt_id": "29cb1ffe-b8a4-4b72-a2b5-41abcd28fd27"
+        }
+      ],
+      "required": true,
+      "sort_order": 1,
+      "option_type": "dropdown",
+      "display_name": "Control Type",
+      "_options_sync": true
+    },
+    "header_style": {
+      "options": [
+        {
+          "meta": {
+            "image_url": "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/product-gallery/variations/header_style/9c8e17e73a369ed1b0dab2560ce6f398.jpg",
+            "description": "pinch_pleat: Evenly spaced, gathered pleats at the top; tailored and formal; defined vertical folds; consistent spacing."
+          },
+          "label": "Pinch Pleat",
+          "value": "Pinch Pleat",
+          "_disabled": true,
+          "var_opt_id": "66011855-3ec3-49ce-ac8b-a1326e96a195"
+        },
+        {
+          "meta": {
+            "image_url": "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/product-gallery/variations/header_style/e8a0fac3fa218cae2587fc0d2b5bebb1.jpg",
+            "description": "euro_pleat: Evenly spaced, pinched pleats; clean and tailored look; consistent folds; structured appearance at the top."
+          },
+          "label": "Euro Pleat",
+          "value": "Euro Pleat",
+          "_disabled": true,
+          "var_opt_id": "9dbfa939-3182-481b-a5d8-fd2ea0cdafdf"
+        },
+        {
+          "meta": {
+            "image_url": "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/product-gallery/variations/header_style/b8e94906efd8415c72f39c849d49a341.jpg",
+            "description": "goblet_pleat: Gathered top; cylindrical shape; pinched below the ring; uniform spacing."
+          },
+          "label": "Goblet Pleat",
+          "value": "Goblet Pleat",
+          "_disabled": true,
+          "var_opt_id": "2304d5ae-9837-4d66-b9e0-9767678ddf94"
+        },
+        {
+          "meta": {
+            "image_url": "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/product-gallery/variations/header_style/7bd337108b95e14ecf380d8f24c4d38c.jpg",
+            "description": "ripplefold: Consistent S-shaped curves; soft vertical folds; flowing, uniform appearance; evenly spaced carriers."
+          },
+          "label": "Ripplefold",
+          "value": "Ripplefold",
+          "_disabled": true,
+          "var_opt_id": "428e0ff2-26ad-4724-a4a9-c3710c250c74"
+        },
+        {
+          "meta": {
+            "image_url": "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/product-gallery/variations/header_style/85e34a54c6702685fa53a4521d34ff12.jpg",
+            "description": "grommet: Metal grommets; evenly spaced; circular openings; rod passes through the curtain."
+          },
+          "label": "Grommet",
+          "value": "Grommet",
+          "_disabled": true,
+          "var_opt_id": "e80efc04-c431-4580-ac67-09b7f97e4c1a"
+        },
+        {
+          "meta": {
+            "image_url": "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/product-gallery/variations/header_style/d5c8f3d6a08a56b702ff4351e6fc9fcc.jpg",
+            "description": "rod_pocket: Fabric gathered on rod; creates soft ruffles; rod visible; clean, casual look."
+          },
+          "label": "Rod Pocket",
+          "value": "Rod Pocket",
+          "_disabled": true,
+          "var_opt_id": "cf0ce1f3-e181-445e-aa50-79b7fccdc8d5"
+        },
+        {
+          "label": "No Preference",
+          "value": "No Preference",
+          "_disabled": true,
+          "var_opt_id": ""
+        }
+      ],
+      "required": false,
+      "sort_order": 4,
+      "option_type": "dropdown",
+      "display_name": "Header Style",
+      "_options_sync": true
+    },
+    "transparency": {
+      "options": [
+        {
+          "hex": null,
+          "meta": {
+            "image_url": "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/product-gallery/variations/transparency/11f7088bf60d8441b969d824a2a629ec.jpg",
+            "description": "Sheer: Allows substantial light transmission; minimal privacy; subtle glare reduction; partial UV protection."
+          },
+          "label": "sheer",
+          "value": "sheer",
+          "var_opt_id": "922969d7-ddab-427e-a3f6-4291a36fd0a1"
+        },
+        {
+          "hex": null,
+          "meta": {
+            "image_url": "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/product-gallery/variations/transparency/da624a572862ed94d97c12377c1be3bf.jpg",
+            "description": "semi_sheer: Partial transmission; moderate opacity; moderate privacy; some glare reduction."
+          },
+          "label": "semi_sheer",
+          "value": "semi_sheer",
+          "var_opt_id": "f243649a-6016-4ff7-b7a6-103ea54e76b8"
+        },
+        {
+          "hex": null,
+          "meta": {
+            "image_url": "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/product-gallery/variations/transparency/ccdd2db6b62183d207bfa83cff814b00.jpg",
+            "description": "opaque: near-zero transmission; full privacy; sunlight blocking capabilities; UV protection."
+          },
+          "label": "opaque",
+          "value": "opaque",
+          "var_opt_id": "f2b15a1d-f8f9-4dff-a461-a393af4b03ab"
+        }
+      ],
+      "required": false,
+      "sort_order": 5,
+      "option_type": "dropdown",
+      "display_name": "Transparency",
+      "_options_sync": true
+    },
+    "fabric_pattern": {
+      "options": [
+        {
+          "meta": {
+            "image_url": "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/product-gallery/patterns/5ab409bc-afe6-4988-916e-07ce7bf2008a/fabric_pattern/1772590835744_Red_Tiger_cropped.jpg",
+            "pattern_asset_id": "2a33c65a-3fb0-4277-b0c7-0345a24de06e",
+            "pattern_variants": [
+              {
+                "id": "8f9d8ee8-6c94-fadd-b0dc-47ab8a1ebe5b",
+                "url": "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/product-gallery/patterns/5ab409bc-afe6-4988-916e-07ce7bf2008a/fabric_pattern/1772590835744_Red_Tiger_cropped.jpg",
+                "error": null,
+                "label": "Small",
+                "method": "identity",
+                "preset": "small",
+                "status": "ready",
+                "assetId": "2a33c65a-3fb0-4277-b0c7-0345a24de06e",
+                "motifScale": 1
+              }
+            ],
+            "default_variant_id": "8f9d8ee8-6c94-fadd-b0dc-47ab8a1ebe5b",
+            "default_variant_url": "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/product-gallery/patterns/5ab409bc-afe6-4988-916e-07ce7bf2008a/fabric_pattern/1772590835744_Red_Tiger_cropped.jpg"
+          },
+          "label": "Red Tiger",
+          "value": "Red Tiger",
+          "var_opt_id": "",
+          "patternAssetId": "2a33c65a-3fb0-4277-b0c7-0345a24de06e",
+          "defaultVariantId": "8f9d8ee8-6c94-fadd-b0dc-47ab8a1ebe5b"
+        },
+        {
+          "meta": {
+            "image_url": "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/product-gallery/patterns/5ab409bc-afe6-4988-916e-07ce7bf2008a/fabric_pattern/1772590844218_Tribal_cropped.jpg",
+            "pattern_asset_id": "400cbe8c-bd26-4a10-b6e4-599ebab2d8fb",
+            "pattern_variants": [
+              {
+                "id": "7eb1b949-3f3d-ed0b-90a0-4fd9da86abb8",
+                "url": "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/product-gallery/patterns/5ab409bc-afe6-4988-916e-07ce7bf2008a/fabric_pattern/1772590844218_Tribal_cropped.jpg",
+                "error": null,
+                "label": "Small",
+                "method": "identity",
+                "preset": "small",
+                "status": "ready",
+                "assetId": "400cbe8c-bd26-4a10-b6e4-599ebab2d8fb",
+                "motifScale": 1
+              }
+            ],
+            "default_variant_id": "7eb1b949-3f3d-ed0b-90a0-4fd9da86abb8",
+            "default_variant_url": "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/product-gallery/patterns/5ab409bc-afe6-4988-916e-07ce7bf2008a/fabric_pattern/1772590844218_Tribal_cropped.jpg"
+          },
+          "label": "Tribal",
+          "value": "Tribal",
+          "var_opt_id": "",
+          "patternAssetId": "400cbe8c-bd26-4a10-b6e4-599ebab2d8fb",
+          "defaultVariantId": "7eb1b949-3f3d-ed0b-90a0-4fd9da86abb8"
+        },
+        {
+          "meta": {
+            "image_url": "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/product-gallery/patterns/5ab409bc-afe6-4988-916e-07ce7bf2008a/fabric_pattern/1772590860746_Checkerboard_cropped.jpg",
+            "pattern_asset_id": "d926c379-6025-4b53-9e11-9300b24d68f6",
+            "pattern_variants": [
+              {
+                "id": "1f567698-f226-155c-a3bc-69fac7444d2d",
+                "url": "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/product-gallery/patterns/5ab409bc-afe6-4988-916e-07ce7bf2008a/fabric_pattern/1772590860746_Checkerboard_cropped.jpg",
+                "error": null,
+                "label": "Small",
+                "method": "identity",
+                "preset": "small",
+                "status": "ready",
+                "assetId": "d926c379-6025-4b53-9e11-9300b24d68f6",
+                "motifScale": 1
+              }
+            ],
+            "default_variant_id": "1f567698-f226-155c-a3bc-69fac7444d2d",
+            "default_variant_url": "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/product-gallery/patterns/5ab409bc-afe6-4988-916e-07ce7bf2008a/fabric_pattern/1772590860746_Checkerboard_cropped.jpg"
+          },
+          "label": "Checkerboard",
+          "value": "Checkerboard",
+          "var_opt_id": "",
+          "patternAssetId": "d926c379-6025-4b53-9e11-9300b24d68f6",
+          "defaultVariantId": "1f567698-f226-155c-a3bc-69fac7444d2d"
+        },
+        {
+          "meta": {
+            "pattern_asset_id": "e4ea2c01-4d3a-4d82-a85b-be635067a113",
+            "default_variant_url": "https://hwyucxmmdqbvsiuuskfw.supabase.co/storage/v1/object/public/product-gallery/patterns/04abe46a-2cef-4619-8e9f-51de188bd938/fabric_pattern/e4ea2c01-4d3a-4d82-a85b-be635067a113/1779211870762_test_cropped.png"
+          },
+          "label": "test",
+          "value": "test",
+          "var_opt_id": ""
+        }
+      ],
+      "required": false,
+      "sort_order": 6,
+      "option_type": "pattern_image",
+      "display_name": "Fabric Pattern",
+      "_options_sync": false
+    },
+    "stack_direction": {
+      "options": [
+        {
+          "hex": null,
+          "label": "Left Stack",
+          "value": "left",
+          "var_opt_id": ""
+        },
+        {
+          "hex": null,
+          "label": "Right Stack",
+          "value": "right",
+          "var_opt_id": ""
+        },
+        {
+          "hex": null,
+          "label": "Split Stack",
+          "value": "split",
+          "var_opt_id": ""
+        }
+      ],
+      "required": false,
+      "sort_order": 8,
+      "option_type": "dropdown",
+      "display_name": "Stack Direction",
+      "_options_sync": true
+    }
+  },
+  "variationMode": "template",
+  "brandId": null,
+  "brandName": "",
+  "variationsLocked": false,
+  "availableVariants": []
+}

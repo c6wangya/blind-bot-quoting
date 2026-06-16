@@ -56,30 +56,41 @@ export function parseImportPayload(
   return { img, cfg: parsed };
 }
 
-/** Normalize a blind-bot translucency term → quote opacity id (or undefined). */
+/**
+ * Normalize a blind-bot translucency term → quote opacity id. Opacity vocab is
+ * per-line (roller: sheer/light-filtering/privacy/blackout; drapery: sheer/
+ * semi-sheer/opaque/blackout), so we return a prioritized candidate list and
+ * pick the first the product can actually be produced in.
+ */
 function mapOpacity(translucency: string | undefined, validOpacities: OpacityId[]): OpacityId | undefined {
   const t = (translucency ?? "").toLowerCase();
-  let candidate: OpacityId | undefined;
-  if (t.includes("blackout")) candidate = "blackout";
-  else if (t.includes("room") || t.includes("darken")) candidate = "room-darkening";
-  else if (t.includes("filter") || t.includes("privacy")) candidate = "light-filtering";
-  else if (t.includes("sheer") || t.includes("solar") || t.includes("screen")) candidate = "sheer";
-  // only apply if this product can actually be produced in that opacity
-  return candidate && validOpacities.includes(candidate) ? candidate : undefined;
+  let candidates: string[] = [];
+  if (t.includes("blackout")) candidates = ["blackout"];
+  else if (t.includes("room") || t.includes("darken")) candidates = ["opaque", "privacy", "blackout"];
+  else if (t.includes("opaque")) candidates = ["opaque", "privacy"];
+  else if (t.includes("privacy")) candidates = ["privacy", "semi-sheer", "light-filtering"];
+  else if (t.includes("semi")) candidates = ["semi-sheer", "light-filtering"];
+  else if (t.includes("filter")) candidates = ["light-filtering", "semi-sheer"];
+  else if (t.includes("sheer") || t.includes("solar") || t.includes("screen")) candidates = ["sheer"];
+  return candidates.find((c) => validOpacities.includes(c));
 }
 
-function mapMount(mountType: string | undefined): string | undefined {
+/** Candidate option ids (first valid one wins), spanning both lines' vocab. */
+function mapMount(mountType: string | undefined): string[] {
   const m = (mountType ?? "").toLowerCase();
-  if (m.includes("inside")) return "inside";
-  if (m.includes("outside")) return "outside";
-  return undefined;
+  if (m.includes("inside")) return ["inside"];
+  if (m.includes("outside")) return ["outside"];
+  if (m.includes("ceiling")) return ["ceiling"];
+  return [];
 }
 
-function mapControl(control: string | undefined): string | undefined {
+function mapControl(control: string | undefined): string[] {
   const c = (control ?? "").toLowerCase();
-  if (c.includes("motor")) return "motorized";
-  if (c.includes("cord") || c.includes("chain") || c.includes("manual")) return "chain-plastic";
-  return undefined;
+  if (c.includes("motor") || c.includes("somfy")) return ["motorized", "motorized-somfy"];
+  if (c.includes("cord")) return ["cord-draw", "cordless"];
+  if (c.includes("baton")) return ["baton-draw"];
+  if (c.includes("chain") || c.includes("manual")) return ["manual", "baton-draw"];
+  return [];
 }
 
 /**
@@ -125,10 +136,11 @@ export function mapImportedConfig(
   if (color) out.colorId = color.id;
 
   const options: Record<string, string> = {};
-  const setIfValid = (groupKey: string, value: string | undefined) => {
-    if (!value) return;
+  const setIfValid = (groupKey: string, candidates: string[]) => {
     const group = line.optionGroups.find((g) => g.key === groupKey);
-    if (group?.options.some((o) => o.id === value)) options[groupKey] = value;
+    if (!group) return;
+    const match = candidates.find((v) => group.options.some((o) => o.id === v));
+    if (match) options[groupKey] = match;
   };
   setIfValid("mount", mapMount(pick(cfg, "installation", "mounttype", "mount")));
   setIfValid("control", mapControl(pick(cfg, "control_type", "control")));

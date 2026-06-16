@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { DraperyScene, RollerShadeScene } from "@/components/renders";
 import { Badge, Card, LinkButton, PageHeader, Stat, StatusBadge } from "@/components/ui";
 import { requireUserId } from "@/lib/auth/user";
 import { getOrders, getProduct, getQuotes, getRecentEvents } from "@/lib/db";
@@ -25,8 +24,8 @@ export default async function Dashboard() {
   const activeValue = active.reduce((s, o) => s + o.total, 0);
   const delivered = orders.filter((o) => o.status === "delivered");
 
-  const rollerHero = getProduct("rs-linum")!;
-  const draperyHero = getProduct("dp-velluto")!;
+  const rollerHero = getProduct("rs-roller-shade")!;
+  const draperyHero = getProduct("dp-standard-drapery")!;
 
   return (
     <div>
@@ -53,22 +52,13 @@ export default async function Dashboard() {
         <Link href="/catalog?line=roller-shade" className="group">
           <Card className="overflow-hidden transition-shadow hover:shadow-md">
             <div className="h-52 overflow-hidden">
-              <RollerShadeScene
-                color={rollerHero.colors[2]}
-                patternStyle={rollerHero.patternStyle}
-                opacityId="light-filtering"
-                widthCm={170}
-                heightCm={150}
-                mount="outside"
-                headrail="cassette"
-                control="motorized"
-                drop={0.62}
-              />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={rollerHero.imageUrl} alt={rollerHero.name} className="h-full w-full object-cover" />
             </div>
             <div className="flex items-center justify-between border-t border-line px-5 py-4">
               <div>
                 <div className="text-[15px] font-semibold text-ink">Roller Shade</div>
-                <div className="text-xs text-muted">6 patterns · grid-priced · 18-day lead time</div>
+                <div className="text-xs text-muted">grid-priced · {rollerHero.colors.length} colors · 18-day lead time</div>
               </div>
               <span className="text-sm font-medium text-brass transition-transform group-hover:translate-x-0.5">
                 Configure →
@@ -79,22 +69,13 @@ export default async function Dashboard() {
         <Link href="/catalog?line=drapery" className="group">
           <Card className="overflow-hidden transition-shadow hover:shadow-md">
             <div className="h-52 overflow-hidden">
-              <DraperyScene
-                color={draperyHero.colors[0]}
-                patternStyle={draperyHero.patternStyle}
-                opacityId="room-darkening"
-                rodWidthCm={300}
-                heightCm={250}
-                panels="pair"
-                fullness="2.5"
-                header="pinch-pleat"
-                openAmount={0.5}
-              />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={draperyHero.imageUrl} alt={draperyHero.name} className="h-full w-full object-cover" />
             </div>
             <div className="flex items-center justify-between border-t border-line px-5 py-4">
               <div>
                 <div className="text-[15px] font-semibold text-ink">Drapery</div>
-                <div className="text-xs text-muted">6 fabrics · cut &amp; make formula · 22-day lead time</div>
+                <div className="text-xs text-muted">cut &amp; make formula · {draperyHero.colors.length} colors · 22-day lead time</div>
               </div>
               <span className="text-sm font-medium text-brass transition-transform group-hover:translate-x-0.5">
                 Configure →
