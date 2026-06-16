@@ -38,6 +38,21 @@ export default function LoginForm({ initialError, next }: { initialError?: strin
     if (error) setError(error.message);
   };
 
+  // Reverse "Continue with BlindBot": bounce to blind-bot's authorize page, which (after
+  // consent) mints a signed handoff token and redirects back to our callback. Shown only
+  // when the blind-bot frontend URL is configured.
+  const blindbotFrontend = process.env.NEXT_PUBLIC_BLINDBOT_FRONTEND_URL?.replace(/\/$/, "");
+  const continueWithBlindbot = () => {
+    if (!blindbotFrontend) return;
+    const redirectUri = `${location.origin}/api/handoff/callback`;
+    const url =
+      `${blindbotFrontend}/authorize-quote` +
+      `?redirect_uri=${encodeURIComponent(redirectUri)}` +
+      `&next=${encodeURIComponent(dest)}` +
+      `&brand=${encodeURIComponent(BRAND.name)}`;
+    window.location.assign(url);
+  };
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
@@ -74,9 +89,9 @@ export default function LoginForm({ initialError, next }: { initialError?: strin
 
       <button
         onClick={google}
-        className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl border border-line bg-surface py-2.5 text-sm font-medium text-ink shadow-sm transition-colors hover:bg-[#faf9f5]"
+        className="relative mt-6 flex w-full items-center justify-center rounded-xl border border-line bg-surface py-2.5 text-sm font-medium text-ink shadow-sm transition-colors hover:bg-[#faf9f5]"
       >
-        <svg width="16" height="16" viewBox="0 0 48 48" aria-hidden>
+        <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden className="absolute left-4">
           <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.9 2.4 30.3 0 24 0 14.6 0 6.4 5.4 2.4 13.2l7.9 6.1C12.2 13.3 17.6 9.5 24 9.5z" />
           <path fill="#4285F4" d="M46.1 24.6c0-1.6-.1-2.8-.4-4.1H24v7.4h12.7c-.3 2.1-1.6 5.2-4.7 7.3l7.3 5.6c4.4-4 6.8-10 6.8-16.2z" />
           <path fill="#FBBC05" d="M10.3 28.7c-.5-1.4-.8-2.9-.8-4.7s.3-3.3.8-4.7l-7.9-6.1C.9 16.5 0 20.1 0 24s.9 7.5 2.4 10.8l7.9-6.1z" />
@@ -84,6 +99,17 @@ export default function LoginForm({ initialError, next }: { initialError?: strin
         </svg>
         Continue with Google
       </button>
+
+      {blindbotFrontend && (
+        <button
+          onClick={continueWithBlindbot}
+          className="relative mt-4 flex w-full items-center justify-center rounded-xl bg-ink py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-[#2a3756]"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/blindbot-icon.png" alt="" width={20} height={20} className="absolute left-4 rounded-[5px]" />
+          Continue with BlindBot
+        </button>
+      )}
 
       <div className="my-5 flex items-center gap-3 text-xs text-muted">
         <span className="h-px flex-1 bg-line" /> or <span className="h-px flex-1 bg-line" />
