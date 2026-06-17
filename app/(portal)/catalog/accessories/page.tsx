@@ -8,7 +8,8 @@ import {
   getAccessoryCategories,
   getAccessoryModels,
 } from "@/lib/accessories-data";
-import { getAttributes, getModelTagMap } from "@/lib/db";
+import { getCurrentUserId } from "@/lib/auth/user";
+import { getAttributes, getEffectivePrices, getInventoryMap, getModelTagMap } from "@/lib/db";
 import { usd } from "@/lib/format";
 
 export default async function AccessoriesPage({
@@ -25,7 +26,13 @@ export default async function AccessoriesPage({
   const categories = getAccessoryCategories();
   const activeCat = categories.find((c) => c.id === cat) ?? categories[0];
 
-  const [attributes, tagMap] = await Promise.all([getAttributes(), getModelTagMap()]);
+  const userId = await getCurrentUserId();
+  const [attributes, tagMap, effectivePrices, inventory] = await Promise.all([
+    getAttributes(),
+    getModelTagMap(),
+    getEffectivePrices(userId), // this retailer's price per motor (override → default → static)
+    getInventoryMap(), // model_id → stock; absent = untracked
+  ]);
 
   // value id → label, for chips
   const valueLabel: Record<string, string> = {};
@@ -135,6 +142,8 @@ export default async function AccessoriesPage({
               <ul className="divide-y divide-line/70">
                 {models.map(({ model, cat: modelCat }) => {
                   const tags = tagMap[model.id] ?? [];
+                  const price = effectivePrices[model.id] ?? model.price;
+                  const stock = model.id in inventory ? inventory[model.id] : null;
                   return (
                     <li key={model.id} className="flex items-center gap-4 px-4 py-3.5">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -169,11 +178,11 @@ export default async function AccessoriesPage({
                       </div>
                       <div className="shrink-0 text-right">
                         <div className="text-[15px] font-semibold tabular-nums text-ink">
-                          {model.price === null ? "Incl." : usd(model.price)}
+                          {price === null ? "Incl." : usd(price)}
                         </div>
                         <div className="mt-1.5">
-                          {modelCat.orderable && model.price !== null ? (
-                            <AddAccessoryButton modelId={model.id} quoteId={quoteId} />
+                          {modelCat.orderable && price !== null ? (
+                            <AddAccessoryButton modelId={model.id} quoteId={quoteId} stock={stock} />
                           ) : (
                             <span className="text-[11px] text-muted">Reference</span>
                           )}

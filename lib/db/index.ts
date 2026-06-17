@@ -18,3 +18,4 @@ export * from "./pricing";
 export * from "./quotes";
 export * from "./orders";
 export * from "./tags";
+export * from "./motors";

@@ -26,3 +26,16 @@ export async function getProfile(
   const row = data as { email: string; company: string | null; role: string | null };
   return { email: row.email, company: row.company, role: row.role === "admin" ? "admin" : "retailer" };
 }
+
+/** All non-admin accounts (the retailers), for the admin pricing page. */
+export async function listRetailers(): Promise<{ id: string; email: string; company: string | null }[]> {
+  const { data, error } = await admin().from("profiles").select("id, email, company, role").order("email");
+  if (error) {
+    // role column not present yet → treat everyone as a retailer
+    const { data: d2 } = await admin().from("profiles").select("id, email, company").order("email");
+    return ((d2 ?? []) as { id: string; email: string; company: string | null }[]);
+  }
+  return ((data ?? []) as { id: string; email: string; company: string | null; role: string | null }[])
+    .filter((p) => p.role !== "admin")
+    .map(({ id, email, company }) => ({ id, email, company }));
+}

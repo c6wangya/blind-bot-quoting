@@ -168,7 +168,8 @@ export async function addAccessoryItem(
   quoteId: number,
   model: AccessoryModel,
   qty: number,
-  sb: SupabaseClient = admin()
+  sb: SupabaseClient = admin(),
+  unitPrice?: number
 ): Promise<QuoteItemRow> {
   const category = getAccessoryCategory(model.categoryId);
   const config: AccessoryConfig = {
@@ -178,7 +179,8 @@ export async function addAccessoryItem(
     brand: ACCESSORY_BRAND.name,
     category: category?.name ?? model.categoryId,
   };
-  const price = model.price ?? 0;
+  // Snapshot the retailer's effective price (override → default → static), defaulting to static.
+  const price = unitPrice ?? model.price ?? 0;
   const computation: QuoteComputation = {
     unitPrice: price,
     currency: "USD",

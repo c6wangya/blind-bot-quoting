@@ -37,6 +37,8 @@ Don't confuse `BLINDBOT_API_URL` (server) with `NEXT_PUBLIC_BLINDBOT_FRONTEND_UR
      Until it's run, the catalog still works — it just shows no tag filters.
    - `supabase/migrations/0003_quote_details.sql` — quote header fields (customer / ship-to / PO /
      Sidemark). Nullable columns only; existing quotes are unaffected.
+   - `supabase/migrations/0004_motor_inventory_pricing.sql` — motor stock + per-retailer motor
+     pricing (admin-managed). Until run, motors are untracked (unlimited) at the static catalog price.
 2. **Auth → URL Configuration:** Site URL = the deployed origin; Redirect URLs include
    `https://<deploy-origin>/**` (needed for Google login + email confirmation callbacks).
 3. **Email/password signup** requires "Confirm email" + working SMTP (Auth → SMTP Settings).

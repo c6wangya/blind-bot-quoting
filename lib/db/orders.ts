@@ -4,12 +4,21 @@ import type { OrderEventRow, OrderRow, OrderStatus } from "@/lib/types";
 import { EVENT_COLS, ORDER_COLS, round2, type ItemAgg, nextRef } from "./internal";
 import { ensureSeeded } from "./seed";
 import { getQuote } from "./quotes";
+import { deductMotorStock } from "./motors";
+import { isAccessoryConfig } from "@/lib/types";
 
 export async function submitPreOrder(quoteId: number, sb: SupabaseClient = admin()): Promise<OrderRow> {
   const quote = await getQuote(quoteId, sb);
   if (!quote) throw new Error("Quote not found");
   if (quote.status !== "draft") throw new Error("Quote already converted");
   if (quote.items.length === 0) throw new Error("Quote has no items");
+
+  // Deduct motor stock first — throws (naming short models) if any tracked motor is short,
+  // aborting the submit before anything is created. Uses admin() (inventory is admin-write).
+  const motorNeeds = quote.items
+    .filter((i) => isAccessoryConfig(i.config))
+    .map((i) => ({ modelId: i.productId, qty: i.qty }));
+  if (motorNeeds.length > 0) await deductMotorStock(motorNeeds, admin());
 
   const ref = await nextRef("orders", "PO"); // count across all orders → service_role
   // Create the order FIRST, then flip the quote — so a failed insert can never strand the

@@ -36,6 +36,8 @@ const NAV: { section: string; adminOnly?: boolean; items: NavItem[] }[] = [
     adminOnly: true,
     items: [
       { href: "/catalog/tags", label: "Accessory Tags", icon: "#" },
+      { href: "/inventory", label: "Motor Inventory", icon: "▥" },
+      { href: "/motor-pricing", label: "Motor Pricing", icon: "◷" },
       { href: "/supplier", label: "Supplier Console", icon: "⚙" },
       { href: "/pricing", label: "Pricing Versions", icon: "$" },
     ],

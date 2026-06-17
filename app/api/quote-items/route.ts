@@ -8,7 +8,9 @@ import {
   getOrCreateDraftQuote,
   getProduct,
   getQuote,
+  getStock,
   removeQuoteItem,
+  resolveMotorPrice,
   updateQuoteItem,
 } from "@/lib/db";
 import { getAccessoryCategory, getAccessoryModel } from "@/lib/accessories-data";
@@ -57,8 +59,18 @@ export async function POST(req: Request) {
       if (!category?.orderable) {
         return NextResponse.json({ error: "This accessory isn't available to order" }, { status: 422 });
       }
+      // Stock cap (tracked models only) — friendly block before it ever reaches submit.
+      const stock = await getStock(accessory.id);
+      if (stock !== null && qty > stock) {
+        return NextResponse.json(
+          { error: stock === 0 ? "This motor is out of stock" : `Only ${stock} of this motor left` },
+          { status: 409 }
+        );
+      }
       const quote = await resolveTargetQuote(userId, sb, quoteId);
-      const item = await addAccessoryItem(quote.id, accessory, qty, sb);
+      // Snapshot this retailer's effective price (override → default → static).
+      const unitPrice = await resolveMotorPrice(accessory.id, userId);
+      const item = await addAccessoryItem(quote.id, accessory, qty, sb, unitPrice);
       return NextResponse.json({ quoteId: quote.id, quoteRef: quote.ref, item });
     }
 
