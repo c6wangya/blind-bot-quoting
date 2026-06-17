@@ -106,7 +106,7 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
             </DetailBlock>
           </div>
           {quote.status === "draft" && (
-            <QuoteDetailsDrawer mode="edit" quoteId={quote.id} initial={details} />
+            <QuoteDetailsDrawer quoteId={quote.id} initial={details} />
           )}
         </div>
       </Card>
@@ -115,11 +115,16 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
         <EmptyState
           title="This quote is empty"
           description="Add configured products from the catalog to build the quote."
-          action={<LinkButton href="/catalog">Browse catalog</LinkButton>}
+          action={<LinkButton href={`/catalog?quote=${quote.id}`}>Add product</LinkButton>}
         />
       ) : (
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="space-y-4 lg:col-span-2">
+            {quote.status === "draft" && (
+              <div className="flex justify-end">
+                <LinkButton href={`/catalog?quote=${quote.id}`}>+ Add product</LinkButton>
+              </div>
+            )}
             {quote.items.map((item) => {
               // Accessory line (A-OK motor): fixed price, no color/dimensions.
               if (isAccessoryConfig(item.config)) {

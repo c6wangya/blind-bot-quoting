@@ -18,6 +18,9 @@ export default async function AccessoriesPage({
 }) {
   const sp = await searchParams;
   const cat = typeof sp.cat === "string" ? sp.cat : undefined;
+  const quoteId =
+    typeof sp.quote === "string" && Number.isInteger(Number(sp.quote)) ? Number(sp.quote) : undefined;
+  const q = quoteId ? `&quote=${quoteId}` : "";
 
   const categories = getAccessoryCategories();
   const activeCat = categories.find((c) => c.id === cat) ?? categories[0];
@@ -56,7 +59,16 @@ export default async function AccessoriesPage({
         description="Motors, controls and power — browse by brand and category, or filter motors by their attributes. Motors are orderable and add to the same quote as full products; other parts are reference for now."
       />
 
-      <AccessoryFilters attributes={attributes} selected={selected} cat={cat} />
+      {quoteId && (
+        <div className="rise mb-4 flex items-center justify-between gap-3 rounded-xl border border-brass/40 bg-brass-soft/40 px-4 py-2.5 text-[13px] text-ink-soft">
+          <span>Adding to your quote — pick a motor to add.</span>
+          <Link href={`/quotes/${quoteId}`} className="shrink-0 font-medium text-brass hover:underline">
+            Back to quote →
+          </Link>
+        </div>
+      )}
+
+      <AccessoryFilters attributes={attributes} selected={selected} cat={cat} quote={quoteId} />
 
       {/* 3-level master-detail: Brand → Category → Models */}
       <div className="grid gap-4 lg:grid-cols-[200px_240px_1fr]">
@@ -85,7 +97,7 @@ export default async function AccessoriesPage({
                 return (
                   <li key={c.id}>
                     <Link
-                      href={`/catalog/accessories?cat=${c.id}`}
+                      href={`/catalog/accessories?cat=${c.id}${q}`}
                       className={cx(
                         "flex items-center justify-between gap-2 px-4 py-3 transition-colors",
                         active ? "bg-[#fbf8f1]" : "hover:bg-[#faf9f5]"
@@ -161,7 +173,7 @@ export default async function AccessoriesPage({
                         </div>
                         <div className="mt-1.5">
                           {modelCat.orderable && model.price !== null ? (
-                            <AddAccessoryButton modelId={model.id} />
+                            <AddAccessoryButton modelId={model.id} quoteId={quoteId} />
                           ) : (
                             <span className="text-[11px] text-muted">Reference</span>
                           )}

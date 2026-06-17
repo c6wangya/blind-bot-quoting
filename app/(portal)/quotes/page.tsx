@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { QuoteDetailsDrawer } from "@/components/QuoteDetailsDrawer";
 import { Badge, Card, EmptyState, LinkButton, PageHeader } from "@/components/ui";
 import { requireUserId, userClient } from "@/lib/auth/user";
 import { getQuotes } from "@/lib/db";
@@ -15,14 +14,14 @@ export default async function QuotesPage() {
         eyebrow="Quoting"
         title="Quotes"
         description="Auto-priced by the backend formula engine from catalog, variations and dimensions. Submit a draft to convert it into a supply-chain pre-order."
-        actions={<QuoteDetailsDrawer mode="create" />}
+        actions={<LinkButton href="/quotes/new">Create New Quote</LinkButton>}
       />
 
       {quotes.length === 0 ? (
         <EmptyState
           title="No quotes yet"
-          description="Configure a product from the catalog and it will land in a draft quote here."
-          action={<LinkButton href="/catalog">Browse catalog</LinkButton>}
+          description="Start a quote with the customer and ship-to details, then add products — or configure a product from the catalog and we'll help you create one."
+          action={<LinkButton href="/quotes/new">Create New Quote</LinkButton>}
         />
       ) : (
         <Card className="overflow-hidden">
