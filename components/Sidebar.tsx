@@ -13,7 +13,7 @@ type NavItem = {
   children?: { href: string; label: string; adminOnly?: boolean }[];
 };
 
-const NAV: { section: string; items: NavItem[] }[] = [
+const NAV: { section: string; adminOnly?: boolean; items: NavItem[] }[] = [
   {
     section: "Retailer Portal",
     items: [
@@ -24,7 +24,6 @@ const NAV: { section: string; items: NavItem[] }[] = [
         children: [
           { href: "/catalog", label: "Products" },
           { href: "/catalog/accessories", label: "Accessory" },
-          { href: "/catalog/tags", label: "Tags", adminOnly: true },
         ],
       },
       { href: "/quotes", label: "Quotes", icon: "≣" },
@@ -32,8 +31,11 @@ const NAV: { section: string; items: NavItem[] }[] = [
     ],
   },
   {
-    section: "Supply Chain",
+    // Entire section is admin-only — everything back-office lives here.
+    section: "Admin Console",
+    adminOnly: true,
     items: [
+      { href: "/catalog/tags", label: "Accessory Tags", icon: "#" },
       { href: "/supplier", label: "Supplier Console", icon: "⚙" },
       { href: "/pricing", label: "Pricing Versions", icon: "$" },
     ],
@@ -84,7 +86,7 @@ export default function Sidebar({
       </Link>
 
       <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-2">
-        {NAV.filter((group) => group.section !== "Supply Chain" || isAdmin).map((group) => (
+        {NAV.filter((group) => !group.adminOnly || isAdmin).map((group) => (
           <div key={group.section}>
             <div className="px-2.5 pb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/35">
               {group.section}
