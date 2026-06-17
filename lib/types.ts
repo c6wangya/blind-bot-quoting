@@ -93,6 +93,25 @@ export interface AccessoryConfig {
   category: string;
 }
 
+/**
+ * Admin-managed faceted attribute for accessory models (e.g. "Power", "Compatible
+ * products"). `multi` = a model can hold several values of this attribute. Filter/display
+ * metadata only — does not affect pricing. See supabase/migrations/0002_accessory_tags.sql.
+ */
+export interface AccessoryAttribute {
+  id: string;
+  name: string;
+  multi: boolean;
+  sort: number;
+}
+
+export interface AccessoryAttributeValue {
+  id: string;
+  attributeId: string;
+  label: string;
+  sort: number;
+}
+
 export interface BreakdownLine {
   label: string;
   detail?: string;

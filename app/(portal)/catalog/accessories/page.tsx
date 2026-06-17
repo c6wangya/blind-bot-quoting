@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AddAccessoryButton } from "@/components/AccessoryActions";
+import { AccessoryFilters } from "@/components/AccessoryFilters";
 import { Badge, Card, cx, PageHeader } from "@/components/ui";
 import {
   ACCESSORY_BRAND,
@@ -7,25 +8,55 @@ import {
   getAccessoryCategories,
   getAccessoryModels,
 } from "@/lib/accessories-data";
+import { getAttributes, getModelTagMap } from "@/lib/db";
 import { usd } from "@/lib/format";
 
 export default async function AccessoriesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ cat?: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const { cat } = await searchParams;
+  const sp = await searchParams;
+  const cat = typeof sp.cat === "string" ? sp.cat : undefined;
+
   const categories = getAccessoryCategories();
   const activeCat = categories.find((c) => c.id === cat) ?? categories[0];
-  const models = getAccessoryModels(activeCat.id);
+
+  const [attributes, tagMap] = await Promise.all([getAttributes(), getModelTagMap()]);
+
+  // value id → label, for chips
+  const valueLabel: Record<string, string> = {};
+  for (const a of attributes) for (const v of a.values) valueLabel[v.id] = v.label;
+
+  // active filters from ?t_<attrId>=<valueId>
+  const selected: Record<string, string> = {};
+  for (const a of attributes) {
+    const v = sp[`t_${a.id}`];
+    if (typeof v === "string" && v) selected[a.id] = v;
+  }
+  const filtering = Object.keys(selected).length > 0;
+
+  // When filtering, search ALL orderable motors across categories; otherwise browse the active category.
+  const baseModels = filtering
+    ? categories.filter((c) => c.orderable).flatMap((c) => getAccessoryModels(c.id).map((m) => ({ model: m, cat: c })))
+    : getAccessoryModels(activeCat.id).map((m) => ({ model: m, cat: activeCat }));
+
+  const models = filtering
+    ? baseModels.filter(({ model }) => {
+        const tags = new Set(tagMap[model.id] ?? []);
+        return Object.values(selected).every((valueId) => tags.has(valueId));
+      })
+    : baseModels;
 
   return (
     <div>
       <PageHeader
         eyebrow="Catalog · Accessories"
         title="Parts & Accessories"
-        description="Motors, controls and power — browse by brand and category. Motors are orderable and add to the same quote as full products; other parts are reference for now."
+        description="Motors, controls and power — browse by brand and category, or filter motors by their attributes. Motors are orderable and add to the same quote as full products; other parts are reference for now."
       />
+
+      <AccessoryFilters attributes={attributes} selected={selected} cat={cat} />
 
       {/* 3-level master-detail: Brand → Category → Models */}
       <div className="grid gap-4 lg:grid-cols-[200px_240px_1fr]">
@@ -50,7 +81,7 @@ export default async function AccessoriesPage({
             <ul className="divide-y divide-line/70">
               {categories.map((c) => {
                 const count = getAccessoryModels(c.id).length;
-                const active = c.id === activeCat.id;
+                const active = !filtering && c.id === activeCat.id;
                 return (
                   <li key={c.id}>
                     <Link
@@ -66,11 +97,7 @@ export default async function AccessoriesPage({
                         </div>
                         <div className="truncate text-[11px] text-muted">{count} models</div>
                       </div>
-                      {c.orderable ? (
-                        <Badge tone="green">Orderable</Badge>
-                      ) : (
-                        <Badge tone="slate">Reference</Badge>
-                      )}
+                      {c.orderable ? <Badge tone="green">Orderable</Badge> : <Badge tone="slate">Reference</Badge>}
                     </Link>
                   </li>
                 );
@@ -83,50 +110,71 @@ export default async function AccessoriesPage({
         <div>
           <div className="mb-2 flex items-center gap-2 px-1">
             <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">
-              {ACCESSORY_BRAND.name} · {activeCat.name}
+              {filtering ? `Filtered · ${models.length} motor${models.length === 1 ? "" : "s"}` : `${ACCESSORY_BRAND.name} · ${activeCat.name}`}
             </span>
-            {!activeCat.orderable && (
+            {!filtering && !activeCat.orderable && (
               <span className="text-[10.5px] text-muted">— reference only (not yet orderable)</span>
             )}
           </div>
           <Card className="overflow-hidden">
-            <ul className="divide-y divide-line/70">
-              {models.map((model) => (
-                <li key={model.id} className="flex items-center gap-4 px-4 py-3.5">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={accessoryImage(model)}
-                    alt={model.name}
-                    className="size-14 shrink-0 rounded-xl bg-[#0e0e10] object-contain p-1.5"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[14px] font-semibold text-ink">{model.name}</span>
-                      <span className="rounded bg-[#f1efe9] px-1.5 py-0.5 font-mono text-[10.5px] text-ink-soft">
-                        {model.sku}
-                      </span>
-                    </div>
-                    <p className="mt-0.5 line-clamp-2 text-[12.5px] leading-relaxed text-muted">{model.description}</p>
-                  </div>
-                  <div className="shrink-0 text-right">
-                    <div className="text-[15px] font-semibold tabular-nums text-ink">
-                      {model.price === null ? "Incl." : usd(model.price)}
-                    </div>
-                    <div className="mt-1.5">
-                      {activeCat.orderable && model.price !== null ? (
-                        <AddAccessoryButton modelId={model.id} />
-                      ) : (
-                        <span className="text-[11px] text-muted">Reference</span>
-                      )}
-                    </div>
-                  </div>
-                </li>
-              ))}
-            </ul>
+            {models.length === 0 ? (
+              <div className="px-5 py-10 text-center text-sm text-muted">No models match these filters.</div>
+            ) : (
+              <ul className="divide-y divide-line/70">
+                {models.map(({ model, cat: modelCat }) => {
+                  const tags = tagMap[model.id] ?? [];
+                  return (
+                    <li key={model.id} className="flex items-center gap-4 px-4 py-3.5">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={accessoryImage(model)}
+                        alt={model.name}
+                        className="size-14 shrink-0 rounded-xl bg-[#0e0e10] object-contain p-1.5"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-[14px] font-semibold text-ink">{model.name}</span>
+                          <span className="rounded bg-[#f1efe9] px-1.5 py-0.5 font-mono text-[10.5px] text-ink-soft">
+                            {model.sku}
+                          </span>
+                          {filtering && <span className="text-[10.5px] text-muted">{modelCat.name}</span>}
+                        </div>
+                        <p className="mt-0.5 line-clamp-2 text-[12.5px] leading-relaxed text-muted">
+                          {model.description}
+                        </p>
+                        {tags.length > 0 && (
+                          <div className="mt-1.5 flex flex-wrap gap-1">
+                            {tags.map((t) => (
+                              <span
+                                key={t}
+                                className="rounded-md bg-brass-soft px-1.5 py-0.5 text-[10.5px] font-medium text-[#8a6a39]"
+                              >
+                                {valueLabel[t] ?? t}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <div className="text-[15px] font-semibold tabular-nums text-ink">
+                          {model.price === null ? "Incl." : usd(model.price)}
+                        </div>
+                        <div className="mt-1.5">
+                          {modelCat.orderable && model.price !== null ? (
+                            <AddAccessoryButton modelId={model.id} />
+                          ) : (
+                            <span className="text-[11px] text-muted">Reference</span>
+                          )}
+                        </div>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </Card>
           <p className="mt-3 px-1 text-[11px] text-muted">
-            Imported from A-OK 2025 pricing. Images are category-representative for now; per-model photos and any
-            catalog corrections come from the A-OK website review.
+            Imported from A-OK 2025 pricing. Attributes &amp; tags are managed by an admin in Catalog · Tags.
           </p>
         </div>
       </div>

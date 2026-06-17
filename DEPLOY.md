@@ -31,8 +31,10 @@ Don't confuse `BLINDBOT_API_URL` (server) with `NEXT_PUBLIC_BLINDBOT_FRONTEND_UR
 
 ## 3. One-time Supabase setup (quote's project)
 
-1. **Run the RLS migration:** SQL editor → run `supabase/migrations/0001_rls.sql` (idempotent).
-   Without it, RLS isn't enforced.
+1. **Run the migrations in order** (SQL editor; all idempotent):
+   - `supabase/migrations/0001_rls.sql` — Row-Level Security. Without it, RLS isn't enforced.
+   - `supabase/migrations/0002_accessory_tags.sql` — accessory tag tables (needs `is_admin()` from 0001).
+     Until it's run, the catalog still works — it just shows no tag filters.
 2. **Auth → URL Configuration:** Site URL = the deployed origin; Redirect URLs include
    `https://<deploy-origin>/**` (needed for Google login + email confirmation callbacks).
 3. **Email/password signup** requires "Confirm email" + working SMTP (Auth → SMTP Settings).

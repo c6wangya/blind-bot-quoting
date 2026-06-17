@@ -10,7 +10,7 @@ type NavItem = {
   href?: string;
   label: string;
   icon: string;
-  children?: { href: string; label: string }[];
+  children?: { href: string; label: string; adminOnly?: boolean }[];
 };
 
 const NAV: { section: string; items: NavItem[] }[] = [
@@ -24,6 +24,7 @@ const NAV: { section: string; items: NavItem[] }[] = [
         children: [
           { href: "/catalog", label: "Products" },
           { href: "/catalog/accessories", label: "Accessory" },
+          { href: "/catalog/tags", label: "Tags", adminOnly: true },
         ],
       },
       { href: "/quotes", label: "Quotes", icon: "≣" },
@@ -92,7 +93,8 @@ export default function Sidebar({
               {group.items.map((item) => {
                 // Parent with nested children (Catalog → Products / Accessory)
                 if (item.children) {
-                  const groupActive = item.children.some((c) => isActive(c.href));
+                  const children = item.children.filter((c) => !c.adminOnly || isAdmin);
+                  const groupActive = children.some((c) => isActive(c.href));
                   return (
                     <div key={item.label}>
                       <div className="flex items-center gap-3 rounded-xl px-3 py-2 text-[13.5px] font-medium text-white/60">
@@ -107,7 +109,7 @@ export default function Sidebar({
                         {item.label}
                       </div>
                       <div className="mb-0.5 ml-[26px] space-y-0.5 border-l border-white/10 pl-3">
-                        {item.children.map((c) => {
+                        {children.map((c) => {
                           const active = isActive(c.href);
                           return (
                             <Link

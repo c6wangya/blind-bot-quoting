@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
-import { canAccessOwned, getCurrentUserId, userClient } from "@/lib/auth/user";
+import { canAccessOwned, getCurrentUserId, isAdmin, userClient } from "@/lib/auth/user";
 import { getOrderOwnerId, getQuoteOwnerId } from "@/lib/db";
 
 /**
@@ -34,3 +34,17 @@ export const requireQuoteAccess = (ctx: { params: Promise<{ id: string }> }) =>
 
 export const requireOrderAccess = (ctx: { params: Promise<{ id: string }> }) =>
   requireAccess(ctx, getOrderOwnerId);
+
+/**
+ * Admin-only gate for back-office API routes. Returns the RLS-scoped client on success
+ * (writes still pass the DB's admin policies), or a 401/403 NextResponse. Usage:
+ *
+ *   const sb = await requireAdmin();
+ *   if (sb instanceof NextResponse) return sb;
+ */
+export async function requireAdmin(): Promise<SupabaseClient | NextResponse> {
+  const uid = await getCurrentUserId();
+  if (!uid) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!(await isAdmin(uid))) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  return userClient();
+}
