@@ -10,10 +10,12 @@ export function AccessoryFilters({
   attributes,
   selected,
   cat,
+  quote,
 }: {
   attributes: AttributeWithValues[];
   selected: Record<string, string>;
   cat?: string;
+  quote?: number;
 }) {
   const router = useRouter();
   const withValues = attributes.filter((a) => a.values.length > 0);
@@ -22,6 +24,7 @@ export function AccessoryFilters({
   const build = (sel: Record<string, string>) => {
     const p = new URLSearchParams();
     if (cat) p.set("cat", cat);
+    if (quote) p.set("quote", String(quote));
     for (const [k, v] of Object.entries(sel)) if (v) p.set(`t_${k}`, v);
     const qs = p.toString();
     return qs ? `${BASE}?${qs}` : BASE;

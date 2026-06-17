@@ -7,7 +7,11 @@ export const round2 = (n: number) => Math.round(n * 100) / 100;
 // Column lists with snake_case → camelCase aliases, so DB rows hydrate directly
 // into the camelCase domain types (TS types + components stay unchanged).
 export const PRICING_COLS = "id, lineId:line_id, version, active, note, config, createdAt:created_at";
-export const QUOTE_COLS = "id, ref, retailer, status, projectName:project_name, createdAt:created_at, updatedAt:updated_at";
+export const QUOTE_COLS =
+  "id, ref, retailer, status, projectName:project_name, quoteType:quote_type, " +
+  "customerName:customer_name, customerPhone:customer_phone, customerEmail:customer_email, " +
+  "shipAddress1:ship_address1, shipAddress2:ship_address2, shipCity:ship_city, shipState:ship_state, shipZip:ship_zip, " +
+  "po, sidemark, createdAt:created_at, updatedAt:updated_at";
 export const ITEM_COLS = "id, quoteId:quote_id, productId:product_id, lineId:line_id, qty, config, computation, createdAt:created_at";
 export const ORDER_COLS = "id, ref, quoteId:quote_id, status, supplierOrderNo:supplier_order_no, trackingNo:tracking_no, carrier, etaDate:eta_date, createdAt:created_at, updatedAt:updated_at";
 export const EVENT_COLS = "id, orderId:order_id, status, note, actor, createdAt:created_at";

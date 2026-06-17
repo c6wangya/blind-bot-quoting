@@ -12,9 +12,11 @@ const TIER_TONE: Record<string, string> = {
 export default async function CatalogPage({
   searchParams,
 }: {
-  searchParams: Promise<{ line?: string }>;
+  searchParams: Promise<{ line?: string; quote?: string }>;
 }) {
-  const { line } = await searchParams;
+  const { line, quote } = await searchParams;
+  const quoteId = quote && Number.isInteger(Number(quote)) ? Number(quote) : undefined;
+  const q = quoteId ? `quote=${quoteId}` : "";
   const lines = getLines();
   const activeLine = lines.find((l) => l.id === line) ?? null;
   const products = getProducts(activeLine?.id);
@@ -27,10 +29,19 @@ export default async function CatalogPage({
         description="Every pattern below is validated against the supply chain — only producible variation combinations can be quoted. Pick a pattern to configure, render and price it."
       />
 
+      {quoteId && (
+        <div className="rise mb-5 flex items-center justify-between gap-3 rounded-xl border border-brass/40 bg-brass-soft/40 px-4 py-2.5 text-[13px] text-ink-soft">
+          <span>Adding a product to your quote — pick one to configure.</span>
+          <Link href={`/quotes/${quoteId}`} className="shrink-0 font-medium text-brass hover:underline">
+            Back to quote →
+          </Link>
+        </div>
+      )}
+
       {/* line filter */}
       <div className="rise mb-6 flex gap-2">
         <Link
-          href="/catalog"
+          href={quoteId ? `/catalog?${q}` : "/catalog"}
           className={cx(
             "rounded-full px-4 py-1.5 text-sm font-medium transition-colors",
             !activeLine ? "bg-ink text-white" : "border border-line bg-surface text-ink-soft hover:bg-[#faf9f5]"
@@ -41,7 +52,7 @@ export default async function CatalogPage({
         {lines.map((l) => (
           <Link
             key={l.id}
-            href={`/catalog?line=${l.id}`}
+            href={`/catalog?line=${l.id}${q ? `&${q}` : ""}`}
             className={cx(
               "rounded-full px-4 py-1.5 text-sm font-medium transition-colors",
               activeLine?.id === l.id
@@ -64,7 +75,7 @@ export default async function CatalogPage({
         {products.map((p) => {
           const lineName = lines.find((l) => l.id === p.lineId)!.name;
           return (
-            <Link key={p.id} href={`/configure/${p.id}`} className="group">
+            <Link key={p.id} href={`/configure/${p.id}${q ? `?${q}` : ""}`} className="group">
               <Card className="flex h-full flex-col overflow-hidden transition-all hover:-translate-y-0.5 hover:shadow-md">
                 <div className="relative aspect-[4/3] overflow-hidden bg-[#f1efe9]">
                   {/* eslint-disable-next-line @next/next/no-img-element */}

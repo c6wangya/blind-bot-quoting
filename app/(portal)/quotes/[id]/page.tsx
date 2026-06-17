@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { DeleteDraftButton, RemoveItemButton, SubmitPreOrderButton } from "@/components/QuoteActions";
+import { QuoteDetailsDrawer } from "@/components/QuoteDetailsDrawer";
 import { Swatch } from "@/components/renders";
 import { Badge, Card, EmptyState, LinkButton, PageHeader } from "@/components/ui";
 import { canAccessOwned, requireUserId, userClient } from "@/lib/auth/user";
@@ -9,6 +10,23 @@ import { accessoryImage, getAccessoryModel } from "@/lib/accessories-data";
 import { describeConfig } from "@/lib/describe";
 import { fmtDate, usd } from "@/lib/format";
 import { isAccessoryConfig } from "@/lib/types";
+
+function DetailBlock({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div className="mb-1 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-muted">{label}</div>
+      {children}
+    </div>
+  );
+}
+
+function Ref({ label, value }: { label: string; value: string | null }) {
+  return (
+    <div className="text-[12.5px] text-muted">
+      {label}: <span className="text-ink-soft">{value || "—"}</span>
+    </div>
+  );
+}
 
 export default async function QuoteDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -21,6 +39,26 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
 
   const order =
     quote.status === "converted" ? await getOrderRefByQuote(quote.id, sb) : undefined;
+
+  const details = {
+    quoteType: quote.quoteType,
+    projectName: quote.projectName,
+    customerName: quote.customerName,
+    customerPhone: quote.customerPhone,
+    customerEmail: quote.customerEmail,
+    shipAddress1: quote.shipAddress1,
+    shipAddress2: quote.shipAddress2,
+    shipCity: quote.shipCity,
+    shipState: quote.shipState,
+    shipZip: quote.shipZip,
+    po: quote.po,
+    sidemark: quote.sidemark,
+  };
+  const shipLines = [
+    quote.shipAddress1,
+    quote.shipAddress2,
+    [quote.shipCity, quote.shipState, quote.shipZip].filter(Boolean).join(", ") || null,
+  ].filter(Boolean) as string[];
 
   return (
     <div>
@@ -37,15 +75,56 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
         }
       />
 
+      {/* Order-critical header details — customer, ship-to, references */}
+      <Card className="mb-6 px-5 py-4">
+        <div className="flex items-start justify-between gap-4">
+          <div className="grid flex-1 gap-x-8 gap-y-4 sm:grid-cols-3">
+            <DetailBlock label="Customer">
+              {quote.customerName ? (
+                <>
+                  <div className="text-[13.5px] font-medium text-ink">{quote.customerName}</div>
+                  {quote.customerPhone && <div className="text-[12px] text-muted">{quote.customerPhone}</div>}
+                  {quote.customerEmail && <div className="text-[12px] text-muted">{quote.customerEmail}</div>}
+                </>
+              ) : (
+                <span className="text-[12.5px] text-muted">—</span>
+              )}
+            </DetailBlock>
+            <DetailBlock label="Ship to">
+              {shipLines.length ? (
+                shipLines.map((l, i) => (
+                  <div key={i} className="text-[12.5px] text-ink-soft">{l}</div>
+                ))
+              ) : (
+                <span className="text-[12.5px] text-muted">—</span>
+              )}
+            </DetailBlock>
+            <DetailBlock label="References">
+              <Ref label="Sidemark" value={quote.sidemark} />
+              <Ref label="PO" value={quote.po} />
+              <Ref label="Project" value={quote.projectName} />
+            </DetailBlock>
+          </div>
+          {quote.status === "draft" && (
+            <QuoteDetailsDrawer quoteId={quote.id} initial={details} />
+          )}
+        </div>
+      </Card>
+
       {quote.items.length === 0 ? (
         <EmptyState
           title="This quote is empty"
           description="Add configured products from the catalog to build the quote."
-          action={<LinkButton href="/catalog">Browse catalog</LinkButton>}
+          action={<LinkButton href={`/catalog?quote=${quote.id}`}>Add product</LinkButton>}
         />
       ) : (
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="space-y-4 lg:col-span-2">
+            {quote.status === "draft" && (
+              <div className="flex justify-end">
+                <LinkButton href={`/catalog?quote=${quote.id}`}>+ Add product</LinkButton>
+              </div>
+            )}
             {quote.items.map((item) => {
               // Accessory line (A-OK motor): fixed price, no color/dimensions.
               if (isAccessoryConfig(item.config)) {

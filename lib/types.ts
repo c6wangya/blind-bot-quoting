@@ -151,8 +151,36 @@ export interface QuoteRow {
   retailer: string;
   status: QuoteStatus;
   projectName: string | null;
+  // Enriched header details (THE-772 — see supabase/migrations/0003_quote_details.sql).
+  quoteType: string;
+  customerName: string | null;
+  customerPhone: string | null;
+  customerEmail: string | null;
+  shipAddress1: string | null;
+  shipAddress2: string | null;
+  shipCity: string | null;
+  shipState: string | null;
+  shipZip: string | null;
+  po: string | null;
+  sidemark: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+/** Editable quote header details — customer, ship-to, and references. All optional. */
+export interface QuoteDetails {
+  quoteType?: string;
+  projectName?: string | null;
+  customerName?: string | null;
+  customerPhone?: string | null;
+  customerEmail?: string | null;
+  shipAddress1?: string | null;
+  shipAddress2?: string | null;
+  shipCity?: string | null;
+  shipState?: string | null;
+  shipZip?: string | null;
+  po?: string | null;
+  sidemark?: string | null;
 }
 
 export const ORDER_STATUSES = [

@@ -11,11 +11,43 @@ import type {
   ItemConfig,
   Product,
   QuoteComputation,
+  QuoteDetails,
   QuoteItemRow,
   QuoteRow,
 } from "@/lib/types";
 import { ITEM_COLS, QUOTE_COLS, round2, type ItemAgg, nextRef } from "./internal";
 import { DEMO_RETAILER, ensureSeeded } from "./seed";
+
+// Map camelCase QuoteDetails → snake_case columns; only keys actually present are written.
+const DETAIL_KEYS: (keyof QuoteDetails)[] = [
+  "quoteType", "projectName", "customerName", "customerPhone", "customerEmail",
+  "shipAddress1", "shipAddress2", "shipCity", "shipState", "shipZip", "po", "sidemark",
+];
+const COLUMN: Record<keyof QuoteDetails, string> = {
+  quoteType: "quote_type", projectName: "project_name", customerName: "customer_name",
+  customerPhone: "customer_phone", customerEmail: "customer_email", shipAddress1: "ship_address1",
+  shipAddress2: "ship_address2", shipCity: "ship_city", shipState: "ship_state", shipZip: "ship_zip",
+  po: "po", sidemark: "sidemark",
+};
+function detailColumns(d: QuoteDetails): Record<string, unknown> {
+  const c: Record<string, unknown> = {};
+  for (const k of DETAIL_KEYS) if (d[k] !== undefined) c[COLUMN[k]] = d[k];
+  return c;
+}
+
+/** Coerce arbitrary request JSON into a safe QuoteDetails (known keys only, string|null). */
+export function sanitizeQuoteDetails(body: unknown): QuoteDetails {
+  const out: QuoteDetails = {};
+  if (!body || typeof body !== "object") return out;
+  const o = body as Record<string, unknown>;
+  for (const k of DETAIL_KEYS) {
+    if (k in o) {
+      const v = o[k];
+      (out as Record<string, unknown>)[k] = v == null || v === "" ? null : String(v).slice(0, 500);
+    }
+  }
+  return out;
+}
 
 export async function getDraftQuote(ownerId: string, sb: SupabaseClient = admin()): Promise<QuoteRow | undefined> {
   await ensureSeeded();
@@ -46,6 +78,36 @@ export async function getOrCreateDraftQuote(
     .single();
   if (error) throw error;
   return data as unknown as QuoteRow;
+}
+
+/** Create a new draft quote with header details (the "Create new quote" flow). */
+export async function createQuote(
+  ownerId: string,
+  details: QuoteDetails = {},
+  sb: SupabaseClient = admin()
+): Promise<QuoteRow> {
+  await ensureSeeded();
+  const ref = await nextRef("quotes", "Q");
+  const { data, error } = await sb
+    .from("quotes")
+    .insert({ ref, retailer: DEMO_RETAILER, status: "draft", owner_id: ownerId, ...detailColumns(details) })
+    .select(QUOTE_COLS)
+    .single();
+  if (error) throw error;
+  return data as unknown as QuoteRow;
+}
+
+/** Update a quote's header details (customer / ship-to / references). */
+export async function updateQuoteDetails(
+  quoteId: number,
+  details: QuoteDetails,
+  sb: SupabaseClient = admin()
+): Promise<void> {
+  const { error } = await sb
+    .from("quotes")
+    .update({ ...detailColumns(details), updated_at: new Date().toISOString() })
+    .eq("id", quoteId);
+  if (error) throw error;
 }
 
 export async function addQuoteItem(

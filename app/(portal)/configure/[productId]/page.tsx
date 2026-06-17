@@ -10,10 +10,11 @@ export default async function ConfigurePage({
   searchParams,
 }: {
   params: Promise<{ productId: string }>;
-  searchParams: Promise<{ img?: string; cfg?: string; line?: string }>;
+  searchParams: Promise<{ img?: string; cfg?: string; line?: string; quote?: string }>;
 }) {
   const { productId } = await params;
-  const { img, cfg, line: lineParam } = await searchParams;
+  const { img, cfg, line: lineParam, quote } = await searchParams;
+  const quoteId = quote && Number.isInteger(Number(quote)) ? Number(quote) : undefined;
   const product = getProduct(productId);
   if (!product) notFound();
   const line = getLine(product.lineId)!;
@@ -61,6 +62,7 @@ export default async function ConfigurePage({
         pricingVersion={pricing.version}
         leadTimeDays={line.leadTimeDays}
         imported={imported}
+        quoteId={quoteId}
       />
     </div>
   );

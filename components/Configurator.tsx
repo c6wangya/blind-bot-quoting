@@ -1,11 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { TIER_LABELS } from "@/lib/catalog-data";
 import { usd } from "@/lib/format";
 import { mapImportedConfig, type ImportPayload } from "@/lib/import";
+import { stashPendingItem } from "@/lib/pending-item";
 import type {
   ItemConfig,
   OpacityId,
@@ -26,12 +26,15 @@ export default function Configurator({
   pricingVersion,
   leadTimeDays,
   imported,
+  quoteId,
 }: {
   product: Product;
   line: ProductLine;
   pricingVersion: string;
   leadTimeDays: number;
   imported?: ImportPayload | null;
+  /** When set, "Add to quote" adds straight to this quote (the quote's "Add Product" flow). */
+  quoteId?: number;
 }) {
   const router = useRouter();
 
@@ -77,7 +80,6 @@ export default function Configurator({
   const [priceError, setPriceError] = useState<string | null>(null);
   const [pricePending, setPricePending] = useState(false);
   const [adding, setAdding] = useState(false);
-  const [lastAdded, setLastAdded] = useState<{ quoteRef: string; key: string } | null>(null);
 
   const color = product.colors.find((c) => c.id === colorId) ?? product.colors[0];
 
@@ -103,10 +105,6 @@ export default function Configurator({
     [colorId, opacityId, options, dims]
   );
 
-  // "Added" confirmation is derived, not stored: it shows only while the config +
-  // qty still match what was last added, so changing anything clears it — no effect needed.
-  const configKey = useMemo(() => `${JSON.stringify(config)}|${qty}`, [config, qty]);
-  const added = lastAdded?.key === configKey ? lastAdded : null;
 
   // ---- backend auto-quote, debounced ----
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -162,25 +160,32 @@ export default function Configurator({
   const addToQuote = async () => {
     if (!computation) return;
     setAdding(true);
-    try {
-      const r = await fetch("/api/quote-items", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productId: product.id, config, qty }),
-      });
-      if (r.status === 401) {
-        window.location.href = `/login?next=${encodeURIComponent(location.pathname + location.search)}`;
-        return;
+    setPriceError(null);
+    // Adding from a specific quote's "Add Product" → straight into that quote.
+    if (quoteId) {
+      try {
+        const r = await fetch("/api/quote-items", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ productId: product.id, config, qty, quoteId }),
+        });
+        if (r.status === 401) {
+          window.location.href = `/login?next=${encodeURIComponent(location.pathname + location.search)}`;
+          return;
+        }
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error ?? "Could not add to quote");
+        router.push(`/quotes/${quoteId}`);
+        router.refresh();
+      } catch (e) {
+        setPriceError((e as Error).message);
+        setAdding(false);
       }
-      const data = await r.json();
-      if (!r.ok) throw new Error(data.error ?? "Could not add to quote");
-      setLastAdded({ quoteRef: data.quoteRef, key: configKey });
-      router.refresh();
-    } catch (e) {
-      setPriceError((e as Error).message);
-    } finally {
-      setAdding(false);
+      return;
     }
+    // No quote context → stash this configured product and go decide/create one.
+    stashPendingItem({ kind: "product", productId: product.id, lineId: product.lineId, config, qty });
+    router.push("/quotes/new");
   };
 
   return (
@@ -441,13 +446,8 @@ export default function Configurator({
                   : "cursor-not-allowed bg-[#e9e6dd] text-muted"
               )}
             >
-              {adding ? "Adding…" : added ? "✓ Added — add another" : "Add to quote"}
+              {adding ? "Adding…" : quoteId ? "Add to this quote" : "Add to quote"}
             </button>
-            {added && (
-              <Link href="/quotes" className="mt-2 block text-center text-xs font-medium text-brass hover:underline">
-                Added to {added.quoteRef} — review quote →
-              </Link>
-            )}
           </Card>
         </div>
       </div>
