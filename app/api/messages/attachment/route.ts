@@ -24,7 +24,11 @@ export async function POST(req: Request) {
     const file = form.get("file");
     const caption = String(form.get("caption") ?? "");
     if (!(file instanceof File)) return NextResponse.json({ error: "No file" }, { status: 400 });
-    if (!allowed(file.type)) return NextResponse.json({ error: "Unsupported file type" }, { status: 400 });
+    if (!allowed(file.type))
+      return NextResponse.json(
+        { error: "Unsupported file type — upload an image, PDF, Word, Excel, CSV, or TXT file (≤ 10 MB)." },
+        { status: 400 }
+      );
     if (file.size > MAX_BYTES) return NextResponse.json({ error: "File must be ≤ 10 MB" }, { status: 400 });
 
     const adminUser = await isAdmin(uid);

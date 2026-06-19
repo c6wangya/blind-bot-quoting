@@ -388,7 +388,7 @@ export function ChatThread({
             onClick={() => fileRef.current?.click()}
             disabled={busy}
             aria-label="Attach a file"
-            title="Attach image or file"
+            title="Attach an image, PDF, Word, Excel, CSV or TXT file (≤ 10 MB)"
             className="flex h-[44px] w-10 shrink-0 items-center justify-center rounded-xl border border-line text-lg text-muted hover:bg-[#faf9f5] hover:text-ink disabled:opacity-50"
           >
             📎
