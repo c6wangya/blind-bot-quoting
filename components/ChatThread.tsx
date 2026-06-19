@@ -18,6 +18,14 @@ function fmtTime(iso: string): string {
   return new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
+function fmtSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+const ACCEPT = "image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt";
+
 function dayLabel(iso: string): string {
   const d = new Date(iso);
   const now = new Date();
@@ -80,6 +88,7 @@ export function ChatThread({
   const [showEmoji, setShowEmoji] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
   const lastReadId = useRef<string | null>(null);
   const bottomPinned = useRef(true);
   const tmpSeq = useRef(0);
@@ -156,6 +165,35 @@ export function ChatThread({
       const pos = start + emoji.length;
       ta.setSelectionRange(pos, pos);
     });
+  };
+
+  const uploadAttachment = async (file: File) => {
+    if (busy) return;
+    const tmpId = `tmp-${tmpSeq.current++}`;
+    setBusy(true);
+    setErr(null);
+    bottomPinned.current = true;
+    setPending((p) => [
+      ...p,
+      { id: tmpId, conversationId: convId ?? "", senderId: "", senderRole: role, body: `📎 Uploading ${file.name}…`, createdAt: new Date().toISOString(), pending: true },
+    ]);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      if (role === "admin" && convId) fd.append("conversationId", convId);
+      const r = await fetch("/api/messages/attachment", { method: "POST", body: fd });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data.error ?? "Upload failed");
+      if (data.conversationId && !convId) setConvId(data.conversationId);
+      if (data.message) setMessages((m) => [...m, data.message as ChatMessage]);
+      setPending((p) => p.filter((x) => x.id !== tmpId));
+      onActivity?.();
+    } catch (e) {
+      setPending((p) => p.filter((x) => x.id !== tmpId));
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
   };
 
   const send = async () => {
@@ -256,17 +294,48 @@ export function ChatThread({
                   )}
                 >
                   {!mine && <div className="w-7 shrink-0">{groupEnd && <Avatar support={peerSupport} name={peerName} />}</div>}
-                  <div className={cx("max-w-[78%] sm:max-w-[70%]", mine && "items-end")}>
-                    <div
-                      className={cx(
-                        "whitespace-pre-wrap break-words px-3.5 py-2 text-sm leading-relaxed",
-                        mine
-                          ? cx("rounded-2xl bg-ink text-white", groupEnd && "rounded-br-md", m.pending && "opacity-70")
-                          : cx("rounded-2xl border border-line bg-[#faf9f5] text-ink", groupEnd && "rounded-bl-md")
-                      )}
-                    >
-                      {m.body}
-                    </div>
+                  <div className={cx("flex max-w-[78%] flex-col gap-1 sm:max-w-[70%]", mine ? "items-end" : "items-start")}>
+                    {m.body && (
+                      <div
+                        className={cx(
+                          "whitespace-pre-wrap break-words px-3.5 py-2 text-sm leading-relaxed",
+                          mine
+                            ? cx("rounded-2xl bg-ink text-white", groupEnd && "rounded-br-md", m.pending && "opacity-70")
+                            : cx("rounded-2xl border border-line bg-[#faf9f5] text-ink", groupEnd && "rounded-bl-md")
+                        )}
+                      >
+                        {m.body}
+                      </div>
+                    )}
+                    {m.attachment &&
+                      (m.attachment.type.startsWith("image/") ? (
+                        <a href={m.attachment.url} target="_blank" rel="noreferrer" className="block">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={m.attachment.url}
+                            alt={m.attachment.name}
+                            className="max-h-64 max-w-full rounded-xl border border-line object-cover"
+                          />
+                        </a>
+                      ) : (
+                        <a
+                          href={m.attachment.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className={cx(
+                            "flex items-center gap-2 rounded-2xl border px-3 py-2 text-sm",
+                            mine ? "border-ink bg-ink text-white" : "border-line bg-[#faf9f5] text-ink"
+                          )}
+                        >
+                          <span className="text-base">📎</span>
+                          <span className="min-w-0">
+                            <span className="block truncate font-medium underline">{m.attachment.name}</span>
+                            <span className={cx("text-[11px]", mine ? "text-white/70" : "text-muted")}>
+                              {fmtSize(m.attachment.size)}
+                            </span>
+                          </span>
+                        </a>
+                      ))}
                     {groupEnd && (
                       <div className={cx("mt-1 px-1 text-[10.5px] text-muted", mine ? "text-right" : "text-left")}>
                         {fmtTime(m.createdAt)}
@@ -303,6 +372,27 @@ export function ChatThread({
         )}
 
         <div className="flex items-end gap-2">
+          <input
+            ref={fileRef}
+            type="file"
+            accept={ACCEPT}
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              e.target.value = "";
+              if (file) uploadAttachment(file);
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            disabled={busy}
+            aria-label="Attach a file"
+            title="Attach image or file"
+            className="flex h-[44px] w-10 shrink-0 items-center justify-center rounded-xl border border-line text-lg text-muted hover:bg-[#faf9f5] hover:text-ink disabled:opacity-50"
+          >
+            📎
+          </button>
           <button
             type="button"
             onClick={() => setShowEmoji((s) => !s)}

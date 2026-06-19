@@ -7,6 +7,11 @@ import { admin } from "@/lib/supabase/admin";
 
 export type ChatRole = "retailer" | "admin";
 
+export const CHAT_BUCKET = "chat-attachments";
+const SIGNED_URL_TTL = 3600; // 1h — re-signed on every fetch (polling), so short is fine
+
+export type ChatAttachment = { name: string; type: string; size: number; url: string };
+
 export type ChatMessage = {
   id: string;
   conversationId: string;
@@ -14,6 +19,7 @@ export type ChatMessage = {
   senderRole: ChatRole;
   body: string;
   createdAt: string;
+  attachment?: ChatAttachment | null;
 };
 
 export type Conversation = {
@@ -36,7 +42,33 @@ export type ConversationListItem = Conversation & {
 const CONV_COLS =
   "id, retailerId:retailer_id, lastMessageAt:last_message_at, lastMessagePreview:last_message_preview, " +
   "lastSenderRole:last_sender_role, retailerLastReadAt:retailer_last_read_at, adminLastReadAt:admin_last_read_at";
-const MSG_COLS = "id, conversationId:conversation_id, senderId:sender_id, senderRole:sender_role, body, createdAt:created_at";
+const MSG_COLS =
+  "id, conversationId:conversation_id, senderId:sender_id, senderRole:sender_role, body, createdAt:created_at, " +
+  "attachmentPath:attachment_path, attachmentName:attachment_name, attachmentType:attachment_type, attachmentSize:attachment_size";
+
+type RawMessage = Omit<ChatMessage, "attachment"> & {
+  attachmentPath: string | null;
+  attachmentName: string | null;
+  attachmentType: string | null;
+  attachmentSize: number | null;
+};
+
+function toChatMessage(r: RawMessage, url: string | null): ChatMessage {
+  const { attachmentPath, attachmentName, attachmentType, attachmentSize, ...rest } = r;
+  return {
+    ...rest,
+    attachment:
+      attachmentPath && url
+        ? { name: attachmentName ?? "file", type: attachmentType ?? "", size: attachmentSize ?? 0, url }
+        : null,
+  };
+}
+
+/** Sign one attachment path (service_role) — callers gate conversation access first. */
+async function signAttachment(path: string): Promise<string | null> {
+  const { data } = await admin().storage.from(CHAT_BUCKET).createSignedUrl(path, SIGNED_URL_TTL);
+  return data?.signedUrl ?? null;
+}
 
 /** Is the conversation's latest message an unread one for `role`? */
 function isUnreadFor(conv: Conversation, role: ChatRole): boolean {
@@ -100,7 +132,17 @@ export async function getMessages(conversationId: string, sb: SupabaseClient = a
     .select(MSG_COLS)
     .eq("conversation_id", conversationId)
     .order("created_at", { ascending: true });
-  return (data as unknown as ChatMessage[]) ?? [];
+  const rows = (data as unknown as RawMessage[]) ?? [];
+  // Batch-sign any attachment paths (service_role); access already gated by the caller.
+  const paths = rows.map((r) => r.attachmentPath).filter((p): p is string => !!p);
+  const urlByPath = new Map<string, string>();
+  if (paths.length) {
+    const { data: signed } = await admin().storage.from(CHAT_BUCKET).createSignedUrls(paths, SIGNED_URL_TTL);
+    (signed ?? []).forEach((s) => {
+      if (s.path && s.signedUrl) urlByPath.set(s.path, s.signedUrl);
+    });
+  }
+  return rows.map((r) => toChatMessage(r, r.attachmentPath ? urlByPath.get(r.attachmentPath) ?? null : null));
 }
 
 /** Insert a message and refresh the conversation's cached preview + the sender's own read mark. */
@@ -119,17 +161,59 @@ export async function sendMessage(
     .select(MSG_COLS)
     .single();
   if (error) throw error;
-  const msg = data as unknown as ChatMessage;
+  const raw = data as unknown as RawMessage;
+  await bumpConversation(conversationId, senderRole, raw.createdAt, text.slice(0, 140), sb);
+  return toChatMessage(raw, null);
+}
+
+/** Insert an attachment message (optional caption) and refresh the conversation. */
+export async function sendAttachmentMessage(
+  conversationId: string,
+  senderId: string,
+  senderRole: ChatRole,
+  attachment: { path: string; name: string; type: string; size: number },
+  caption: string,
+  sb: SupabaseClient = admin()
+): Promise<ChatMessage> {
+  const text = caption.trim();
+  const { data, error } = await sb
+    .from("messages")
+    .insert({
+      conversation_id: conversationId,
+      sender_id: senderId,
+      sender_role: senderRole,
+      body: text,
+      attachment_path: attachment.path,
+      attachment_name: attachment.name,
+      attachment_type: attachment.type,
+      attachment_size: attachment.size,
+    })
+    .select(MSG_COLS)
+    .single();
+  if (error) throw error;
+  const raw = data as unknown as RawMessage;
+  const preview = (text || `📎 ${attachment.name}`).slice(0, 140);
+  await bumpConversation(conversationId, senderRole, raw.createdAt, preview, sb);
+  return toChatMessage(raw, await signAttachment(attachment.path));
+}
+
+/** Update the conversation's cached preview + the sender's own read mark after a new message. */
+async function bumpConversation(
+  conversationId: string,
+  senderRole: ChatRole,
+  at: string,
+  preview: string,
+  sb: SupabaseClient
+): Promise<void> {
   const patch: Record<string, unknown> = {
-    last_message_at: msg.createdAt,
-    last_message_preview: text.slice(0, 140),
+    last_message_at: at,
+    last_message_preview: preview,
     last_sender_role: senderRole,
   };
   // The sender has obviously seen everything up to their own message.
-  if (senderRole === "admin") patch.admin_last_read_at = msg.createdAt;
-  else patch.retailer_last_read_at = msg.createdAt;
+  if (senderRole === "admin") patch.admin_last_read_at = at;
+  else patch.retailer_last_read_at = at;
   await sb.from("conversations").update(patch).eq("id", conversationId);
-  return msg;
 }
 
 export async function markRead(conversationId: string, role: ChatRole, sb: SupabaseClient = admin()): Promise<void> {
