@@ -24,11 +24,19 @@ export function ModelTagEditor({
       </Card>
     );
   }
+  // Version key over all current value ids — when attributes/values change (add/delete),
+  // it changes, remounting every row so each re-seeds from fresh data (no stale value ids).
+  const valuesKey = attributes.flatMap((a) => a.values.map((v) => v.id)).join(",");
   return (
     <Card className="overflow-hidden">
       <ul className="divide-y divide-line/70">
         {models.map((model) => (
-          <ModelRow key={model.id} model={model} attributes={attributes} initial={tagMap[model.id] ?? []} />
+          <ModelRow
+            key={`${model.id}|${valuesKey}`}
+            model={model}
+            attributes={attributes}
+            initial={tagMap[model.id] ?? []}
+          />
         ))}
       </ul>
     </Card>
