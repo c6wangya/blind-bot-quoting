@@ -8,6 +8,7 @@ import {
 import { admin } from "@/lib/supabase/admin";
 import type {
   AccessoryConfig,
+  CrownDriverConfig,
   ItemConfig,
   Product,
   QuoteComputation,
@@ -169,7 +170,8 @@ export async function addAccessoryItem(
   model: AccessoryModel,
   qty: number,
   sb: SupabaseClient = admin(),
-  unitPrice?: number
+  unitPrice?: number,
+  crownDriver?: CrownDriverConfig
 ): Promise<QuoteItemRow> {
   const category = getAccessoryCategory(model.categoryId);
   const config: AccessoryConfig = {
@@ -178,16 +180,32 @@ export async function addAccessoryItem(
     name: model.name,
     brand: ACCESSORY_BRAND.name,
     category: category?.name ?? model.categoryId,
+    ...(crownDriver ? { crownDriver } : {}),
   };
   // Snapshot the retailer's effective price (override → default → static), defaulting to static.
-  const price = unitPrice ?? model.price ?? 0;
+  const base = unitPrice ?? model.price ?? 0;
+  const lines = [{ label: "Unit price", detail: model.sku, amount: base }];
+  let price = base;
+  if (crownDriver?.mode === "crown-driver") {
+    if (crownDriver.crownPriceDelta) {
+      lines.push({ label: "Crown", detail: crownDriver.crownLabel, amount: crownDriver.crownPriceDelta });
+      price += crownDriver.crownPriceDelta;
+    }
+    if (crownDriver.driverPriceDelta) {
+      lines.push({ label: "Driver", detail: crownDriver.driverLabel, amount: crownDriver.driverPriceDelta });
+      price += crownDriver.driverPriceDelta;
+    }
+  }
   const computation: QuoteComputation = {
-    unitPrice: price,
+    unitPrice: round2(price),
     currency: "USD",
-    lines: [{ label: "Unit price", detail: model.sku, amount: price }],
+    lines,
     facts: [
       { label: "Brand", value: ACCESSORY_BRAND.name },
       { label: "Model #", value: model.sku },
+      ...(crownDriver?.mode === "crown-driver"
+        ? [{ label: "Crown / Driver", value: `${crownDriver.crownLabel} · ${crownDriver.driverLabel}` }]
+        : []),
     ],
     pricingVersion: ACCESSORY_PRICING_VERSION,
   };

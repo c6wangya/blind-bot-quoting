@@ -9,7 +9,14 @@ import {
   getAccessoryModels,
 } from "@/lib/accessories-data";
 import { getCurrentUserId } from "@/lib/auth/user";
-import { getAttributes, getEffectivePrices, getInventoryMap, getModelTagMap } from "@/lib/db";
+import {
+  getAttributes,
+  getCrownOptions,
+  getDriverOptions,
+  getEffectivePrices,
+  getInventoryMap,
+  getModelTagMap,
+} from "@/lib/db";
 import { usd } from "@/lib/format";
 
 export default async function AccessoriesPage({
@@ -27,11 +34,13 @@ export default async function AccessoriesPage({
   const activeCat = categories.find((c) => c.id === cat) ?? categories[0];
 
   const userId = await getCurrentUserId();
-  const [attributes, tagMap, effectivePrices, inventory] = await Promise.all([
+  const [attributes, tagMap, effectivePrices, inventory, crownOptions, driverOptions] = await Promise.all([
     getAttributes(),
     getModelTagMap(),
     getEffectivePrices(userId), // this retailer's price per motor (override → default → static)
     getInventoryMap(), // model_id → stock; absent = untracked
+    getCrownOptions(),
+    getDriverOptions(),
   ]);
 
   // value id → label, for chips
@@ -182,7 +191,13 @@ export default async function AccessoriesPage({
                         </div>
                         <div className="mt-1.5">
                           {modelCat.orderable && price !== null ? (
-                            <AddAccessoryButton modelId={model.id} quoteId={quoteId} stock={stock} />
+                            <AddAccessoryButton
+                              modelId={model.id}
+                              quoteId={quoteId}
+                              stock={stock}
+                              crownOptions={crownOptions}
+                              driverOptions={driverOptions}
+                            />
                           ) : (
                             <span className="text-[11px] text-muted">Reference</span>
                           )}
@@ -195,7 +210,7 @@ export default async function AccessoriesPage({
             )}
           </Card>
           <p className="mt-3 px-1 text-[11px] text-muted">
-            Imported from A-OK 2025 pricing. Attributes &amp; tags are managed by an admin in Catalog · Tags.
+            Imported from A-OK 2025 pricing. Stock, pricing, tags and Crown &amp; Driver are managed by an admin under Admin · Motors.
           </p>
         </div>
       </div>

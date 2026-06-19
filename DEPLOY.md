@@ -39,6 +39,8 @@ Don't confuse `BLINDBOT_API_URL` (server) with `NEXT_PUBLIC_BLINDBOT_FRONTEND_UR
      Sidemark). Nullable columns only; existing quotes are unaffected.
    - `supabase/migrations/0004_motor_inventory_pricing.sql` — motor stock + per-retailer motor
      pricing (admin-managed). Until run, motors are untracked (unlimited) at the static catalog price.
+   - `supabase/migrations/0005_motor_crown_driver.sql` — Crown/Driver option tables (admin-managed,
+     priced). Until run, the add-motor flow simply shows no Crown/Driver choice.
 2. **Auth → URL Configuration:** Site URL = the deployed origin; Redirect URLs include
    `https://<deploy-origin>/**` (needed for Google login + email confirmation callbacks).
 3. **Email/password signup** requires "Confirm email" + working SMTP (Auth → SMTP Settings).

@@ -10,12 +10,13 @@ import {
   getQuote,
   getStock,
   removeQuoteItem,
+  resolveCrownDriver,
   resolveMotorPrice,
   updateQuoteItem,
 } from "@/lib/db";
 import { getAccessoryCategory, getAccessoryModel } from "@/lib/accessories-data";
 import { computeQuote, PricingError } from "@/lib/pricing";
-import type { ItemConfig, QuoteRow } from "@/lib/types";
+import type { CrownDriverConfig, ItemConfig, QuoteRow } from "@/lib/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 /**
@@ -47,7 +48,13 @@ export async function POST(req: Request) {
   try {
     const userId = await getCurrentUserId();
     if (!userId) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
-    const body = (await req.json()) as { productId: string; config?: ItemConfig; qty: number; quoteId?: number };
+    const body = (await req.json()) as {
+      productId: string;
+      config?: ItemConfig;
+      qty: number;
+      quoteId?: number;
+      crownDriver?: { mode: "not-needed" } | { mode: "crown-driver"; crownId: string; driverId: string };
+    };
     const qty = Math.max(1, Math.min(500, Math.round(body.qty || 1)));
     const quoteId = typeof body.quoteId === "number" && Number.isInteger(body.quoteId) ? body.quoteId : undefined;
     const sb = await userClient();
@@ -67,10 +74,27 @@ export async function POST(req: Request) {
           { status: 409 }
         );
       }
+      // Resolve the Crown + Driver choice (snapshot labels + price deltas).
+      let crownDriver: CrownDriverConfig | undefined;
+      const rawCd = body.crownDriver;
+      if (rawCd?.mode === "crown-driver") {
+        const { crown, driver } = await resolveCrownDriver(rawCd.crownId, rawCd.driverId);
+        crownDriver = {
+          mode: "crown-driver",
+          crownId: crown.id,
+          crownLabel: crown.label,
+          crownPriceDelta: crown.priceDelta,
+          driverId: driver.id,
+          driverLabel: driver.label,
+          driverPriceDelta: driver.priceDelta,
+        };
+      } else if (rawCd?.mode === "not-needed") {
+        crownDriver = { mode: "not-needed" };
+      }
       const quote = await resolveTargetQuote(userId, sb, quoteId);
       // Snapshot this retailer's effective price (override → default → static).
       const unitPrice = await resolveMotorPrice(accessory.id, userId);
-      const item = await addAccessoryItem(quote.id, accessory, qty, sb, unitPrice);
+      const item = await addAccessoryItem(quote.id, accessory, qty, sb, unitPrice, crownDriver);
       return NextResponse.json({ quoteId: quote.id, quoteRef: quote.ref, item });
     }
 

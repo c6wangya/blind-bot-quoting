@@ -5,6 +5,7 @@ import {
   getAccessoryModel,
   getAccessoryModels,
 } from "@/lib/accessories-data";
+import type { MotorOption } from "@/lib/types";
 
 // Motor inventory + per-retailer pricing (admin-managed; see 0004_motor_inventory_pricing.sql).
 // Reads are best-effort: if the tables aren't present yet (migration not run) they fall back
@@ -209,4 +210,76 @@ export async function resetRetailerPrice(
   if (modelId) q = q.eq("model_id", modelId);
   const { error } = await q;
   if (error) throw error;
+}
+
+// ---------------- Crown / Driver options ----------------
+
+const CD_TABLE = { crown: "motor_crown_options", driver: "motor_driver_options" } as const;
+export type CrownDriverKind = keyof typeof CD_TABLE;
+
+const OPT_COLS = "id, label, priceDelta:price_delta, sort";
+
+async function getOptions(kind: CrownDriverKind, sb: SupabaseClient): Promise<MotorOption[]> {
+  const { data, error } = await sb.from(CD_TABLE[kind]).select(OPT_COLS).order("sort").order("label");
+  if (error) return [];
+  return ((data ?? []) as unknown as MotorOption[]).map((o) => ({ ...o, priceDelta: Number(o.priceDelta) }));
+}
+export const getCrownOptions = (sb: SupabaseClient = admin()) => getOptions("crown", sb);
+export const getDriverOptions = (sb: SupabaseClient = admin()) => getOptions("driver", sb);
+
+async function uniqueOptId(table: string, base: string, sb: SupabaseClient): Promise<string> {
+  let id = base || "v";
+  let n = 1;
+  for (;;) {
+    const { data } = await sb.from(table).select("id").eq("id", id).maybeSingle();
+    if (!data) return id;
+    id = `${base}-${++n}`;
+  }
+}
+
+export async function createMotorOption(
+  kind: CrownDriverKind,
+  label: string,
+  priceDelta: number,
+  sb: SupabaseClient = admin()
+): Promise<void> {
+  const trimmed = label.trim();
+  if (!trimmed) throw new Error("Label is required");
+  const base = trimmed.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  const id = await uniqueOptId(CD_TABLE[kind], `${kind}-${base}`, sb);
+  const { error } = await sb.from(CD_TABLE[kind]).insert({ id, label: trimmed, price_delta: priceDelta });
+  if (error) throw error;
+}
+
+export async function updateMotorOption(
+  kind: CrownDriverKind,
+  id: string,
+  patch: { label?: string; priceDelta?: number },
+  sb: SupabaseClient = admin()
+): Promise<void> {
+  const cols: Record<string, unknown> = {};
+  if (patch.label !== undefined) cols.label = patch.label.trim();
+  if (patch.priceDelta !== undefined) cols.price_delta = patch.priceDelta;
+  if (Object.keys(cols).length === 0) return;
+  const { error } = await sb.from(CD_TABLE[kind]).update(cols).eq("id", id);
+  if (error) throw error;
+}
+
+export async function deleteMotorOption(kind: CrownDriverKind, id: string, sb: SupabaseClient = admin()): Promise<void> {
+  const { error } = await sb.from(CD_TABLE[kind]).delete().eq("id", id);
+  if (error) throw error;
+}
+
+/** Look up a crown + driver option pair (for snapshotting at add time). Throws if either id is gone. */
+export async function resolveCrownDriver(
+  crownId: string,
+  driverId: string,
+  sb: SupabaseClient = admin()
+): Promise<{ crown: MotorOption; driver: MotorOption }> {
+  const [crowns, drivers] = await Promise.all([getCrownOptions(sb), getDriverOptions(sb)]);
+  const crown = crowns.find((c) => c.id === crownId);
+  const driver = drivers.find((d) => d.id === driverId);
+  if (!crown) throw new Error("Selected crown is no longer available");
+  if (!driver) throw new Error("Selected driver is no longer available");
+  return { crown, driver };
 }

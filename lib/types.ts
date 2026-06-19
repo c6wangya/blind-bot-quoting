@@ -95,6 +95,29 @@ export interface AccessoryConfig {
   name: string;
   brand: string;
   category: string;
+  /** Crown + Driver choice, snapshotted at add time (THE-772 — 0005). */
+  crownDriver?: CrownDriverConfig;
+}
+
+/** A motor's Crown + Driver selection on a quote line. */
+export type CrownDriverConfig =
+  | { mode: "not-needed" }
+  | {
+      mode: "crown-driver";
+      crownId: string;
+      crownLabel: string;
+      crownPriceDelta: number;
+      driverId: string;
+      driverLabel: string;
+      driverPriceDelta: number;
+    };
+
+/** Admin-managed Crown/Driver version (a price delta added to the motor's unit price). */
+export interface MotorOption {
+  id: string;
+  label: string;
+  priceDelta: number;
+  sort: number;
 }
 
 /**
