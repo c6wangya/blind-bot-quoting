@@ -127,6 +127,8 @@ function CategoryBlock({ category, models }: { category: AdminCategory; models: 
   // add-model draft
   const [mSku, setMSku] = useState("");
   const [mName, setMName] = useState("");
+  const [mPrice, setMPrice] = useState("");
+  const [mDesc, setMDesc] = useState("");
   const dirty = name !== category.name || blurb !== (category.blurb ?? "") || orderable !== category.orderable;
 
   const run = async (fn: () => Promise<unknown>) => {
@@ -160,12 +162,19 @@ function CategoryBlock({ category, models }: { category: AdminCategory; models: 
               <ModelRow key={m.id} model={m} />
             ))}
           </ul>
-          <div className="mt-3 flex items-end gap-2">
-            <input value={mSku} onChange={(e) => setMSku(e.target.value)} placeholder="SKU" className={cx(INPUT, "w-32")} />
-            <input value={mName} onChange={(e) => setMName(e.target.value)} placeholder="Model name" className={cx(INPUT, "flex-1")} />
-            <Button variant="secondary" busy={busy} className="py-1 text-[12px]" onClick={() => mSku.trim() && mName.trim() && run(async () => { await call("POST", { entity: "model", categoryId: category.id, sku: mSku, name: mName }); setMSku(""); setMName(""); })}>
-              + Model
-            </Button>
+          <div className="mt-3 space-y-2 rounded-lg border border-dashed border-line p-2.5">
+            <div className="flex items-end gap-2">
+              <input value={mSku} onChange={(e) => setMSku(e.target.value)} placeholder="SKU" className={cx(INPUT, "w-32")} />
+              <input value={mName} onChange={(e) => setMName(e.target.value)} placeholder="Model name" className={cx(INPUT, "flex-1")} />
+              <div className="flex items-center rounded-lg border border-line px-2">
+                <span className="text-xs text-muted">$</span>
+                <input type="number" min={0} step="0.01" value={mPrice} onChange={(e) => setMPrice(e.target.value)} placeholder="—" className="w-16 bg-transparent px-1 py-1.5 text-sm text-ink outline-none" />
+              </div>
+              <Button variant="secondary" busy={busy} className="py-1 text-[12px]" onClick={() => mSku.trim() && mName.trim() && run(async () => { await call("POST", { entity: "model", categoryId: category.id, sku: mSku, name: mName, price: mPrice === "" ? null : Number(mPrice), description: mDesc }); setMSku(""); setMName(""); setMPrice(""); setMDesc(""); })}>
+                + Model
+              </Button>
+            </div>
+            <textarea value={mDesc} onChange={(e) => setMDesc(e.target.value)} rows={2} placeholder="Description (e.g. 0.3 N·m, 1 inch tube motor with built-in battery)" className={cx(INPUT, "w-full resize-none")} />
           </div>
         </div>
       )}
