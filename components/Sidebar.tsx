@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { BRAND } from "@/lib/brand";
@@ -11,6 +10,8 @@ type NavItem = {
   href?: string;
   label: string;
   icon: string;
+  adminOnly?: boolean;
+  retailerOnly?: boolean;
   children?: { href: string; label: string; adminOnly?: boolean }[];
 };
 
@@ -29,7 +30,8 @@ const NAV: { section: string; adminOnly?: boolean; items: NavItem[] }[] = [
       },
       { href: "/quotes", label: "Quotes", icon: "≣" },
       { href: "/orders", label: "Pre-Orders", icon: "⬡" },
-      { href: "/messages", label: "Messages", icon: "✉" },
+      // Retailer's own support chat. Admins reach the inbox from Admin Console instead.
+      { href: "/messages", label: "Messages", icon: "✉", retailerOnly: true },
     ],
   },
   {
@@ -37,6 +39,7 @@ const NAV: { section: string; adminOnly?: boolean; items: NavItem[] }[] = [
     section: "Admin Console",
     adminOnly: true,
     items: [
+      { href: "/messages", label: "Messages", icon: "✉" },
       { href: "/motors", label: "Motors", icon: "◉" },
       { href: "/supplier", label: "Supplier Console", icon: "⚙" },
       { href: "/pricing", label: "Pricing Versions", icon: "$" },
@@ -46,45 +49,26 @@ const NAV: { section: string; adminOnly?: boolean; items: NavItem[] }[] = [
 
 export default function Sidebar({
   draftCount,
-  unreadCount: initialUnread,
+  unread,
   accountName,
   accountSub,
   signedIn,
   isAdmin,
+  open,
+  onClose,
 }: {
   draftCount: number;
-  unreadCount: number;
+  unread: number;
   accountName: string;
   accountSub: string;
   signedIn: boolean;
   isAdmin: boolean;
+  open: boolean;
+  onClose: () => void;
 }) {
   const pathname = usePathname();
   const router = useRouter();
 
-  // Live unread badge — seeded from the server, then refreshed immediately on every
-  // navigation and on a light poll, so a reply shows up shortly after sign-in / while open.
-  const [unread, setUnread] = useState(initialUnread);
-  useEffect(() => {
-    if (!signedIn) return;
-    let alive = true;
-    const tick = async () => {
-      try {
-        const r = await fetch("/api/messages/unread", { cache: "no-store" });
-        if (!r.ok) return;
-        const data = await r.json();
-        if (alive && typeof data.count === "number") setUnread(data.count);
-      } catch {
-        /* transient */
-      }
-    };
-    tick();
-    const id = setInterval(tick, 20000);
-    return () => {
-      alive = false;
-      clearInterval(id);
-    };
-  }, [signedIn, pathname]);
   const isActive = (href: string) =>
     href === "/"
       ? pathname === "/"
@@ -93,6 +77,8 @@ export default function Sidebar({
         : pathname.startsWith(href);
   const initials =
     accountName.trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase() || "?";
+  // Item-level visibility (Messages differs by role); groups are filtered separately.
+  const visible = (item: NavItem) => (!item.adminOnly || isAdmin) && (!item.retailerOnly || !isAdmin);
 
   const handleSignOut = async () => {
     const supabase = createClient();
@@ -102,8 +88,13 @@ export default function Sidebar({
   };
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-30 flex w-60 flex-col bg-[#1a2336] text-white">
-      <Link href="/" className="flex items-center gap-3 px-5 pb-5 pt-6">
+    <aside
+      className={cx(
+        "fixed inset-y-0 left-0 z-40 flex w-60 flex-col bg-[#1a2336] text-white transition-transform duration-200 md:z-30 md:translate-x-0",
+        open ? "translate-x-0 shadow-2xl" : "-translate-x-full"
+      )}
+    >
+      <Link href="/" onClick={onClose} className="flex items-center gap-3 px-5 pb-5 pt-6">
         <div className="flex size-9 items-center justify-center rounded-xl bg-gradient-to-br from-brass to-[#8a6a39] text-base font-bold shadow-md">
           {BRAND.monogram}
         </div>
@@ -120,7 +111,7 @@ export default function Sidebar({
               {group.section}
             </div>
             <div className="space-y-0.5">
-              {group.items.map((item) => {
+              {group.items.filter(visible).map((item) => {
                 // Parent with nested children (Catalog → Products / Accessory)
                 if (item.children) {
                   const children = item.children.filter((c) => !c.adminOnly || isAdmin);
@@ -145,6 +136,7 @@ export default function Sidebar({
                             <Link
                               key={c.href}
                               href={c.href}
+                              onClick={onClose}
                               className={cx(
                                 "block rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors",
                                 active
@@ -167,6 +159,7 @@ export default function Sidebar({
                   <Link
                     key={href}
                     href={href}
+                    onClick={onClose}
                     className={cx(
                       "group flex items-center gap-3 rounded-xl px-3 py-2 text-[13.5px] font-medium transition-colors",
                       active

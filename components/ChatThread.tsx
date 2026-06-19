@@ -125,14 +125,14 @@ export function ChatThread({
 
   if (role === "admin" && !convId) {
     return (
-      <div className="flex h-[68vh] items-center justify-center rounded-2xl border border-line bg-surface text-sm text-muted">
+      <div className="flex h-[70dvh] items-center justify-center rounded-2xl border border-line bg-surface text-sm text-muted md:h-[68vh]">
         Select a conversation to view the thread.
       </div>
     );
   }
 
   return (
-    <div className="flex h-[68vh] flex-col overflow-hidden rounded-2xl border border-line bg-surface">
+    <div className="flex h-[calc(100dvh-12rem)] min-h-[24rem] flex-col overflow-hidden rounded-2xl border border-line bg-surface md:h-[68vh]">
       {header && <div className="shrink-0 border-b border-line px-4 py-3">{header}</div>}
 
       <div ref={scrollRef} onScroll={onScroll} className="flex-1 space-y-3 overflow-y-auto px-4 py-4">

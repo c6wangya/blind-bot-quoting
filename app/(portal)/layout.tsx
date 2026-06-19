@@ -1,4 +1,4 @@
-import Sidebar from "@/components/Sidebar";
+import PortalShell from "@/components/PortalShell";
 import { getCurrentUserId, userClient } from "@/lib/auth/user";
 import { getDraftQuote, getProfile, getQuote, getUnreadCount } from "@/lib/db";
 
@@ -18,11 +18,15 @@ export default async function PortalLayout({ children }: Readonly<{ children: Re
   const unreadCount = ownerId ? await getUnreadCount(ownerId, isAdmin) : 0;
 
   return (
-    <>
-      <Sidebar draftCount={draftCount} unreadCount={unreadCount} accountName={accountName} accountSub={accountSub} signedIn={!!ownerId} isAdmin={isAdmin} />
-      <main className="ml-60 min-h-screen">
-        <div className="mx-auto max-w-6xl px-8 py-10">{children}</div>
-      </main>
-    </>
+    <PortalShell
+      draftCount={draftCount}
+      unreadCount={unreadCount}
+      accountName={accountName}
+      accountSub={accountSub}
+      signedIn={!!ownerId}
+      isAdmin={isAdmin}
+    >
+      {children}
+    </PortalShell>
   );
 }
