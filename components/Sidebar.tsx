@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { BRAND } from "@/lib/brand";
@@ -28,6 +29,7 @@ const NAV: { section: string; adminOnly?: boolean; items: NavItem[] }[] = [
       },
       { href: "/quotes", label: "Quotes", icon: "≣" },
       { href: "/orders", label: "Pre-Orders", icon: "⬡" },
+      { href: "/messages", label: "Messages", icon: "✉" },
     ],
   },
   {
@@ -44,12 +46,14 @@ const NAV: { section: string; adminOnly?: boolean; items: NavItem[] }[] = [
 
 export default function Sidebar({
   draftCount,
+  unreadCount: initialUnread,
   accountName,
   accountSub,
   signedIn,
   isAdmin,
 }: {
   draftCount: number;
+  unreadCount: number;
   accountName: string;
   accountSub: string;
   signedIn: boolean;
@@ -57,6 +61,30 @@ export default function Sidebar({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+
+  // Live unread badge — seeded from the server, then refreshed immediately on every
+  // navigation and on a light poll, so a reply shows up shortly after sign-in / while open.
+  const [unread, setUnread] = useState(initialUnread);
+  useEffect(() => {
+    if (!signedIn) return;
+    let alive = true;
+    const tick = async () => {
+      try {
+        const r = await fetch("/api/messages/unread", { cache: "no-store" });
+        if (!r.ok) return;
+        const data = await r.json();
+        if (alive && typeof data.count === "number") setUnread(data.count);
+      } catch {
+        /* transient */
+      }
+    };
+    tick();
+    const id = setInterval(tick, 20000);
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
+  }, [signedIn, pathname]);
   const isActive = (href: string) =>
     href === "/"
       ? pathname === "/"
@@ -158,6 +186,11 @@ export default function Sidebar({
                     {href === "/quotes" && draftCount > 0 && (
                       <span className="ml-auto rounded-full bg-brass px-1.5 py-0.5 text-[10px] font-bold leading-none text-[#1a2336]">
                         {draftCount}
+                      </span>
+                    )}
+                    {href === "/messages" && unread > 0 && (
+                      <span className="ml-auto rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
+                        {unread > 99 ? "99+" : unread}
                       </span>
                     )}
                   </Link>
