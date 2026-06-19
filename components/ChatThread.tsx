@@ -2,28 +2,62 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChatMessage, ChatRole } from "@/lib/db";
+import { BRAND } from "@/lib/brand";
 import { Button, cx } from "./ui";
 
 type UiMessage = ChatMessage & { pending?: boolean };
 
+const GROUP_GAP = 5 * 60 * 1000; // 5 min — bubbles closer than this from one sender are grouped
+const EMOJIS = [
+  "👍", "🙏", "😊", "😂", "🎉", "✅", "❤️", "🔥", "👀", "🙌",
+  "💡", "⚠️", "📦", "🚚", "📅", "💰", "✨", "👌", "🤔", "👋",
+  "🙂", "😅", "💬", "⭐", "❓", "❗", "🆗", "🟢", "🔴", "📷",
+];
+
 function fmtTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}
+
+function dayLabel(iso: string): string {
   const d = new Date(iso);
-  const today = new Date();
-  const sameDay = d.toDateString() === today.toDateString();
-  const t = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-  return sameDay ? t : `${d.toLocaleDateString([], { month: "short", day: "numeric" })}, ${t}`;
+  const now = new Date();
+  const startOf = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diff = Math.round((startOf(now) - startOf(d)) / 86_400_000);
+  if (diff === 0) return "Today";
+  if (diff === 1) return "Yesterday";
+  return d.toLocaleDateString([], {
+    month: "long",
+    day: "numeric",
+    year: d.getFullYear() === now.getFullYear() ? undefined : "numeric",
+  });
+}
+
+function Avatar({ support, name, large = false }: { support: boolean; name: string; large?: boolean }) {
+  // Literal size classes only — Tailwind can't see interpolated ones.
+  const box = cx(
+    "shrink-0 rounded-full flex items-center justify-center text-white font-semibold",
+    large ? "size-12" : "size-7"
+  );
+  if (support) {
+    return <div className={cx(box, "bg-gradient-to-br from-brass to-[#8a6a39]", large ? "text-lg" : "text-[11px]")}>{BRAND.monogram}</div>;
+  }
+  const initials = name.trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase() || "?";
+  return <div className={cx(box, "bg-gradient-to-br from-[#5b6b8f] to-[#3a4763]", large ? "text-sm" : "text-[10px]")}>{initials}</div>;
 }
 
 /**
- * Shared chat thread (retailer + admin). Polls for new messages every 5s, sends optimistically
- * ("Sending…" → "Sent" → "Read"), and marks the conversation read when the latest message is
- * from the other party. For the retailer the conversation is created lazily on first send.
+ * Shared chat thread (retailer + admin). Polls every 5s, sends optimistically
+ * ("Sending…" → "Sent" → "Read"), groups consecutive bubbles, adds date separators +
+ * peer avatars, and offers an emoji picker. Marks the conversation read when the latest
+ * message is from the other party. For the retailer the conversation is created on first send.
  */
 export function ChatThread({
   role,
   conversationId: initialConvId,
   initialMessages,
   initialPeerReadAt = null,
+  peerName,
+  peerSupport = false,
   header,
   onActivity,
 }: {
@@ -31,6 +65,8 @@ export function ChatThread({
   conversationId: string | null;
   initialMessages: ChatMessage[];
   initialPeerReadAt?: string | null;
+  peerName: string;
+  peerSupport?: boolean;
   header?: React.ReactNode;
   onActivity?: () => void;
 }) {
@@ -41,7 +77,9 @@ export function ChatThread({
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [showEmoji, setShowEmoji] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const taRef = useRef<HTMLTextAreaElement>(null);
   const lastReadId = useRef<string | null>(null);
   const bottomPinned = useRef(true);
   const tmpSeq = useRef(0);
@@ -63,7 +101,6 @@ export function ChatThread({
     onActivity?.();
   }, [messages, role, convId, onActivity]);
 
-  // Poll while mounted; also refresh on tab focus.
   useEffect(() => {
     if (role === "admin" && !convId) return;
     let alive = true;
@@ -77,7 +114,7 @@ export function ChatThread({
         if ("peerLastReadAt" in data) setPeerReadAt(data.peerLastReadAt ?? null);
         if (data.conversationId && !convId) setConvId(data.conversationId);
       } catch {
-        /* transient — next tick retries */
+        /* transient */
       }
     };
     tick();
@@ -95,7 +132,6 @@ export function ChatThread({
     markRead();
   }, [markRead]);
 
-  // Keep pinned to newest unless the user scrolled up.
   useEffect(() => {
     const el = scrollRef.current;
     if (el && bottomPinned.current) el.scrollTop = el.scrollHeight;
@@ -107,6 +143,21 @@ export function ChatThread({
     bottomPinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
   };
 
+  const insertEmoji = (emoji: string) => {
+    const ta = taRef.current;
+    const start = ta?.selectionStart ?? text.length;
+    const end = ta?.selectionEnd ?? text.length;
+    const next = text.slice(0, start) + emoji + text.slice(end);
+    setText(next);
+    setShowEmoji(false);
+    requestAnimationFrame(() => {
+      if (!ta) return;
+      ta.focus();
+      const pos = start + emoji.length;
+      ta.setSelectionRange(pos, pos);
+    });
+  };
+
   const send = async () => {
     const body = text.trim();
     if (!body || busy) return;
@@ -114,8 +165,8 @@ export function ChatThread({
     setBusy(true);
     setErr(null);
     setText("");
+    setShowEmoji(false);
     bottomPinned.current = true;
-    // Optimistic bubble.
     setPending((p) => [
       ...p,
       { id: tmpId, conversationId: convId ?? "", senderId: "", senderRole: role, body, createdAt: new Date().toISOString(), pending: true },
@@ -134,7 +185,7 @@ export function ChatThread({
       onActivity?.();
     } catch (e) {
       setPending((p) => p.filter((x) => x.id !== tmpId));
-      setText(body); // restore so the user can retry
+      setText(body);
       setErr((e as Error).message);
     } finally {
       setBusy(false);
@@ -153,11 +204,11 @@ export function ChatThread({
     <div className="flex h-[calc(100dvh-12rem)] min-h-[24rem] flex-col overflow-hidden rounded-2xl border border-line bg-surface md:h-[68vh]">
       {header && <div className="shrink-0 border-b border-line px-4 py-3">{header}</div>}
 
-      <div ref={scrollRef} onScroll={onScroll} className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
+      <div ref={scrollRef} onScroll={onScroll} className="flex-1 overflow-y-auto px-4 py-4">
         {all.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
-            <div className="flex size-11 items-center justify-center rounded-2xl bg-brass-soft text-xl">💬</div>
-            <p className="text-sm font-medium text-ink">
+            <Avatar support={peerSupport} name={peerName} large />
+            <p className="mt-1 text-sm font-medium text-ink">
               {role === "retailer" ? "Start a conversation" : "No messages yet"}
             </p>
             <p className="max-w-xs text-[13px] leading-relaxed text-muted">
@@ -167,8 +218,19 @@ export function ChatThread({
             </p>
           </div>
         ) : (
-          all.map((m) => {
+          all.map((m, i) => {
+            const prev = all[i - 1];
+            const next = all[i + 1];
             const mine = m.senderRole === role;
+            const showDate = !prev || new Date(prev.createdAt).toDateString() !== new Date(m.createdAt).toDateString();
+            const groupedWithPrev =
+              !!prev && prev.senderRole === m.senderRole && !showDate &&
+              new Date(m.createdAt).getTime() - new Date(prev.createdAt).getTime() < GROUP_GAP;
+            const groupedWithNext =
+              !!next && next.senderRole === m.senderRole &&
+              new Date(next.createdAt).toDateString() === new Date(m.createdAt).toDateString() &&
+              new Date(next.createdAt).getTime() - new Date(m.createdAt).getTime() < GROUP_GAP;
+            const groupEnd = !groupedWithNext;
             const status = m.pending
               ? "Sending…"
               : mine && m.id === lastMineId
@@ -176,23 +238,40 @@ export function ChatThread({
                   ? "Read"
                   : "Sent"
                 : null;
+
             return (
-              <div key={m.id} className={cx("flex", mine ? "justify-end" : "justify-start")}>
-                <div className="max-w-[82%] sm:max-w-[70%]">
-                  <div
-                    className={cx(
-                      "whitespace-pre-wrap break-words rounded-2xl px-3.5 py-2 text-sm leading-relaxed",
-                      mine
-                        ? cx("rounded-br-md bg-ink text-white", m.pending && "opacity-70")
-                        : "rounded-bl-md border border-line bg-[#faf9f5] text-ink"
-                    )}
-                  >
-                    {m.body}
+              <div key={m.id}>
+                {showDate && (
+                  <div className="my-4 flex items-center justify-center">
+                    <span className="rounded-full bg-[#efece4] px-3 py-0.5 text-[11px] font-medium text-muted">
+                      {dayLabel(m.createdAt)}
+                    </span>
                   </div>
-                  <div className={cx("mt-1 px-1 text-[10.5px] text-muted", mine ? "text-right" : "text-left")}>
-                    {fmtTime(m.createdAt)}
-                    {status && (
-                      <span className={cx(status === "Read" && "text-brass")}> · {status}</span>
+                )}
+                <div
+                  className={cx(
+                    "flex items-end gap-2",
+                    mine ? "justify-end" : "justify-start",
+                    groupedWithPrev ? "mt-0.5" : "mt-3"
+                  )}
+                >
+                  {!mine && <div className="w-7 shrink-0">{groupEnd && <Avatar support={peerSupport} name={peerName} />}</div>}
+                  <div className={cx("max-w-[78%] sm:max-w-[70%]", mine && "items-end")}>
+                    <div
+                      className={cx(
+                        "whitespace-pre-wrap break-words px-3.5 py-2 text-sm leading-relaxed",
+                        mine
+                          ? cx("rounded-2xl bg-ink text-white", groupEnd && "rounded-br-md", m.pending && "opacity-70")
+                          : cx("rounded-2xl border border-line bg-[#faf9f5] text-ink", groupEnd && "rounded-bl-md")
+                      )}
+                    >
+                      {m.body}
+                    </div>
+                    {groupEnd && (
+                      <div className={cx("mt-1 px-1 text-[10.5px] text-muted", mine ? "text-right" : "text-left")}>
+                        {fmtTime(m.createdAt)}
+                        {status && <span className={cx(status === "Read" && "text-brass")}> · {status}</span>}
+                      </div>
                     )}
                   </div>
                 </div>
@@ -202,10 +281,38 @@ export function ChatThread({
         )}
       </div>
 
-      <div className="shrink-0 border-t border-line bg-surface px-3 py-3">
+      <div className="relative shrink-0 border-t border-line bg-surface px-3 py-3">
         {err && <p className="mb-2 text-[12px] text-red-500">{err}</p>}
+
+        {showEmoji && (
+          <>
+            <div className="fixed inset-0 z-0" onClick={() => setShowEmoji(false)} aria-hidden />
+            <div className="absolute bottom-full left-3 z-10 mb-2 grid w-[15rem] grid-cols-8 gap-1 rounded-2xl border border-line bg-surface p-2 shadow-lg">
+              {EMOJIS.map((e) => (
+                <button
+                  key={e}
+                  type="button"
+                  onClick={() => insertEmoji(e)}
+                  className="rounded-lg py-1 text-lg hover:bg-[#f4f2ec]"
+                >
+                  {e}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+
         <div className="flex items-end gap-2">
+          <button
+            type="button"
+            onClick={() => setShowEmoji((s) => !s)}
+            aria-label="Emoji"
+            className="flex h-[44px] w-10 shrink-0 items-center justify-center rounded-xl border border-line text-lg text-muted hover:bg-[#faf9f5] hover:text-ink"
+          >
+            😊
+          </button>
           <textarea
+            ref={taRef}
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => {

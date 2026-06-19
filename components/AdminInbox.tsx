@@ -91,16 +91,20 @@ export default function AdminInbox({ initialConversations }: { initialConversati
             role="admin"
             conversationId={selected.id}
             initialMessages={[]}
+            peerName={label(selected)}
             onActivity={refreshList}
             header={
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2.5">
                 <button
                   onClick={() => setSelectedId(null)}
-                  className="md:hidden rounded-lg px-2 py-1 text-sm text-muted hover:text-ink"
+                  className="md:hidden -ml-1 rounded-lg px-2 py-1 text-sm text-muted hover:text-ink"
                   aria-label="Back"
                 >
-                  ‹ Back
+                  ‹
                 </button>
+                <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#5b6b8f] to-[#3a4763] text-[11px] font-semibold text-white">
+                  {(label(selected).trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join("") || "?").toUpperCase()}
+                </div>
                 <div className="min-w-0">
                   <div className="truncate text-sm font-semibold text-ink">{label(selected)}</div>
                   <div className="truncate text-[11px] text-muted">{selected.retailerEmail}</div>
