@@ -95,10 +95,17 @@ export async function setModelTags(modelId: string, valueIds: string[], sb: Supa
   const del = await sb.from("accessory_model_tags").delete().eq("model_id", modelId);
   if (del.error) throw del.error;
   const unique = [...new Set(valueIds)];
-  if (unique.length) {
-    const { error } = await sb
-      .from("accessory_model_tags")
-      .insert(unique.map((value_id) => ({ model_id: modelId, value_id })));
-    if (error) throw error;
-  }
+  if (unique.length === 0) return;
+  // Keep only values that still exist — a stale client (a value was deleted/recreated
+  // since the page loaded) could otherwise send a dropped id and hit the FK constraint.
+  const { data: existing, error: exErr } = await sb
+    .from("accessory_attribute_values")
+    .select("id")
+    .in("id", unique);
+  if (exErr) throw exErr;
+  const valid = new Set((existing ?? []).map((r) => (r as { id: string }).id));
+  const rows = unique.filter((id) => valid.has(id)).map((value_id) => ({ model_id: modelId, value_id }));
+  if (rows.length === 0) return;
+  const { error } = await sb.from("accessory_model_tags").insert(rows);
+  if (error) throw error;
 }
