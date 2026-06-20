@@ -79,6 +79,22 @@ export function OrderPayment({
     }
   };
 
+  const [confirmCancel, setConfirmCancel] = useState(false);
+  const cancelOrder = async () => {
+    setBusy(true);
+    setErr(null);
+    try {
+      const r = await fetch(`/api/orders/${orderId}/cancel`, { method: "POST" });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data.error ?? "Could not cancel order");
+      if (data.quoteId) router.push(`/quotes/${data.quoteId}`);
+      router.refresh();
+    } catch (e) {
+      setErr((e as Error).message);
+      setBusy(false);
+    }
+  };
+
   const awaiting = paymentStatus !== "paid";
   const isBank = method === "bank_transfer";
   const bankReady = !!(bankInfo && bankInfo.bankName && bankInfo.accountNumber);
@@ -161,12 +177,39 @@ export function OrderPayment({
         </div>
       )}
 
-      {/* Paid */}
+      {/* Paid — show the bank receipt as a viewable attachment */}
       {paymentStatus === "paid" && proofUrl && (
-        <a href={proofUrl} target="_blank" rel="noreferrer" className="mt-3 inline-block text-[12.5px] font-medium text-brass hover:underline">
-          View payment receipt →
+        <a
+          href={proofUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="mt-3 inline-flex items-center gap-2 rounded-xl border border-line bg-surface px-3 py-2 text-[12.5px] hover:border-ink"
+        >
+          <span className="text-base">📎</span>
+          <span className="font-medium text-ink underline">Payment receipt</span>
+          <span className="text-muted">— view</span>
         </a>
       )}
+
+      {/* Cancel an unpaid order — releases reserved stock and reopens the quote for editing. */}
+      {awaiting &&
+        (confirmCancel ? (
+          <div className="mt-4 rounded-lg border border-line bg-[#faf9f5] px-3 py-2 text-[12px]">
+            <p className="text-ink-soft">Cancel this order? Your quote reopens for editing and any reserved stock is released.</p>
+            <div className="mt-1.5 flex items-center gap-3">
+              <button onClick={cancelOrder} disabled={busy} className="font-semibold text-red-600 hover:underline">
+                Cancel order
+              </button>
+              <button onClick={() => setConfirmCancel(false)} disabled={busy} className="text-muted hover:underline">
+                Keep it
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button onClick={() => setConfirmCancel(true)} className="mt-4 text-[11.5px] font-medium text-muted hover:text-red-500">
+            Cancel order
+          </button>
+        ))}
 
       {err && <p className="mt-2 text-[12px] text-red-500">{err}</p>}
     </Card>

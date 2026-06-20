@@ -49,6 +49,23 @@ export async function clearStock(modelId: string, sb: SupabaseClient = admin()):
  * If any tracked model is short (or lost a race), nothing stays deducted — already-applied
  * decrements are rolled back — and it throws a message naming the short models.
  */
+/** Add reserved stock back (inverse of deductMotorStock) — used when an order is cancelled. */
+export async function restoreMotorStock(
+  needs: { modelId: string; qty: number }[],
+  sb: SupabaseClient = admin()
+): Promise<void> {
+  const byModel = new Map<string, number>();
+  for (const n of needs) byModel.set(n.modelId, (byModel.get(n.modelId) ?? 0) + n.qty);
+  for (const [modelId, qty] of byModel) {
+    const { data: row } = await sb.from("accessory_inventory").select("stock").eq("model_id", modelId).maybeSingle();
+    if (!row) continue; // untracked → nothing to restore
+    await sb
+      .from("accessory_inventory")
+      .update({ stock: (row as { stock: number }).stock + qty, updated_at: new Date().toISOString() })
+      .eq("model_id", modelId);
+  }
+}
+
 export async function deductMotorStock(
   needs: { modelId: string; qty: number }[],
   sb: SupabaseClient = admin()

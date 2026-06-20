@@ -4,8 +4,15 @@ import type { OrderEventRow, OrderRow, OrderStatus, PaymentMethod } from "@/lib/
 import { EVENT_COLS, ORDER_COLS, round2, type ItemAgg, nextRef } from "./internal";
 import { ensureSeeded } from "./seed";
 import { getQuote } from "./quotes";
-import { deductMotorStock } from "./motors";
+import { deductMotorStock, restoreMotorStock } from "./motors";
 import { isAccessoryConfig } from "@/lib/types";
+
+/** Motor stock needs for a quote's accessory lines (the reservable units). */
+function motorNeedsOf(items: { config: unknown; productId: string; qty: number }[]) {
+  return items
+    .filter((i) => isAccessoryConfig(i.config as never))
+    .map((i) => ({ modelId: i.productId, qty: i.qty }));
+}
 
 const PAYMENT_LABEL: Record<PaymentMethod, string> = {
   stripe: "card (Stripe)",
@@ -27,31 +34,75 @@ export async function submitPreOrder(
   if (quote.status !== "draft") throw new Error("Quote already converted");
   if (quote.items.length === 0) throw new Error("Quote has no items");
 
-  // Reserve motor stock first — throws (naming short models) if any tracked motor is short,
-  // aborting the submit before anything is created. Uses admin() (inventory is admin-write).
-  const motorNeeds = quote.items
-    .filter((i) => isAccessoryConfig(i.config))
-    .map((i) => ({ modelId: i.productId, qty: i.qty }));
-  if (motorNeeds.length > 0) await deductMotorStock(motorNeeds, admin());
+  // Atomic double-submit gate: flip draft→converted; only the request that actually changed a
+  // row proceeds, so a double-click / two tabs can't both create an order + double-reserve stock.
+  const { data: won } = await sb
+    .from("quotes")
+    .update({ status: "converted", updated_at: new Date().toISOString() })
+    .eq("id", quoteId)
+    .eq("status", "draft")
+    .select("id");
+  if (!won || won.length === 0) throw new Error("This quote has already been submitted");
 
-  const amount = round2(quote.items.reduce((s, i) => s + i.computation.unitPrice * i.qty, 0));
-  const ref = await nextRef("orders", "PO"); // count across all orders → service_role
-  // Create the order FIRST, then flip the quote — so a failed insert can never strand the
-  // quote as `converted` with no order. (Not a true transaction; order-first is the safeguard.)
-  const { data: order, error } = await sb
-    .from("orders")
-    .insert({ ref, quote_id: quoteId, status: "awaiting_payment", payment_method: paymentMethod, payment_status: "pending", amount })
-    .select(ORDER_COLS)
-    .single();
-  if (error) throw error;
-  await sb.from("quotes").update({ status: "converted", updated_at: new Date().toISOString() }).eq("id", quoteId);
+  const motorNeeds = motorNeedsOf(quote.items);
+  let reserved = false;
+  try {
+    // Reserve motor stock (throws naming short models). Released later on cancel.
+    if (motorNeeds.length > 0) {
+      await deductMotorStock(motorNeeds, admin());
+      reserved = true;
+    }
+    const amount = round2(quote.items.reduce((s, i) => s + i.computation.unitPrice * i.qty, 0));
+    const ref = await nextRef("orders", "PO");
+    const { data: order, error } = await sb
+      .from("orders")
+      .insert({ ref, quote_id: quoteId, status: "awaiting_payment", payment_method: paymentMethod, payment_status: "pending", amount })
+      .select(ORDER_COLS)
+      .single();
+    if (error) throw error;
+    await sb.from("order_events").insert({
+      order_id: (order as unknown as OrderRow).id,
+      status: "awaiting_payment",
+      actor: "retailer",
+      note: `Pre-order ${ref} placed by ${quote.retailer} — awaiting ${PAYMENT_LABEL[paymentMethod]} payment.`,
+    });
+    return order as unknown as OrderRow;
+  } catch (e) {
+    // Roll back the gate (+ any reserved stock) so the retailer can retry.
+    if (reserved) await restoreMotorStock(motorNeeds, admin()).catch(() => {});
+    await sb.from("quotes").update({ status: "draft", updated_at: new Date().toISOString() }).eq("id", quoteId);
+    throw e;
+  }
+}
+
+/**
+ * Cancel an unpaid (awaiting_payment) order: release reserved motor stock, mark it cancelled,
+ * and reopen the quote (→ draft) so the retailer can edit/resubmit. Throws if already paid.
+ */
+export async function cancelOrder(
+  orderId: number,
+  actor: OrderEventRow["actor"] = "retailer",
+  sb: SupabaseClient = admin()
+): Promise<{ quoteId: number }> {
+  const { data: ord } = await sb.from("orders").select("status, quote_id").eq("id", orderId).maybeSingle();
+  if (!ord) throw new Error("Order not found");
+  const o = ord as { status: string; quote_id: number };
+  if (o.status !== "awaiting_payment") throw new Error("Only an unpaid order can be cancelled");
+
+  const quote = await getQuote(o.quote_id, admin());
+  const motorNeeds = motorNeedsOf(quote?.items ?? []);
+  if (motorNeeds.length > 0) await restoreMotorStock(motorNeeds, admin());
+
+  const now = new Date().toISOString();
+  await sb.from("orders").update({ status: "cancelled", updated_at: now }).eq("id", orderId);
+  await sb.from("quotes").update({ status: "draft", updated_at: now }).eq("id", o.quote_id);
   await sb.from("order_events").insert({
-    order_id: (order as unknown as OrderRow).id,
-    status: "awaiting_payment",
-    actor: "retailer",
-    note: `Pre-order ${ref} placed by ${quote.retailer} — awaiting ${PAYMENT_LABEL[paymentMethod]} payment.`,
+    order_id: orderId,
+    status: "note",
+    actor,
+    note: "Order cancelled before payment — reserved stock released and the quote reopened for editing.",
   });
-  return order as unknown as OrderRow;
+  return { quoteId: o.quote_id };
 }
 
 /**

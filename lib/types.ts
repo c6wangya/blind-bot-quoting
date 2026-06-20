@@ -232,8 +232,9 @@ export const ORDER_STATUSES = [
   "delivered",
 ] as const;
 
-// 'awaiting_payment' is the pre-pipeline state; the manual advance machine covers ORDER_STATUSES.
-export type OrderStatus = (typeof ORDER_STATUSES)[number] | "awaiting_payment";
+// 'awaiting_payment' is the pre-pipeline state, 'cancelled' a terminal one; the manual advance
+// machine covers only ORDER_STATUSES.
+export type OrderStatus = (typeof ORDER_STATUSES)[number] | "awaiting_payment" | "cancelled";
 
 export type PaymentMethod = "stripe" | "paypal" | "bank_transfer";
 export type PaymentStatus = "pending" | "paid" | "failed";

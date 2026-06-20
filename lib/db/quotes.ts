@@ -257,7 +257,16 @@ export async function getOrderRefByQuote(
   quoteId: number,
   sb: SupabaseClient = admin()
 ): Promise<{ id: number; ref: string } | undefined> {
-  const { data, error } = await sb.from("orders").select("id, ref").eq("quote_id", quoteId).maybeSingle();
+  // A quote can have a prior cancelled order + a live one (cancel reopens the quote) — take the
+  // most recent non-cancelled order.
+  const { data, error } = await sb
+    .from("orders")
+    .select("id, ref")
+    .eq("quote_id", quoteId)
+    .neq("status", "cancelled")
+    .order("id", { ascending: false })
+    .limit(1)
+    .maybeSingle();
   if (error) throw error;
   return (data ?? undefined) as { id: number; ref: string } | undefined;
 }

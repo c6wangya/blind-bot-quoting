@@ -48,19 +48,34 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
       />
 
       <div className="rise mb-6">
-        <OrderPayment
-          orderId={order.id}
-          method={order.paymentMethod}
-          paymentStatus={order.paymentStatus}
-          amountLabel={usd(order.amount ?? order.quote.total)}
-          bankInfo={bankInfo}
-          proofUrl={proofUrl}
-          transferReported={transferReported}
-        />
+        {order.status === "cancelled" ? (
+          <Card className="border-line bg-[#faf9f5] px-5 py-5">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-ink">Order cancelled</h3>
+              <StatusBadge status="cancelled" />
+            </div>
+            <p className="mt-2 text-[13px] text-ink-soft">
+              This pre-order was cancelled before payment. The quote has been reopened for editing —{" "}
+              <Link href={`/quotes/${order.quoteId}`} className="font-medium text-brass hover:underline">
+                edit quote {order.quote.ref} →
+              </Link>
+            </p>
+          </Card>
+        ) : (
+          <OrderPayment
+            orderId={order.id}
+            method={order.paymentMethod}
+            paymentStatus={order.paymentStatus}
+            amountLabel={usd(order.amount ?? order.quote.total)}
+            bankInfo={bankInfo}
+            proofUrl={proofUrl}
+            transferReported={transferReported}
+          />
+        )}
       </div>
 
       {/* status stepper — once the order is in the fulfilment pipeline */}
-      {order.status !== "awaiting_payment" && (
+      {stageIdx >= 0 && (
       <Card className="rise px-6 py-5">
         <div className="flex items-center">
           {ORDER_STATUSES.map((s, i) => {
