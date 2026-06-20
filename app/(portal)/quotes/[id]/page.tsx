@@ -134,12 +134,13 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
               if (isAccessoryConfig(item.config)) {
                 const cfg = item.config;
                 const acc = catalog.model(item.productId);
+                const img = cfg.image ?? (acc ? catalog.image(acc) : null);
                 return (
                   <Card key={item.id} className="px-5 py-4">
                     <div className="flex gap-4">
-                      {acc && (
+                      {img && (
                         /* eslint-disable-next-line @next/next/no-img-element */
-                        <img src={catalog.image(acc)} alt={cfg.name} className="size-[72px] shrink-0 rounded-2xl bg-[#0e0e10] object-contain p-1.5" />
+                        <img src={img} alt={cfg.name} className="size-[72px] shrink-0 rounded-2xl bg-[#0e0e10] object-contain p-1.5" />
                       )}
                       <div className="min-w-0 flex-1">
                         <div className="flex items-start justify-between gap-3">

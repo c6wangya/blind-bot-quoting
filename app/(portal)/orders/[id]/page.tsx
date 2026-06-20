@@ -86,11 +86,12 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                 if (isAccessoryConfig(item.config)) {
                   const cfg = item.config;
                   const acc = catalog.model(item.productId);
+                  const img = cfg.image ?? (acc ? catalog.image(acc) : null);
                   return (
                     <li key={item.id} className="flex items-center gap-4 px-5 py-3.5">
-                      {acc && (
+                      {img && (
                         /* eslint-disable-next-line @next/next/no-img-element */
-                        <img src={catalog.image(acc)} alt={cfg.name} className="size-11 shrink-0 rounded-lg bg-[#0e0e10] object-contain p-1" />
+                        <img src={img} alt={cfg.name} className="size-11 shrink-0 rounded-lg bg-[#0e0e10] object-contain p-1" />
                       )}
                       <div className="min-w-0 flex-1">
                         <div className="text-[13.5px] font-semibold text-ink">

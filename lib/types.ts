@@ -95,6 +95,8 @@ export interface AccessoryConfig {
   name: string;
   brand: string;
   category: string;
+  /** Image URL snapshotted at add time, so the thumbnail survives if the catalog model is deleted. */
+  image?: string;
   /** Crown + Driver choice, snapshotted at add time (THE-772 — 0005). */
   crownDriver?: CrownDriverConfig;
 }

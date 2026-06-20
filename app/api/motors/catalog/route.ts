@@ -80,8 +80,8 @@ export async function DELETE(req: Request) {
     if (b.entity === "brand") await deleteBrand(b.id);
     else if (b.entity === "category") await deleteCategory(b.id);
     else {
-      const how = await deleteModel(b.id);
-      return NextResponse.json({ ok: true, how });
+      const result = await deleteModel(b.id, undefined, b.force === true);
+      return NextResponse.json({ ok: true, ...result });
     }
     return NextResponse.json({ ok: true });
   } catch (err) {

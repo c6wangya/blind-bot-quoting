@@ -6,7 +6,11 @@ import type { AdminCatalog, AdminCategory, AdminModel } from "@/lib/db";
 import type { AccessoryBrand } from "@/lib/db";
 import { Button, Card, cx } from "./ui";
 
-async function call(method: string, body: unknown): Promise<{ how?: "soft" | "hard" }> {
+type QuoteRef = { quoteId: number; ref: string | null };
+async function call(
+  method: string,
+  body: unknown
+): Promise<{ status?: "deleted" | "referenced"; quotes?: QuoteRef[] }> {
   const r = await fetch("/api/motors/catalog", {
     method,
     headers: { "Content-Type": "application/json" },
@@ -193,7 +197,7 @@ function ModelRow({ model }: { model: AdminModel }) {
   const [image, setImage] = useState(model.imageUrl ?? "");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [note, setNote] = useState<string | null>(null);
+  const [confirmRefs, setConfirmRefs] = useState<QuoteRef[] | null>(null);
 
   const dirty =
     name !== model.name || sku !== model.sku || active !== model.active ||
@@ -201,9 +205,17 @@ function ModelRow({ model }: { model: AdminModel }) {
     description !== (model.description ?? "") || image !== (model.imageUrl ?? "");
 
   const run = async (fn: () => Promise<unknown>) => {
-    setBusy(true); setErr(null); setNote(null);
+    setBusy(true); setErr(null); setConfirmRefs(null);
     try { await fn(); router.refresh(); } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
   };
+
+  // First click: delete (the API reports back if it's used in quotes). If referenced, show the
+  // list and wait for "Delete anyway", which re-runs with force.
+  const onDelete = (force: boolean) =>
+    run(async () => {
+      const r = await call("DELETE", { entity: "model", id: model.id, force });
+      if (r.status === "referenced") setConfirmRefs(r.quotes ?? []);
+    });
 
   return (
     <li className={cx("rounded-lg border border-line bg-surface px-2.5 py-2", !active && "opacity-60")}>
@@ -222,7 +234,7 @@ function ModelRow({ model }: { model: AdminModel }) {
           Save
         </Button>
         <button
-          onClick={() => run(async () => { const r = await call("DELETE", { entity: "model", id: model.id }); if (r.how === "soft") setNote("In use on a quote — deactivated (hidden from retailers) instead of deleted, so past quotes stay intact."); })}
+          onClick={() => onDelete(false)}
           disabled={busy}
           className="text-[11px] font-medium text-muted hover:text-red-500"
         >
@@ -260,7 +272,23 @@ function ModelRow({ model }: { model: AdminModel }) {
           <p className="text-[10.5px] text-muted">Upload sets the URL above; click <span className="font-medium">Save</span> to persist. PNG/JPEG/WebP ≤ 5 MB.</p>
         </div>
       )}
-      {note && <p className="mt-1 text-[11px] text-amber-600">{note}</p>}
+      {confirmRefs && (
+        <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-[11.5px] text-amber-800">
+          <p>
+            In use on {confirmRefs.length} quote{confirmRefs.length === 1 ? "" : "s"}:{" "}
+            <span className="font-medium">{confirmRefs.map((q) => q.ref || `#${q.quoteId}`).join(", ")}</span>.
+            Those quotes keep their saved snapshot (name, price, image), so deleting will not change them.
+          </p>
+          <div className="mt-1.5 flex items-center gap-3">
+            <button onClick={() => onDelete(true)} disabled={busy} className="font-semibold text-red-600 hover:underline">
+              Delete anyway
+            </button>
+            <button onClick={() => setConfirmRefs(null)} disabled={busy} className="text-amber-700 hover:underline">
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
       {err && <p className="mt-1 text-[11px] text-red-500">{err}</p>}
     </li>
   );

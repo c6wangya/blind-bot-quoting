@@ -178,6 +178,7 @@ export async function addAccessoryItem(
     name: model.name,
     brand: brandName,
     category: category?.name ?? model.categoryId,
+    image: cat.image(model),
     ...(crownDriver ? { crownDriver } : {}),
   };
   // Snapshot the retailer's effective price (override → default → static), defaulting to static.

@@ -114,13 +114,18 @@ export async function deleteCategory(id: string, sb: SupabaseClient = admin()): 
 
 // ---------------- models ----------------
 
+export type QuoteRef = { quoteId: number; ref: string | null };
+
 /**
- * Is a model used in a real quote/order? That's the only reference worth protecting — its
- * config (inventory / pricing / tags) is just admin-managed settings we can clean up on delete.
+ * Quotes that reference this model. Quote lines snapshot the product (name/sku/price/image), so
+ * deleting the model doesn't break them — this is just to warn the admin where it's used.
  */
-export async function modelUsedInQuotes(id: string, sb: SupabaseClient = admin()): Promise<boolean> {
-  const { count } = await sb.from("quote_items").select("product_id", { count: "exact", head: true }).eq("product_id", id);
-  return !!count && count > 0;
+export async function quotesReferencingModel(id: string, sb: SupabaseClient = admin()): Promise<QuoteRef[]> {
+  const { data: items } = await sb.from("quote_items").select("quote_id").eq("product_id", id);
+  const ids = [...new Set((items ?? []).map((r) => r.quote_id as number))];
+  if (!ids.length) return [];
+  const { data: quotes } = await sb.from("quotes").select("id, ref").in("id", ids);
+  return (quotes ?? []).map((q) => ({ quoteId: q.id as number, ref: (q.ref as string) ?? null }));
 }
 
 export async function createModel(
@@ -166,22 +171,28 @@ export async function updateModel(
   if (error) throw error;
 }
 
+export type DeleteModelResult =
+  | { status: "deleted" }
+  | { status: "referenced"; quotes: QuoteRef[] };
+
 /**
- * Delete a model. If it's used in a real quote/order it's kept and just deactivated (soft) so
- * history stays intact. Otherwise its config rows (inventory / pricing / tags) are cleaned up
- * and the model is hard-deleted. Returns what happened.
+ * Delete a model. If it's used in any quote and `force` is not set, returns those quotes so the
+ * admin can confirm — nothing is deleted. With `force` (or when unused), the model + its config
+ * rows (inventory / pricing / tags) are removed; quote lines keep their snapshot, so historical
+ * quotes/orders still render. quote_items are intentionally left untouched.
  */
-export async function deleteModel(id: string, sb: SupabaseClient = admin()): Promise<"soft" | "hard"> {
-  if (await modelUsedInQuotes(id, sb)) {
-    const { error } = await sb.from("accessory_models").update({ active: false }).eq("id", id);
-    if (error) throw error;
-    return "soft";
-  }
+export async function deleteModel(
+  id: string,
+  sb: SupabaseClient = admin(),
+  force = false
+): Promise<DeleteModelResult> {
+  const refs = await quotesReferencingModel(id, sb);
+  if (refs.length && !force) return { status: "referenced", quotes: refs };
   // No FK cascade (these tables predate accessory_models) — clear config rows explicitly.
   await sb.from("accessory_inventory").delete().eq("model_id", id);
   await sb.from("accessory_prices").delete().eq("model_id", id);
   await sb.from("accessory_model_tags").delete().eq("model_id", id);
   const { error } = await sb.from("accessory_models").delete().eq("id", id);
   if (error) throw error;
-  return "hard";
+  return { status: "deleted" };
 }
