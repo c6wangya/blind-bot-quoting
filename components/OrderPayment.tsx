@@ -48,6 +48,20 @@ export function OrderPayment({
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  const payWithCard = async () => {
+    setBusy(true);
+    setErr(null);
+    try {
+      const r = await fetch(`/api/orders/${orderId}/pay`, { method: "POST" });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data.error ?? "Could not start payment");
+      if (data.url) window.location.href = data.url;
+    } catch (e) {
+      setErr((e as Error).message);
+      setBusy(false);
+    }
+  };
+
   const confirmBankPayment = async (file: File) => {
     setBusy(true);
     setErr(null);
@@ -132,13 +146,23 @@ export function OrderPayment({
         </div>
       )}
 
-      {/* Card / PayPal awaiting or failed — retry (gateway wired in a later phase). */}
-      {!isBank && awaiting && (
-        <p className="mt-3 text-[12.5px] text-ink-soft">
-          {paymentStatus === "failed"
-            ? "The last payment attempt failed. You can retry payment."
-            : "Awaiting payment."}
-        </p>
+      {/* Card (Stripe) awaiting or failed — pay / retry via hosted Checkout. */}
+      {method === "stripe" && awaiting && (
+        <div className="mt-3">
+          <p className="mb-2 text-[12.5px] text-ink-soft">
+            {paymentStatus === "failed" ? "The last payment attempt didn't go through." : "Complete your card payment to place this order."}
+          </p>
+          {!isAdmin && (
+            <Button variant="primary" busy={busy} className="py-2" onClick={payWithCard}>
+              {paymentStatus === "failed" ? "Retry card payment" : "Pay with card"}
+            </Button>
+          )}
+        </div>
+      )}
+
+      {/* PayPal — wired in a later phase. */}
+      {method === "paypal" && awaiting && (
+        <p className="mt-3 text-[12.5px] text-ink-soft">Awaiting PayPal payment.</p>
       )}
 
       {/* Paid */}
