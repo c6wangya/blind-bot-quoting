@@ -7,6 +7,7 @@ import {
   deleteBrand,
   deleteCategory,
   deleteModel,
+  quotesReferencingModel,
   updateBrand,
   updateCategory,
   updateModel,
@@ -80,6 +81,8 @@ export async function DELETE(req: Request) {
     if (b.entity === "brand") await deleteBrand(b.id);
     else if (b.entity === "category") await deleteCategory(b.id);
     else {
+      // check-only: report which quotes reference the model without deleting (drives the confirm)
+      if (b.check === true) return NextResponse.json({ ok: true, quotes: await quotesReferencingModel(b.id) });
       const result = await deleteModel(b.id, undefined, b.force === true);
       return NextResponse.json({ ok: true, ...result });
     }

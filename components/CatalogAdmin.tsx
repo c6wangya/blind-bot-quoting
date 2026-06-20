@@ -212,13 +212,15 @@ function ModelRow({ model }: { model: AdminModel }) {
 
   const cancelDelete = () => { setConfirming(false); setConfirmRefs(null); };
 
-  // Confirm step → delete. The API reports back if it's used in quotes; if so we show the list
-  // and wait for "Delete anyway", which re-runs with force. Quote lines keep their snapshot.
-  const onDelete = (force: boolean) =>
+  // Delete click → check which quotes reference it (no delete yet), then show one confirm:
+  // generic if unused, or the quote list if referenced. The confirm then force-deletes.
+  const startDelete = () =>
     run(async () => {
-      const r = await call("DELETE", { entity: "model", id: model.id, force });
-      if (r.status === "referenced") setConfirmRefs(r.quotes ?? []);
+      const r = await call("DELETE", { entity: "model", id: model.id, check: true });
+      setConfirmRefs(r.quotes ?? []);
+      setConfirming(true);
     });
+  const confirmDelete = () => run(() => call("DELETE", { entity: "model", id: model.id, force: true }));
 
   return (
     <li className={cx("rounded-lg border bg-surface px-2.5 py-2", active ? "border-line" : "border-dashed border-line")}>
@@ -240,7 +242,7 @@ function ModelRow({ model }: { model: AdminModel }) {
           Save
         </Button>
         <button
-          onClick={() => { setErr(null); setConfirmRefs(null); setConfirming(true); }}
+          onClick={startDelete}
           disabled={busy}
           className="text-[11px] font-medium text-muted hover:text-red-500"
         >
@@ -278,34 +280,38 @@ function ModelRow({ model }: { model: AdminModel }) {
           <p className="text-[10.5px] text-muted">Upload sets the URL above; click <span className="font-medium">Save</span> to persist. PNG/JPEG/WebP ≤ 5 MB.</p>
         </div>
       )}
-      {confirming && (
-        <div
-          className={cx(
-            "mt-2 rounded-lg border px-3 py-2 text-[11.5px]",
-            confirmRefs ? "border-amber-300 bg-amber-50 text-amber-800" : "border-line bg-[#faf9f5] text-ink-soft"
-          )}
-        >
-          {confirmRefs ? (
-            <p>
-              In use on {confirmRefs.length} quote{confirmRefs.length === 1 ? "" : "s"}:{" "}
-              <span className="font-medium">{confirmRefs.map((q) => q.ref || `#${q.quoteId}`).join(", ")}</span>.
-              Those quotes keep their saved snapshot (name, price, image), so deleting will not change them.
-            </p>
-          ) : (
-            <p>
-              Delete <span className="font-medium">{model.name}</span> from the catalog? This cannot be undone.
-            </p>
-          )}
-          <div className="mt-1.5 flex items-center gap-3">
-            <button onClick={() => onDelete(!!confirmRefs)} disabled={busy} className="font-semibold text-red-600 hover:underline">
-              {confirmRefs ? "Delete anyway" : "Delete"}
-            </button>
-            <button onClick={cancelDelete} disabled={busy} className="text-muted hover:underline">
-              Cancel
-            </button>
+      {confirming && (() => {
+        const refs = confirmRefs ?? [];
+        const referenced = refs.length > 0;
+        return (
+          <div
+            className={cx(
+              "mt-2 rounded-lg border px-3 py-2 text-[11.5px]",
+              referenced ? "border-amber-300 bg-amber-50 text-amber-800" : "border-line bg-[#faf9f5] text-ink-soft"
+            )}
+          >
+            {referenced ? (
+              <p>
+                In use on {refs.length} quote{refs.length === 1 ? "" : "s"}:{" "}
+                <span className="font-medium">{refs.map((q) => q.ref || `#${q.quoteId}`).join(", ")}</span>.
+                Those quotes keep their saved snapshot (name, price, image), so deleting will not change them.
+              </p>
+            ) : (
+              <p>
+                Delete <span className="font-medium">{model.name}</span> from the catalog? This cannot be undone.
+              </p>
+            )}
+            <div className="mt-1.5 flex items-center gap-3">
+              <button onClick={confirmDelete} disabled={busy} className="font-semibold text-red-600 hover:underline">
+                {referenced ? "Delete anyway" : "Delete"}
+              </button>
+              <button onClick={cancelDelete} disabled={busy} className="text-muted hover:underline">
+                Cancel
+              </button>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
       {err && <p className="mt-1 text-[11px] text-red-500">{err}</p>}
     </li>
   );
