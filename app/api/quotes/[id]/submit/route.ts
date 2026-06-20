@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireQuoteAccess } from "@/lib/auth/api";
 import { submitPreOrder } from "@/lib/db";
 import { createCheckoutSession } from "@/lib/payments/stripe";
+import { createPaypalOrder } from "@/lib/payments/paypal";
 import { publicOrigin } from "@/lib/site-url";
 import type { PaymentMethod } from "@/lib/types";
 
@@ -26,9 +27,13 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       });
       return NextResponse.json({ redirect: url });
     }
-    // PayPal hand-off is wired in a later phase (needs sandbox credentials).
     if (method === "paypal") {
-      return NextResponse.json({ error: "This payment method isn't available yet" }, { status: 400 });
+      const order = await submitPreOrder(id, "paypal", sb);
+      const url = await createPaypalOrder({
+        order: { id: order.id, ref: order.ref, amount: order.amount ?? 0 },
+        origin: publicOrigin(req),
+      });
+      return NextResponse.json({ redirect: url });
     }
     return NextResponse.json({ error: "Choose a payment method" }, { status: 400 });
   } catch (err) {

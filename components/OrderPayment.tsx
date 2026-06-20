@@ -50,7 +50,7 @@ export function OrderPayment({
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  const payWithCard = async () => {
+  const payNow = async () => {
     setBusy(true);
     setErr(null);
     try {
@@ -143,14 +143,23 @@ export function OrderPayment({
           <p className="mb-2 text-[12.5px] text-ink-soft">
             {paymentStatus === "failed" ? "The last payment attempt didn't go through." : "Complete your card payment to place this order."}
           </p>
-          <Button variant="primary" busy={busy} className="py-2" onClick={payWithCard}>
+          <Button variant="primary" busy={busy} className="py-2" onClick={payNow}>
             {paymentStatus === "failed" ? "Retry card payment" : "Pay with card"}
           </Button>
         </div>
       )}
 
-      {/* PayPal — wired in a later phase. */}
-      {method === "paypal" && awaiting && <p className="mt-3 text-[12.5px] text-ink-soft">Awaiting PayPal payment.</p>}
+      {/* PayPal — approve via PayPal, captured on return. */}
+      {method === "paypal" && awaiting && (
+        <div className="mt-3">
+          <p className="mb-2 text-[12.5px] text-ink-soft">
+            {paymentStatus === "failed" ? "The last payment attempt didn't go through." : "Complete your PayPal payment to place this order."}
+          </p>
+          <Button variant="primary" busy={busy} className="py-2" onClick={payNow}>
+            {paymentStatus === "failed" ? "Retry PayPal" : "Pay with PayPal"}
+          </Button>
+        </div>
+      )}
 
       {/* Paid */}
       {paymentStatus === "paid" && proofUrl && (

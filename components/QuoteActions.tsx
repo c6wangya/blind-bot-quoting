@@ -57,8 +57,8 @@ export function DeleteDraftButton({ quoteId }: { quoteId: number }) {
 type PayMethod = "bank_transfer" | "stripe" | "paypal";
 const PAY_METHODS: { id: PayMethod; label: string; note: string; enabled: boolean }[] = [
   { id: "stripe", label: "Credit / debit card", note: "Secure checkout via Stripe", enabled: true },
+  { id: "paypal", label: "PayPal", note: "Pay with your PayPal account", enabled: true },
   { id: "bank_transfer", label: "Bank transfer", note: "We confirm once received", enabled: true },
-  { id: "paypal", label: "PayPal", note: "Coming soon", enabled: false },
 ];
 
 export function SubmitPreOrderButton({ quoteId, total }: { quoteId: number; total: string }) {
