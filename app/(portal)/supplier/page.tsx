@@ -67,7 +67,7 @@ export default async function SupplierConsolePage() {
                   <td className="px-5 py-3.5 text-right font-semibold tabular-nums text-ink">{usd(o.total)}</td>
                   <td className="px-5 py-3.5 text-right text-xs text-muted">{fmtDate(o.createdAt)}</td>
                   <td className="px-5 py-3.5 text-right">
-                    <SupplierAdvanceButton orderId={o.id} status={o.status} />
+                    <SupplierAdvanceButton orderId={o.id} status={o.status} paymentMethod={o.paymentMethod} paymentStatus={o.paymentStatus} />
                   </td>
                 </tr>
               ))}

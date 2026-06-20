@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { Swatch } from "@/components/renders";
 import { Badge, Card, cx, PageHeader, StatusBadge } from "@/components/ui";
 import { OrderPayment } from "@/components/OrderPayment";
-import { canAccessOwned, isAdmin, requireUserId, userClient } from "@/lib/auth/user";
+import { canAccessOwned, requireUserId, userClient } from "@/lib/auth/user";
 import { admin } from "@/lib/supabase/admin";
 import { getBankInfo, getLine, getOrder, getOrderOwnerId, getProduct, loadCatalog } from "@/lib/db";
 import { describeConfig } from "@/lib/describe";
@@ -22,14 +22,14 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   const catalog = await loadCatalog(); // for accessory line images / names
   const stageIdx = ORDER_STATUSES.indexOf(order.status as (typeof ORDER_STATUSES)[number]);
 
-  // Payment layer
-  const adminUser = await isAdmin(userId);
+  // Payment layer (retailer view; admin confirmation lives in the Supplier Console)
   const bankInfo = order.paymentMethod === "bank_transfer" ? await getBankInfo() : null;
   let proofUrl: string | null = null;
   if (order.paymentProofPath) {
     const { data } = await admin().storage.from("payment-proofs").createSignedUrl(order.paymentProofPath, 3600);
     proofUrl = data?.signedUrl ?? null;
   }
+  const transferReported = order.events?.some((e) => e.note.includes("reported the bank transfer")) ?? false;
 
   return (
     <div>
@@ -53,9 +53,9 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
           method={order.paymentMethod}
           paymentStatus={order.paymentStatus}
           amountLabel={usd(order.amount ?? order.quote.total)}
-          isAdmin={adminUser}
           bankInfo={bankInfo}
           proofUrl={proofUrl}
+          transferReported={transferReported}
         />
       </div>
 

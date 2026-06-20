@@ -1,10 +1,13 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import type { BankInfo } from "@/lib/db";
 import type { PaymentMethod, PaymentStatus } from "@/lib/types";
 import { Badge, Button, Card, cx } from "./ui";
+
+// Retailer-facing payment panel on the Pre-Orders page. Admin confirmation of a bank transfer
+// lives in the Supplier Console (Admin Console), not here.
 
 const METHOD_LABEL: Record<PaymentMethod, string> = {
   stripe: "Card (Stripe)",
@@ -31,32 +34,43 @@ export function OrderPayment({
   method,
   paymentStatus,
   amountLabel,
-  isAdmin,
   bankInfo,
   proofUrl,
+  transferReported = false,
 }: {
   orderId: number;
   method: PaymentMethod | null;
   paymentStatus: PaymentStatus;
   amountLabel: string;
-  isAdmin: boolean;
   bankInfo: BankInfo | null;
   proofUrl: string | null;
+  transferReported?: boolean;
 }) {
   const router = useRouter();
-  const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  const confirmBankPayment = async (file: File) => {
+  const payWithCard = async () => {
     setBusy(true);
     setErr(null);
     try {
-      const fd = new FormData();
-      fd.append("file", file);
-      const r = await fetch(`/api/orders/${orderId}/confirm-payment`, { method: "POST", body: fd });
+      const r = await fetch(`/api/orders/${orderId}/pay`, { method: "POST" });
       const data = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(data.error ?? "Could not confirm payment");
+      if (!r.ok) throw new Error(data.error ?? "Could not start payment");
+      if (data.url) window.location.href = data.url;
+    } catch (e) {
+      setErr((e as Error).message);
+      setBusy(false);
+    }
+  };
+
+  const reportTransfer = async () => {
+    setBusy(true);
+    setErr(null);
+    try {
+      const r = await fetch(`/api/orders/${orderId}/report-transfer`, { method: "POST" });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data.error ?? "Could not report transfer");
       router.refresh();
     } catch (e) {
       setErr((e as Error).message);
@@ -84,7 +98,7 @@ export function OrderPayment({
         </span>
       </div>
 
-      {/* Bank transfer — retailer sees where to pay; admin uploads the receipt to confirm. */}
+      {/* Bank transfer — where to pay + "I've made the transfer". Admin confirms in Supplier Console. */}
       {isBank && awaiting && (
         <div className="mt-4">
           {bankReady ? (
@@ -102,44 +116,41 @@ export function OrderPayment({
             </div>
           ) : (
             <p className="rounded-xl border border-line bg-surface p-3 text-[12.5px] text-muted">
-              {isAdmin ? "Set the company bank details under Admin · Settings." : "Bank details are being set up — please contact us."}
+              Bank details are being set up — please contact us.
             </p>
           )}
 
-          {isAdmin ? (
-            <div className="mt-3">
-              <input
-                ref={fileRef}
-                type="file"
-                accept="image/*,application/pdf"
-                className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  e.target.value = "";
-                  if (f) confirmBankPayment(f);
-                }}
-              />
-              <Button variant="primary" busy={busy} className="py-2" onClick={() => fileRef.current?.click()}>
-                {busy ? "Uploading…" : "Upload receipt & confirm payment"}
-              </Button>
-              <p className="mt-1.5 text-[11px] text-muted">A receipt (image/PDF) is required to confirm and submit the order.</p>
-            </div>
-          ) : (
-            <p className="mt-3 text-[12.5px] text-ink-soft">
-              Once we receive your transfer we&apos;ll confirm it here and the order moves into production.
+          {transferReported ? (
+            <p className="mt-3 text-[12.5px] font-medium text-emerald-700">
+              ✓ Transfer reported — we&apos;ll confirm here once the funds arrive and move your order forward.
             </p>
+          ) : (
+            <div className="mt-3">
+              <Button variant="primary" busy={busy} className="py-2" onClick={reportTransfer} disabled={!bankReady}>
+                I&apos;ve made the transfer
+              </Button>
+              <p className="mt-1.5 text-[11px] text-muted">
+                Click after you&apos;ve sent the wire — we&apos;ll confirm receipt and move your order forward.
+              </p>
+            </div>
           )}
         </div>
       )}
 
-      {/* Card / PayPal awaiting or failed — retry (gateway wired in a later phase). */}
-      {!isBank && awaiting && (
-        <p className="mt-3 text-[12.5px] text-ink-soft">
-          {paymentStatus === "failed"
-            ? "The last payment attempt failed. You can retry payment."
-            : "Awaiting payment."}
-        </p>
+      {/* Card (Stripe) awaiting or failed — pay / retry via hosted Checkout. */}
+      {method === "stripe" && awaiting && (
+        <div className="mt-3">
+          <p className="mb-2 text-[12.5px] text-ink-soft">
+            {paymentStatus === "failed" ? "The last payment attempt didn't go through." : "Complete your card payment to place this order."}
+          </p>
+          <Button variant="primary" busy={busy} className="py-2" onClick={payWithCard}>
+            {paymentStatus === "failed" ? "Retry card payment" : "Pay with card"}
+          </Button>
+        </div>
       )}
+
+      {/* PayPal — wired in a later phase. */}
+      {method === "paypal" && awaiting && <p className="mt-3 text-[12.5px] text-ink-soft">Awaiting PayPal payment.</p>}
 
       {/* Paid */}
       {paymentStatus === "paid" && proofUrl && (
