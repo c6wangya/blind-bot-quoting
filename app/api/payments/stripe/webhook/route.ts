@@ -3,6 +3,10 @@ import type Stripe from "stripe";
 import { getStripe } from "@/lib/payments/stripe";
 import { markOrderPaid, markOrderPaymentFailed } from "@/lib/db";
 
+// Stripe signature verification needs the raw body + Node crypto — pin to the Node runtime.
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 /**
  * Stripe webhook (backup to the success return). Verifies the signature and marks orders paid
  * on checkout.session.completed. Configure an endpoint → this URL in the Stripe dashboard and
