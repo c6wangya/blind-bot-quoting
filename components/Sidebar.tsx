@@ -51,6 +51,7 @@ const NAV: { section: string; adminOnly?: boolean; items: NavItem[] }[] = [
 export default function Sidebar({
   draftCount,
   unread,
+  supplierPending,
   accountName,
   accountSub,
   signedIn,
@@ -60,6 +61,7 @@ export default function Sidebar({
 }: {
   draftCount: number;
   unread: number;
+  supplierPending: number;
   accountName: string;
   accountSub: string;
   signedIn: boolean;
@@ -185,6 +187,11 @@ export default function Sidebar({
                     {href === "/messages" && unread > 0 && (
                       <span className="ml-auto rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
                         {unread > 99 ? "99+" : unread}
+                      </span>
+                    )}
+                    {href === "/supplier" && supplierPending > 0 && (
+                      <span className="ml-auto rounded-full bg-brass px-1.5 py-0.5 text-[10px] font-bold leading-none text-[#1a2336]">
+                        {supplierPending > 99 ? "99+" : supplierPending}
                       </span>
                     )}
                   </Link>

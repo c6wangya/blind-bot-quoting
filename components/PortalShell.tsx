@@ -14,6 +14,7 @@ import { BRAND } from "@/lib/brand";
 export default function PortalShell({
   draftCount,
   unreadCount,
+  supplierPendingCount,
   accountName,
   accountSub,
   signedIn,
@@ -22,6 +23,7 @@ export default function PortalShell({
 }: {
   draftCount: number;
   unreadCount: number;
+  supplierPendingCount: number;
   accountName: string;
   accountSub: string;
   signedIn: boolean;
@@ -31,6 +33,7 @@ export default function PortalShell({
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [unread, setUnread] = useState(unreadCount);
+  const [supplierPending, setSupplierPending] = useState(supplierPendingCount);
 
   useEffect(() => {
     if (!signedIn) return;
@@ -38,9 +41,17 @@ export default function PortalShell({
     const tick = async () => {
       try {
         const r = await fetch("/api/messages/unread", { cache: "no-store" });
-        if (!r.ok) return;
-        const data = await r.json();
-        if (alive && typeof data.count === "number") setUnread(data.count);
+        if (r.ok) {
+          const data = await r.json();
+          if (alive && typeof data.count === "number") setUnread(data.count);
+        }
+        if (isAdmin) {
+          const r2 = await fetch("/api/orders/pending-count", { cache: "no-store" });
+          if (r2.ok) {
+            const d2 = await r2.json();
+            if (alive && typeof d2.count === "number") setSupplierPending(d2.count);
+          }
+        }
       } catch {
         /* transient */
       }
@@ -51,7 +62,7 @@ export default function PortalShell({
       alive = false;
       clearInterval(id);
     };
-  }, [signedIn, pathname]);
+  }, [signedIn, isAdmin, pathname]);
 
   const close = () => setOpen(false);
 
@@ -84,6 +95,7 @@ export default function PortalShell({
       <Sidebar
         draftCount={draftCount}
         unread={unread}
+        supplierPending={supplierPending}
         accountName={accountName}
         accountSub={accountSub}
         signedIn={signedIn}

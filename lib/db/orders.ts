@@ -7,6 +7,15 @@ import { getQuote } from "./quotes";
 import { deductMotorStock, restoreMotorStock } from "./motors";
 import { isAccessoryConfig } from "@/lib/types";
 
+/** Orders needing admin action: new submissions to acknowledge + bank transfers to confirm. */
+export async function getAdminPendingCount(sb: SupabaseClient = admin()): Promise<number> {
+  const { count } = await sb
+    .from("orders")
+    .select("id", { count: "exact", head: true })
+    .or("status.eq.submitted,and(status.eq.awaiting_payment,payment_method.eq.bank_transfer)");
+  return count ?? 0;
+}
+
 /** Motor stock needs for a quote's accessory lines (the reservable units). */
 function motorNeedsOf(items: { config: unknown; productId: string; qty: number }[]) {
   return items
