@@ -45,7 +45,29 @@ export default async function QuotesPage({
       ) : (
         <>
         <ListToolbar basePath="/quotes" q={q} status={status} statuses={QUOTE_STATUS_OPTIONS} total={filtered.length} page={page} pageSize={PAGE_SIZE} />
-        <Card className="overflow-hidden">
+
+        {/* Mobile: cards */}
+        <div className="space-y-3 md:hidden">
+          {quotes.map((qt) => (
+            <Link key={qt.id} href={`/quotes/${qt.id}`} className="block rounded-2xl border border-line bg-surface p-4">
+              <div className="flex items-center justify-between gap-3">
+                <span className="font-semibold text-ink">{qt.ref}</span>
+                {qt.status === "draft" ? <Badge tone="amber">Draft</Badge> : <Badge tone="green">Converted</Badge>}
+              </div>
+              {(qt.projectName || qt.customerName) && (
+                <div className="mt-1 truncate text-[13px] text-muted">{qt.projectName ?? qt.customerName}</div>
+              )}
+              <div className="mt-2 flex items-center justify-between text-[13px]">
+                <span className="text-muted">{qt.itemCount} item{qt.itemCount === 1 ? "" : "s"} · {fmtDate(qt.updatedAt)}</span>
+                <span className="font-semibold tabular-nums text-ink">{usd(qt.total)}</span>
+              </div>
+            </Link>
+          ))}
+          {quotes.length === 0 && <p className="py-8 text-center text-sm text-muted">No quotes match your search.</p>}
+        </div>
+
+        {/* Desktop: table */}
+        <Card className="hidden overflow-hidden md:block">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-line bg-[#fafaf7] text-left text-[11px] font-semibold uppercase tracking-wider text-muted">

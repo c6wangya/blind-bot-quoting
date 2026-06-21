@@ -41,7 +41,27 @@ export default async function OrdersPage({
       ) : (
         <>
         <ListToolbar basePath="/orders" q={q} status={status} statuses={ORDER_STATUS_OPTIONS} total={filtered.length} page={page} pageSize={PAGE_SIZE} />
-        <Card className="overflow-hidden">
+
+        {/* Mobile: cards */}
+        <div className="space-y-3 md:hidden">
+          {rows.map((o) => (
+            <Link key={o.id} href={`/orders/${o.id}`} className="block rounded-2xl border border-line bg-surface p-4">
+              <div className="flex items-center justify-between gap-3">
+                <span className="font-semibold text-ink">{o.ref}</span>
+                <StatusBadge status={o.status} />
+              </div>
+              {o.projectName && <div className="mt-1 truncate text-[13px] text-muted">{o.projectName}</div>}
+              <div className="mt-2 flex items-center justify-between text-[13px]">
+                <span className="text-muted">{fmtDate(o.updatedAt)}</span>
+                <span className="font-semibold tabular-nums text-ink">{usd(o.total)}</span>
+              </div>
+            </Link>
+          ))}
+          {rows.length === 0 && <p className="py-8 text-center text-sm text-muted">No pre-orders match your search.</p>}
+        </div>
+
+        {/* Desktop: table */}
+        <Card className="hidden overflow-hidden md:block">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-line bg-[#fafaf7] text-left text-[11px] font-semibold uppercase tracking-wider text-muted">

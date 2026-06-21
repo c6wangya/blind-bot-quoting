@@ -50,7 +50,27 @@ export default async function SupplierConsolePage({
       ) : (
         <>
         <ListToolbar basePath="/supplier" q={q} status={status} statuses={ORDER_STATUS_OPTIONS} total={filtered.length} page={page} pageSize={PAGE_SIZE} />
-        <Card className="overflow-hidden">
+
+        {/* Mobile: cards */}
+        <div className="space-y-3 md:hidden">
+          {orders.map((o) => (
+            <div key={o.id} className="rounded-2xl border border-line bg-surface p-4">
+              <div className="flex items-center justify-between gap-3">
+                <Link href={`/orders/${o.id}`} className="font-semibold text-ink hover:text-brass">{o.ref}</Link>
+                <StatusBadge status={o.status} />
+              </div>
+              <div className="mt-1 truncate text-[13px] text-muted">{o.retailer}{o.projectName ? ` · ${o.projectName}` : ""}</div>
+              <div className="mt-2 flex items-center justify-between gap-3">
+                <span className="text-[13px] font-semibold tabular-nums text-ink">{usd(o.total)}</span>
+                <SupplierAdvanceButton orderId={o.id} status={o.status} paymentMethod={o.paymentMethod} paymentStatus={o.paymentStatus} />
+              </div>
+            </div>
+          ))}
+          {orders.length === 0 && <p className="py-8 text-center text-sm text-muted">No orders match your search.</p>}
+        </div>
+
+        {/* Desktop: table */}
+        <Card className="hidden overflow-hidden md:block">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-line bg-[#fafaf7] text-left text-[11px] font-semibold uppercase tracking-wider text-muted">
