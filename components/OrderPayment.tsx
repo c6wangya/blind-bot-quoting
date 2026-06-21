@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { BankInfo } from "@/lib/db";
 import type { PaymentMethod, PaymentStatus } from "@/lib/types";
+import { useToast } from "./Toast";
 import { Badge, Button, Card, cx } from "./ui";
 
 // Retailer-facing payment panel on the Pre-Orders page. Admin confirmation of a bank transfer
@@ -47,6 +48,7 @@ export function OrderPayment({
   transferReported?: boolean;
 }) {
   const router = useRouter();
+  const toast = useToast();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -71,6 +73,7 @@ export function OrderPayment({
       const r = await fetch(`/api/orders/${orderId}/report-transfer`, { method: "POST" });
       const data = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(data.error ?? "Could not report transfer");
+      toast("Thanks — we'll confirm your transfer shortly");
       router.refresh();
     } catch (e) {
       setErr((e as Error).message);
