@@ -62,6 +62,18 @@ export function StatusBadge({ status, className }: { status: OrderStatus; classN
   );
 }
 
+/** A subtle "‹ Back" link for detail/sub-pages. Place above the PageHeader. */
+export function BackLink({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <Link
+      href={href}
+      className="rise mb-4 inline-flex items-center gap-1 text-[13px] font-medium text-muted transition-colors hover:text-ink"
+    >
+      <span className="text-base leading-none">‹</span> {children}
+    </Link>
+  );
+}
+
 export function PageHeader({
   eyebrow,
   title,

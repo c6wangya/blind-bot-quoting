@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { BackLink } from "@/components/ui";
 import Configurator from "@/components/Configurator";
 import { userClient } from "@/lib/auth/user";
 import { getActivePricing, getLine, getProduct, getQuote } from "@/lib/db";
@@ -58,6 +59,7 @@ export default async function ConfigurePage({
 
   return (
     <div>
+      {quoteId && <BackLink href={`/quotes/${quoteId}`}>Back to quote</BackLink>}
       <nav className="rise mb-5 text-[13px] text-muted">
         <Link href="/catalog" className="hover:text-brass">
           Catalog

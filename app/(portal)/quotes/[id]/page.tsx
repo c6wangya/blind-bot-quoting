@@ -4,7 +4,7 @@ import { DeleteDraftButton, RemoveItemButton, SubmitPreOrderButton } from "@/com
 import { QuoteDetailsDrawer } from "@/components/QuoteDetailsDrawer";
 import { LineQtyEditor } from "@/components/LineQtyEditor";
 import { Swatch } from "@/components/renders";
-import { Badge, Card, EmptyState, LinkButton, PageHeader } from "@/components/ui";
+import { BackLink, Badge, Card, EmptyState, LinkButton, PageHeader } from "@/components/ui";
 import { canAccessOwned, requireUserId, userClient } from "@/lib/auth/user";
 import { getLine, getOrderRefByQuote, getProduct, getQuote, getQuoteOwnerId, loadCatalog } from "@/lib/db";
 import { describeConfig } from "@/lib/describe";
@@ -63,6 +63,7 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
 
   return (
     <div>
+      <BackLink href="/quotes">All quotes</BackLink>
       <PageHeader
         eyebrow={`Quote · ${fmtDate(quote.createdAt)}`}
         title={quote.ref}

@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Swatch } from "@/components/renders";
-import { Badge, Card, cx, PageHeader, StatusBadge } from "@/components/ui";
+import { BackLink, Badge, Card, cx, PageHeader, StatusBadge } from "@/components/ui";
 import { OrderPayment } from "@/components/OrderPayment";
-import { canAccessOwned, requireUserId, userClient } from "@/lib/auth/user";
+import { canAccessOwned, isAdmin, requireUserId, userClient } from "@/lib/auth/user";
 import { admin } from "@/lib/supabase/admin";
 import { getBankInfo, getLine, getOrder, getOrderOwnerId, getProduct, loadCatalog } from "@/lib/db";
 import { describeConfig } from "@/lib/describe";
@@ -30,9 +30,11 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
     proofUrl = data?.signedUrl ?? null;
   }
   const transferReported = order.events?.some((e) => e.note.includes("reported the bank transfer")) ?? false;
+  const adminUser = await isAdmin(userId);
 
   return (
     <div>
+      <BackLink href={adminUser ? "/supplier" : "/orders"}>{adminUser ? "Supplier Console" : "All pre-orders"}</BackLink>
       <PageHeader
         eyebrow={`Pre-order · placed ${fmtDate(order.createdAt)}`}
         title={order.ref}
