@@ -4,9 +4,8 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { BankInfo } from "@/lib/db";
 import { useToast } from "./Toast";
-import { Button, Card, cx } from "./ui";
+import { Button, Card, Input, Textarea } from "./ui";
 
-const INPUT = "rounded-lg border border-line bg-surface px-2.5 py-2 text-sm text-ink outline-none focus:border-ink";
 const FIELDS: { key: keyof BankInfo; label: string; area?: boolean }[] = [
   { key: "bankName", label: "Bank name" },
   { key: "accountName", label: "Account holder" },
@@ -47,18 +46,9 @@ export function BankSettingsForm({ initial }: { initial: BankInfo }) {
         <label key={f.key} className="block">
           <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-muted">{f.label}</span>
           {f.area ? (
-            <textarea
-              value={form[f.key]}
-              onChange={(e) => setForm((s) => ({ ...s, [f.key]: e.target.value }))}
-              rows={3}
-              className={cx(INPUT, "w-full resize-none")}
-            />
+            <Textarea value={form[f.key]} onChange={(e) => setForm((s) => ({ ...s, [f.key]: e.target.value }))} rows={3} />
           ) : (
-            <input
-              value={form[f.key]}
-              onChange={(e) => setForm((s) => ({ ...s, [f.key]: e.target.value }))}
-              className={cx(INPUT, "w-full")}
-            />
+            <Input value={form[f.key]} onChange={(e) => setForm((s) => ({ ...s, [f.key]: e.target.value }))} />
           )}
         </label>
       ))}

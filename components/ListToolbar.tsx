@@ -1,8 +1,7 @@
 import Link from "next/link";
+import { Input, Select } from "./ui";
 
 export type StatusOption = { value: string; label: string };
-
-const INPUT = "rounded-lg border border-line bg-surface px-3 py-1.5 text-sm text-ink outline-none focus:border-ink";
 
 /**
  * Server-rendered list toolbar: a GET search form (+ optional status select) and a pager.
@@ -39,16 +38,16 @@ export function ListToolbar({
   return (
     <div className="mb-4 flex flex-wrap items-center gap-3">
       <form action={basePath} method="get" className="flex flex-wrap items-center gap-2">
-        <input name="q" defaultValue={q} placeholder="Search…" className={INPUT} aria-label="Search" />
+        <Input name="q" defaultValue={q} placeholder="Search…" aria-label="Search" className="w-auto py-1.5" />
         {statuses && statuses.length > 0 && (
-          <select name="status" defaultValue={status} className={INPUT} aria-label="Filter by status">
+          <Select name="status" defaultValue={status} aria-label="Filter by status" className="w-auto py-1.5">
             <option value="">All statuses</option>
             {statuses.map((s) => (
               <option key={s.value} value={s.value}>
                 {s.label}
               </option>
             ))}
-          </select>
+          </Select>
         )}
         <button type="submit" className="rounded-lg border border-line bg-surface px-3 py-1.5 text-sm font-medium text-ink-soft hover:bg-[#faf9f5]">
           Search
