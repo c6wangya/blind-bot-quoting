@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { OrderStatus, PaymentMethod, PaymentStatus } from "@/lib/types";
+import { useToast } from "./Toast";
 import { Button, cx } from "./ui";
 
 const NEXT_ACTION: Partial<Record<OrderStatus, { action: string; label: string }>> = {
@@ -31,13 +32,14 @@ export default function SupplierAdvanceButton({
   paymentStatus?: PaymentStatus;
 }) {
   const router = useRouter();
+  const toast = useToast();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [confirmClose, setConfirmClose] = useState(false);
 
-  const post = async (url: string, init?: RequestInit) => {
+  const post = async (url: string, init?: RequestInit, successMsg?: string) => {
     setBusy(true);
     setError(null);
     try {
@@ -46,10 +48,12 @@ export default function SupplierAdvanceButton({
         const data = await r.json().catch(() => ({}));
         throw new Error(data.error ?? "Request failed");
       }
+      if (successMsg) toast(successMsg);
       router.refresh();
       return true;
     } catch (e) {
       setError((e as Error).message);
+      toast((e as Error).message, "error");
       return false;
     } finally {
       setBusy(false);
@@ -60,7 +64,7 @@ export default function SupplierAdvanceButton({
   const closeControl = confirmClose ? (
     <span className="flex items-center gap-2 text-[11px]">
       <span className="text-muted">Close &amp; release stock?</span>
-      <button onClick={() => post(`/api/orders/${orderId}/cancel`)} disabled={busy} className="font-semibold text-red-600 hover:underline">
+      <button onClick={() => post(`/api/orders/${orderId}/cancel`, undefined, "Order closed — stock released")} disabled={busy} className="font-semibold text-red-600 hover:underline">
         {busy ? "…" : "Yes, close"}
       </button>
       <button onClick={() => setConfirmClose(false)} disabled={busy} className="text-muted hover:underline">
@@ -77,7 +81,7 @@ export default function SupplierAdvanceButton({
     if (!file) return;
     const fd = new FormData();
     fd.append("file", file);
-    const ok = await post(`/api/orders/${orderId}/confirm-payment`, { body: fd });
+    const ok = await post(`/api/orders/${orderId}/confirm-payment`, { body: fd }, "Payment confirmed — order submitted");
     if (ok) {
       setConfirmOpen(false);
       setFile(null);
@@ -162,7 +166,7 @@ export default function SupplierAdvanceButton({
   return (
     <div className="flex items-center justify-end gap-2">
       <button
-        onClick={() => post(`/api/orders/${orderId}/advance`, { headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: next.action }) })}
+        onClick={() => post(`/api/orders/${orderId}/advance`, { headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: next.action }) }, "Order updated")}
         disabled={busy}
         className={cx(BTN, busy ? "opacity-50" : "hover:border-brass hover:text-brass")}
       >

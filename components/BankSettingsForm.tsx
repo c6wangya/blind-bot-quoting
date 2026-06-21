@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { BankInfo } from "@/lib/db";
+import { useToast } from "./Toast";
 import { Button, Card, cx } from "./ui";
 
 const INPUT = "rounded-lg border border-line bg-surface px-2.5 py-2 text-sm text-ink outline-none focus:border-ink";
@@ -17,15 +18,12 @@ const FIELDS: { key: keyof BankInfo; label: string; area?: boolean }[] = [
 
 export function BankSettingsForm({ initial }: { initial: BankInfo }) {
   const router = useRouter();
+  const toast = useToast();
   const [form, setForm] = useState(initial);
   const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
-  const [err, setErr] = useState<string | null>(null);
 
   const save = async () => {
     setBusy(true);
-    setErr(null);
-    setMsg(null);
     try {
       const r = await fetch("/api/settings/bank", {
         method: "POST",
@@ -34,10 +32,10 @@ export function BankSettingsForm({ initial }: { initial: BankInfo }) {
       });
       const data = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(data.error ?? "Save failed");
-      setMsg("Saved.");
+      toast("Bank details saved");
       router.refresh();
     } catch (e) {
-      setErr((e as Error).message);
+      toast((e as Error).message, "error");
     } finally {
       setBusy(false);
     }
@@ -64,12 +62,10 @@ export function BankSettingsForm({ initial }: { initial: BankInfo }) {
           )}
         </label>
       ))}
-      <div className="flex items-center gap-3 pt-1">
+      <div className="pt-1">
         <Button variant="primary" busy={busy} onClick={save} className="py-2">
           Save bank details
         </Button>
-        {msg && <span className="text-[12px] text-emerald-600">{msg}</span>}
-        {err && <span className="text-[12px] text-red-500">{err}</span>}
       </div>
     </Card>
   );
