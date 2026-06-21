@@ -2,6 +2,18 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import {
+  BookOpen,
+  Cpu,
+  Factory,
+  FileText,
+  LayoutDashboard,
+  type LucideIcon,
+  MessageSquare,
+  Package,
+  Settings,
+  Tag,
+} from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { BRAND } from "@/lib/brand";
 import { cx } from "./ui";
@@ -9,7 +21,7 @@ import { cx } from "./ui";
 type NavItem = {
   href?: string;
   label: string;
-  icon: string;
+  icon: LucideIcon;
   adminOnly?: boolean;
   retailerOnly?: boolean;
   children?: { href: string; label: string; adminOnly?: boolean }[];
@@ -19,19 +31,19 @@ const NAV: { section: string; adminOnly?: boolean; items: NavItem[] }[] = [
   {
     section: "Retailer Portal",
     items: [
-      { href: "/", label: "Dashboard", icon: "▦" },
+      { href: "/", label: "Dashboard", icon: LayoutDashboard },
       {
         label: "Catalog",
-        icon: "❖",
+        icon: BookOpen,
         children: [
           { href: "/catalog", label: "Products" },
           { href: "/catalog/accessories", label: "Accessory" },
         ],
       },
-      { href: "/quotes", label: "Quotes", icon: "≣" },
-      { href: "/orders", label: "Pre-Orders", icon: "⬡" },
+      { href: "/quotes", label: "Quotes", icon: FileText },
+      { href: "/orders", label: "Pre-Orders", icon: Package },
       // Retailer's own support chat. Admins reach the inbox from Admin Console instead.
-      { href: "/messages", label: "Messages", icon: "✉", retailerOnly: true },
+      { href: "/messages", label: "Messages", icon: MessageSquare, retailerOnly: true },
     ],
   },
   {
@@ -39,11 +51,11 @@ const NAV: { section: string; adminOnly?: boolean; items: NavItem[] }[] = [
     section: "Admin Console",
     adminOnly: true,
     items: [
-      { href: "/messages", label: "Messages", icon: "✉" },
-      { href: "/motors", label: "Motors", icon: "◉" },
-      { href: "/supplier", label: "Supplier Console", icon: "⚙" },
-      { href: "/pricing", label: "Pricing Versions", icon: "$" },
-      { href: "/settings", label: "Settings", icon: "✦" },
+      { href: "/messages", label: "Messages", icon: MessageSquare },
+      { href: "/motors", label: "Motors", icon: Cpu },
+      { href: "/supplier", label: "Supplier Console", icon: Factory },
+      { href: "/pricing", label: "Pricing Versions", icon: Tag },
+      { href: "/settings", label: "Settings", icon: Settings },
     ],
   },
 ];
@@ -122,13 +134,8 @@ export default function Sidebar({
                   return (
                     <div key={item.label}>
                       <div className="flex items-center gap-3 rounded-xl px-3 py-2 text-[13.5px] font-medium text-white/60">
-                        <span
-                          className={cx(
-                            "flex w-5 justify-center text-[15px]",
-                            groupActive ? "text-brass" : "text-white/40"
-                          )}
-                        >
-                          {item.icon}
+                        <span className={cx("flex w-5 justify-center", groupActive ? "text-brass" : "text-white/40")}>
+                          <item.icon className="size-[17px]" strokeWidth={1.75} />
                         </span>
                         {item.label}
                       </div>
@@ -172,11 +179,11 @@ export default function Sidebar({
                   >
                     <span
                       className={cx(
-                        "flex w-5 justify-center text-[15px]",
+                        "flex w-5 justify-center",
                         active ? "text-brass" : "text-white/40 group-hover:text-white/70"
                       )}
                     >
-                      {item.icon}
+                      <item.icon className="size-[17px]" strokeWidth={1.75} />
                     </span>
                     {item.label}
                     {href === "/quotes" && draftCount > 0 && (
