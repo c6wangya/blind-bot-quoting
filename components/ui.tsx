@@ -6,6 +6,26 @@ export function cx(...parts: (string | false | null | undefined)[]) {
   return parts.filter(Boolean).join(" ");
 }
 
+// Shared form-field styling (consistent border + focus ring across the app).
+const FIELD =
+  "w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink outline-none transition-colors placeholder:text-muted/70 focus:border-ink focus-visible:ring-2 focus-visible:ring-brass/30";
+
+export function Input({ className, ...props }: React.InputHTMLAttributes<HTMLInputElement>) {
+  return <input className={cx(FIELD, className)} {...props} />;
+}
+
+export function Textarea({ className, ...props }: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  return <textarea className={cx(FIELD, "resize-none", className)} {...props} />;
+}
+
+export function Select({ className, children, ...props }: React.SelectHTMLAttributes<HTMLSelectElement>) {
+  return (
+    <select className={cx(FIELD, className)} {...props}>
+      {children}
+    </select>
+  );
+}
+
 export function Card({
   className,
   children,
@@ -132,7 +152,7 @@ export function LinkButton({
     <Link
       href={href}
       className={cx(
-        "inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-all",
+        "inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brass/50 focus-visible:ring-offset-1",
         variant === "primary"
           ? "bg-ink text-white shadow-sm hover:bg-[#2a3756] hover:shadow"
           : "border border-line bg-surface text-ink hover:border-[#d5d0c4] hover:bg-[#faf9f5]",
@@ -164,7 +184,7 @@ export function Button({
     <button
       disabled={disabled || busy}
       className={cx(
-        "inline-flex items-center justify-center rounded-xl px-4 py-2.5 text-sm font-semibold shadow-sm transition-all disabled:opacity-50",
+        "inline-flex items-center justify-center rounded-xl px-4 py-2.5 text-sm font-semibold shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brass/50 focus-visible:ring-offset-1 disabled:opacity-50",
         variant === "primary" && "bg-ink text-white hover:bg-[#2a3756] hover:shadow",
         variant === "danger" && "bg-red-600 text-white hover:bg-red-700",
         variant === "secondary" && "border border-line bg-surface font-medium text-ink-soft shadow-none hover:bg-[#faf9f5]",
