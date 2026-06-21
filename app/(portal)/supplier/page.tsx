@@ -2,11 +2,12 @@ import Link from "next/link";
 import SupplierAdvanceButton from "@/components/SupplierActions";
 import { Card, EmptyState, PageHeader, StatusBadge } from "@/components/ui";
 import { requireAdminPage } from "@/lib/auth/user";
-import { getOrders } from "@/lib/db";
+import { expireStaleAwaitingOrders, getOrders } from "@/lib/db";
 import { fmtDate, usd } from "@/lib/format";
 
 export default async function SupplierConsolePage() {
   await requireAdminPage("/supplier");
+  await expireStaleAwaitingOrders().catch(() => {}); // lazy sweep of abandoned unpaid orders
   const orders = await getOrders();
 
   return (

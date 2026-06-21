@@ -114,6 +114,36 @@ export async function cancelOrder(
   return { quoteId: o.quote_id };
 }
 
+/** Hours an unpaid order may sit before it's auto-cancelled and its stock released. */
+export const AWAITING_EXPIRY_HOURS = 72;
+
+/**
+ * Auto-cancel awaiting_payment orders older than `maxAgeHours` (releasing reserved stock).
+ * Run lazily (admin console load) and/or from a scheduled job. Returns how many were expired.
+ */
+export async function expireStaleAwaitingOrders(
+  maxAgeHours = AWAITING_EXPIRY_HOURS,
+  sb: SupabaseClient = admin()
+): Promise<number> {
+  const cutoff = new Date(Date.now() - maxAgeHours * 3600 * 1000).toISOString();
+  const { data } = await sb
+    .from("orders")
+    .select("id")
+    .eq("status", "awaiting_payment")
+    .lt("created_at", cutoff);
+  const ids = ((data ?? []) as { id: number }[]).map((r) => r.id);
+  let expired = 0;
+  for (const id of ids) {
+    try {
+      await cancelOrder(id, "system", sb);
+      expired++;
+    } catch {
+      /* skip and continue */
+    }
+  }
+  return expired;
+}
+
 /**
  * Mark an order paid and move it into the pipeline (`submitted`). Idempotent: a no-op if the
  * order is no longer awaiting payment. `proofPath` records a bank-transfer receipt.
