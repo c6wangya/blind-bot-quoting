@@ -213,3 +213,79 @@ export async function resolveVariationSelections(
   }
   return selections;
 }
+
+// ---------------- sync a catalog category → a variation ----------------
+
+export type SyncResult = { created: number; updated: number; removed: number; variationId: string };
+
+/**
+ * Mirror a catalog category's active models into a variation (one option per model), copying
+ * name/price/image. Idempotent via source_category_id / source_model_id: re-running updates
+ * matched options, adds new ones, removes options whose source model left the category, and
+ * never touches manually-added (source-less) options.
+ */
+export async function syncCategoryToVariation(categoryId: string, sb: SupabaseClient = admin()): Promise<SyncResult> {
+  const { data: cat } = await sb.from("accessory_categories").select("name").eq("id", categoryId).maybeSingle();
+  if (!cat) throw new Error("Category not found");
+  const catName = (cat as { name: string }).name;
+
+  const { data: models } = await sb
+    .from("accessory_models")
+    .select("id, name, default_price, image_url")
+    .eq("category_id", categoryId)
+    .eq("active", true)
+    .order("sort");
+  const modelRows = (models ?? []) as { id: string; name: string; default_price: number | null; image_url: string | null }[];
+
+  // find or create the variation linked to this category
+  let variationId: string;
+  const { data: existingType } = await sb.from("variation_types").select("id").eq("source_category_id", categoryId).maybeSingle();
+  if (existingType) {
+    variationId = (existingType as { id: string }).id;
+    await sb.from("variation_types").update({ name: catName }).eq("id", variationId);
+  } else {
+    variationId = await uniqueId("variation_types", slugify(catName), sb);
+    const { error } = await sb.from("variation_types").insert({ id: variationId, name: catName, source_category_id: categoryId });
+    if (error) throw error;
+  }
+
+  // existing synced options (by source_model_id)
+  const { data: existingItems } = await sb
+    .from("variation_items")
+    .select("id, source_model_id")
+    .eq("variation_id", variationId)
+    .not("source_model_id", "is", null);
+  const bySource = new Map<string, string>();
+  for (const r of (existingItems ?? []) as { id: string; source_model_id: string }[]) bySource.set(r.source_model_id, r.id);
+
+  let created = 0;
+  let updated = 0;
+  const seen = new Set<string>();
+  for (const m of modelRows) {
+    seen.add(m.id);
+    const price = m.default_price == null ? 0 : Number(m.default_price);
+    const existingId = bySource.get(m.id);
+    if (existingId) {
+      await sb.from("variation_items").update({ name: m.name, price, image_url: m.image_url }).eq("id", existingId);
+      updated++;
+    } else {
+      const id = await uniqueId("variation_items", `${variationId}-${slugify(m.name)}`, sb);
+      const { error } = await sb
+        .from("variation_items")
+        .insert({ id, variation_id: variationId, name: m.name, price, image_url: m.image_url, source_model_id: m.id });
+      if (error) throw error;
+      created++;
+    }
+  }
+
+  // remove synced options whose source model left the category (manual options untouched)
+  let removed = 0;
+  for (const [src, itemId] of bySource) {
+    if (!seen.has(src)) {
+      await sb.from("variation_items").delete().eq("id", itemId);
+      removed++;
+    }
+  }
+
+  return { created, updated, removed, variationId };
+}
