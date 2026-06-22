@@ -5,7 +5,7 @@ import { admin } from "@/lib/supabase/admin";
 // system but items carry a price and are selected at quote time. Reads are public catalog
 // metadata (admin() = system read); admin writes go through the API's requireAdmin gate.
 
-export type VariationItem = { id: string; variationId: string; name: string; price: number; sort: number };
+export type VariationItem = { id: string; variationId: string; name: string; price: number; sort: number; image: string | null };
 export type VariationType = { id: string; name: string; pairGroup: string | null; sort: number; items: VariationItem[] };
 /** One chosen variation item, snapshotted onto a quote line. */
 export type VariationSelection = {
@@ -17,7 +17,7 @@ export type VariationSelection = {
 };
 
 const TYPE_COLS = "id, name, pairGroup:pair_group, sort";
-const ITEM_COLS = "id, variationId:variation_id, name, price, sort";
+const ITEM_COLS = "id, variationId:variation_id, name, price, sort, image:image_url";
 
 const slugify = (s: string) => s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 
@@ -115,23 +115,27 @@ export async function createVariationItem(
   variationId: string,
   name: string,
   price: number,
+  image: string | null = null,
   sb: SupabaseClient = admin()
 ): Promise<void> {
   const trimmed = name.trim();
   if (!trimmed) throw new Error("Item name is required");
   const id = await uniqueId("variation_items", `${variationId}-${slugify(trimmed)}`, sb);
-  const { error } = await sb.from("variation_items").insert({ id, variation_id: variationId, name: trimmed, price });
+  const { error } = await sb
+    .from("variation_items")
+    .insert({ id, variation_id: variationId, name: trimmed, price, image_url: image || null });
   if (error) throw error;
 }
 
 export async function updateVariationItem(
   id: string,
-  patch: { name?: string; price?: number },
+  patch: { name?: string; price?: number; image?: string | null },
   sb: SupabaseClient = admin()
 ): Promise<void> {
   const cols: Record<string, unknown> = {};
   if (patch.name !== undefined) cols.name = patch.name.trim();
   if (patch.price !== undefined) cols.price = patch.price;
+  if (patch.image !== undefined) cols.image_url = patch.image || null;
   if (Object.keys(cols).length === 0) return;
   const { error } = await sb.from("variation_items").update(cols).eq("id", id);
   if (error) throw error;

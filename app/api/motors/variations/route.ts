@@ -26,7 +26,7 @@ export async function POST(req: Request) {
     const b = await req.json();
     if (!isEntity(b.entity)) return NextResponse.json({ error: "Unknown entity" }, { status: 400 });
     if (b.entity === "type") await createVariationType(String(b.name ?? ""), b.pairGroup ?? null);
-    else if (b.entity === "item") await createVariationItem(String(b.variationId ?? ""), String(b.name ?? ""), asPrice(b.price));
+    else if (b.entity === "item") await createVariationItem(String(b.variationId ?? ""), String(b.name ?? ""), asPrice(b.price), b.image ?? null);
     else
       await setProductVariationItems(
         String(b.modelId ?? ""),
@@ -49,7 +49,7 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ error: "entity + id required" }, { status: 400 });
     }
     if (b.entity === "type") await updateVariationType(b.id, { name: b.name, sort: b.sort });
-    else if (b.entity === "item") await updateVariationItem(b.id, { name: b.name, price: b.price === undefined ? undefined : asPrice(b.price) });
+    else if (b.entity === "item") await updateVariationItem(b.id, { name: b.name, price: b.price === undefined ? undefined : asPrice(b.price), image: b.image });
     else return NextResponse.json({ error: "Unsupported" }, { status: 400 });
     return NextResponse.json({ ok: true });
   } catch (err) {

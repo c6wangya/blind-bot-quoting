@@ -7,6 +7,78 @@ import type { VariationType } from "@/lib/db";
 import { usd } from "@/lib/format";
 import { Button, cx } from "./ui";
 
+/** Pick one item of a variation. Items with images render as visual cards (tap 🔍 to zoom);
+ *  otherwise a text dropdown. `allowNone` adds a "None" choice (independent variations). */
+function VariationPicker({
+  type,
+  value,
+  onChange,
+  allowNone,
+  onZoom,
+}: {
+  type: VariationType;
+  value: string;
+  onChange: (v: string) => void;
+  allowNone: boolean;
+  onZoom: (url: string) => void;
+}) {
+  const hasImages = type.items.some((i) => i.image);
+  if (!hasImages) {
+    return (
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full rounded-lg border border-line bg-surface px-2.5 py-2 text-sm text-ink outline-none focus:border-ink"
+      >
+        {allowNone && <option value="">— None —</option>}
+        {type.items.map((it) => (
+          <option key={it.id} value={it.id}>
+            {it.name}{it.price ? ` (+${usd(it.price)})` : ""}
+          </option>
+        ))}
+      </select>
+    );
+  }
+  const cardCx = (sel: boolean) =>
+    cx("relative w-24 shrink-0 rounded-xl border p-1.5 text-left transition-colors", sel ? "border-ink ring-2 ring-ink/15" : "border-line hover:border-ink");
+  return (
+    <div className="flex flex-wrap gap-2">
+      {allowNone && (
+        <button type="button" onClick={() => onChange("")} className={cx(cardCx(value === ""), "flex h-[104px] items-center justify-center text-[12px] text-muted")}>
+          None
+        </button>
+      )}
+      {type.items.map((it) => {
+        const sel = value === it.id;
+        return (
+          <button key={it.id} type="button" onClick={() => onChange(it.id)} className={cardCx(sel)}>
+            <div className="relative">
+              {it.image ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={it.image} alt={it.name} className="h-16 w-full rounded-lg bg-[#0e0e10] object-contain p-1" />
+              ) : (
+                <div className="h-16 w-full rounded-lg bg-[#f1efe9]" />
+              )}
+              {it.image && (
+                <span
+                  role="button"
+                  onClick={(e) => { e.stopPropagation(); onZoom(it.image!); }}
+                  className="absolute right-0.5 top-0.5 rounded-md bg-black/55 px-1 text-[10px] text-white"
+                  title="Enlarge"
+                >
+                  🔍
+                </span>
+              )}
+            </div>
+            <div className="mt-1 truncate text-[11.5px] font-medium text-ink">{it.name}</div>
+            {it.price ? <div className="text-[10.5px] text-muted">+{usd(it.price)}</div> : null}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 /** Add a product to a quote — qty + any variation choices (Crown+Drive paired), capped at stock. */
 export function AddAccessoryButton({
   modelId,
@@ -31,6 +103,7 @@ export function AddAccessoryButton({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [modal, setModal] = useState(false);
+  const [zoom, setZoom] = useState<string | null>(null);
 
   // Variation types available for this product (only assigned items), grouped.
   const avail = useMemo(
@@ -151,7 +224,7 @@ export function AddAccessoryButton({
       {modal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-6 text-left">
           <div className="absolute inset-0 bg-black/30" onClick={() => !busy && setModal(false)} aria-hidden />
-          <div className="relative w-full max-w-md rounded-2xl bg-surface p-6 shadow-2xl">
+          <div className="relative max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-surface p-6 shadow-2xl">
             <h2 className="text-base font-semibold tracking-tight text-ink">Options</h2>
             <p className="mt-1 text-[12.5px] text-muted">Choose variations for this product, or skip.</p>
 
@@ -168,22 +241,12 @@ export function AddAccessoryButton({
                       Add {title}
                     </label>
                     {on && (
-                      <div className={cx("mt-3 grid gap-3", group.length > 1 ? "grid-cols-2" : "grid-cols-1")}>
+                      <div className="mt-3 space-y-3">
                         {group.map((t) => (
-                          <label key={t.id} className="block">
+                          <div key={t.id}>
                             <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-muted">{t.name}</span>
-                            <select
-                              value={pick[t.id] ?? ""}
-                              onChange={(e) => setPick((p) => ({ ...p, [t.id]: e.target.value }))}
-                              className="w-full rounded-lg border border-line bg-surface px-2.5 py-2 text-sm text-ink outline-none focus:border-ink"
-                            >
-                              {t.items.map((it) => (
-                                <option key={it.id} value={it.id}>
-                                  {it.name}{it.price ? ` (+${usd(it.price)})` : ""}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
+                            <VariationPicker type={t} value={pick[t.id] ?? ""} onChange={(v) => setPick((p) => ({ ...p, [t.id]: v }))} allowNone={false} onZoom={setZoom} />
+                          </div>
                         ))}
                       </div>
                     )}
@@ -193,21 +256,10 @@ export function AddAccessoryButton({
 
               {/* independent variations — each optional */}
               {independents.map((t) => (
-                <label key={t.id} className="block">
+                <div key={t.id}>
                   <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-muted">{t.name}</span>
-                  <select
-                    value={pick[t.id] ?? ""}
-                    onChange={(e) => setPick((p) => ({ ...p, [t.id]: e.target.value }))}
-                    className="w-full rounded-lg border border-line bg-surface px-2.5 py-2 text-sm text-ink outline-none focus:border-ink"
-                  >
-                    <option value="">— None —</option>
-                    {t.items.map((it) => (
-                      <option key={it.id} value={it.id}>
-                        {it.name}{it.price ? ` (+${usd(it.price)})` : ""}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                  <VariationPicker type={t} value={pick[t.id] ?? ""} onChange={(v) => setPick((p) => ({ ...p, [t.id]: v }))} allowNone onZoom={setZoom} />
+                </div>
               ))}
             </div>
 
@@ -221,6 +273,14 @@ export function AddAccessoryButton({
               </Button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Image zoom (lightbox) */}
+      {zoom && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/75 p-8" onClick={() => setZoom(null)}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={zoom} alt="" className="max-h-full max-w-full rounded-xl bg-[#0e0e10] object-contain p-2" />
         </div>
       )}
     </div>

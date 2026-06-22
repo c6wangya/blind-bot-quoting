@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import type { VariationType } from "@/lib/db";
+import type { VariationItem, VariationType } from "@/lib/db";
 import { Button, Card, cx } from "./ui";
 
 export type VariationProduct = { id: string; name: string; sku: string; categoryName: string };
@@ -15,6 +15,15 @@ async function call(method: string, body: unknown): Promise<void> {
   });
   const data = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(data.error ?? "Request failed");
+}
+
+async function uploadImage(file: File): Promise<string> {
+  const fd = new FormData();
+  fd.append("file", file);
+  const r = await fetch("/api/motors/catalog/image", { method: "POST", body: fd });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error ?? "Upload failed");
+  return data.url as string;
 }
 
 const INPUT = "rounded-lg border border-line bg-surface px-2.5 py-1.5 text-sm text-ink outline-none focus:border-ink";
@@ -129,12 +138,13 @@ function TypeBlock({ type }: { type: VariationType }) {
   );
 }
 
-function ItemRow({ item }: { item: { id: string; name: string; price: number } }) {
+function ItemRow({ item }: { item: VariationItem }) {
   const router = useRouter();
   const [name, setName] = useState(item.name);
   const [price, setPrice] = useState(String(item.price));
+  const [image, setImage] = useState(item.image ?? "");
   const [busy, setBusy] = useState(false);
-  const dirty = name !== item.name || Number(price) !== item.price;
+  const dirty = name !== item.name || Number(price) !== item.price || image !== (item.image ?? "");
 
   const run = async (fn: () => Promise<unknown>) => {
     setBusy(true);
@@ -143,12 +153,23 @@ function ItemRow({ item }: { item: { id: string; name: string; price: number } }
 
   return (
     <div className="flex items-center gap-2 rounded-lg border border-line bg-surface px-2.5 py-1.5">
+      {image ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={image} alt="" className="size-9 shrink-0 rounded-md border border-line object-cover" />
+      ) : (
+        <div className="flex size-9 shrink-0 items-center justify-center rounded-md border border-dashed border-line text-[9px] text-muted">img</div>
+      )}
       <input value={name} onChange={(e) => setName(e.target.value)} className={cx(INPUT, "flex-1")} />
       <div className="flex items-center rounded-lg border border-line px-2">
         <span className="text-xs text-muted">$</span>
         <input type="number" min={0} step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} className="w-16 bg-transparent px-1 py-1.5 text-sm text-ink outline-none" />
       </div>
-      <Button variant="primary" busy={busy} disabled={!dirty} className="py-1 text-[12px]" onClick={() => run(() => call("PATCH", { entity: "item", id: item.id, name, price: Number(price) }))}>
+      <label className={cx("cursor-pointer rounded-lg border border-line px-2 py-1 text-[11px] font-medium text-ink-soft hover:border-ink", busy && "pointer-events-none opacity-50")}>
+        {image ? "Change" : "Image"}
+        <input type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) run(async () => setImage(await uploadImage(f))); }} />
+      </label>
+      {image && <button onClick={() => setImage("")} className="text-[11px] text-muted hover:text-red-500">✕</button>}
+      <Button variant="primary" busy={busy} disabled={!dirty} className="py-1 text-[12px]" onClick={() => run(() => call("PATCH", { entity: "item", id: item.id, name, price: Number(price), image }))}>
         Save
       </Button>
       <button onClick={() => run(() => call("DELETE", { entity: "item", id: item.id }))} disabled={busy} className="text-[11px] font-medium text-muted hover:text-red-500">
