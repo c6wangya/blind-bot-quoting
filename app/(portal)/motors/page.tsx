@@ -13,6 +13,7 @@ import {
   getInventoryMap,
   getModelFilesMap,
   getModelTagMap,
+  getProductDefaultsMap,
   getProductVariationMap,
   getRetailerOverrideMap,
   getVariations,
@@ -125,12 +126,13 @@ async function TagsTab() {
 }
 
 async function VariationsTab() {
-  const [variations, assignment, products] = await Promise.all([
+  const [variations, assignment, defaults, products] = await Promise.all([
     getVariations(),
     getProductVariationMap(),
+    getProductDefaultsMap(),
     allProducts(),
   ]);
-  return <VariationsAdmin variations={variations} products={products} assignment={assignment} />;
+  return <VariationsAdmin variations={variations} products={products} assignment={assignment} defaults={defaults} />;
 }
 
 async function PricingTab({ retailerParam }: { retailerParam?: string }) {

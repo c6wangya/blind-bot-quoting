@@ -14,6 +14,7 @@ export function AddAccessoryButton({
   stock,
   variations = [],
   availableItemIds = [],
+  defaultItemIds = [],
 }: {
   modelId: string;
   quoteId?: number;
@@ -22,6 +23,8 @@ export function AddAccessoryButton({
   variations?: VariationType[];
   /** variation item ids assigned to this product */
   availableItemIds?: string[];
+  /** variation item ids pre-selected by default */
+  defaultItemIds?: string[];
 }) {
   const router = useRouter();
   const [qty, setQty] = useState(1);
@@ -46,10 +49,20 @@ export function AddAccessoryButton({
   const hasVariations = avail.length > 0;
 
   // Selection state: a chosen item per type ("" = none), plus a per-group on/off toggle.
+  // Seeded from the product's admin-set defaults (e.g. AM25 → a specific Crown + Drive).
   const [pick, setPick] = useState<Record<string, string>>(() =>
-    Object.fromEntries(avail.map((t) => [t.id, t.pairGroup ? t.items[0]?.id ?? "" : ""]))
+    Object.fromEntries(
+      avail.map((t) => {
+        const def = t.items.find((i) => defaultItemIds.includes(i.id));
+        return [t.id, def ? def.id : t.pairGroup ? t.items[0]?.id ?? "" : ""];
+      })
+    )
   );
-  const [groupOn, setGroupOn] = useState<Record<string, boolean>>({});
+  const [groupOn, setGroupOn] = useState<Record<string, boolean>>(() => {
+    const on: Record<string, boolean> = {};
+    for (const t of avail) if (t.pairGroup && t.items.some((i) => defaultItemIds.includes(i.id))) on[t.pairGroup] = true;
+    return on;
+  });
 
   const tracked = stock !== null && stock !== undefined;
   const outOfStock = tracked && stock === 0;

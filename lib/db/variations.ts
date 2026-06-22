@@ -58,6 +58,17 @@ export async function getProductVariationMap(sb: SupabaseClient = admin()): Prom
   return map;
 }
 
+/** model_id → the item_ids marked default (pre-selected at quote time). Best-effort: {}. */
+export async function getProductDefaultsMap(sb: SupabaseClient = admin()): Promise<Record<string, string[]>> {
+  const { data, error } = await sb.from("variation_product_items").select("model_id, item_id").eq("is_default", true);
+  if (error) return {};
+  const map: Record<string, string[]> = {};
+  for (const row of (data ?? []) as { model_id: string; item_id: string }[]) {
+    (map[row.model_id] ??= []).push(row.item_id);
+  }
+  return map;
+}
+
 /** The variation types (with only the items available for `modelId`) — for the quote-time selector. */
 export async function getVariationsForModel(modelId: string, sb: SupabaseClient = admin()): Promise<VariationType[]> {
   const [types, map] = await Promise.all([getVariations(sb), getProductVariationMap(sb)]);
@@ -131,10 +142,11 @@ export async function deleteVariationItem(id: string, sb: SupabaseClient = admin
   if (error) throw error;
 }
 
-/** Replace which items are available for a model (delete-all-then-insert; validates item ids). */
+/** Replace which items are available for a model + which are default (delete-all-then-insert). */
 export async function setProductVariationItems(
   modelId: string,
   itemIds: string[],
+  defaultItemIds: string[] = [],
   sb: SupabaseClient = admin()
 ): Promise<void> {
   const del = await sb.from("variation_product_items").delete().eq("model_id", modelId);
@@ -144,7 +156,10 @@ export async function setProductVariationItems(
   const { data: existing, error: exErr } = await sb.from("variation_items").select("id").in("id", unique);
   if (exErr) throw exErr;
   const valid = new Set((existing ?? []).map((r) => (r as { id: string }).id));
-  const rows = unique.filter((id) => valid.has(id)).map((item_id) => ({ model_id: modelId, item_id }));
+  const defaults = new Set(defaultItemIds);
+  const rows = unique
+    .filter((id) => valid.has(id))
+    .map((item_id) => ({ model_id: modelId, item_id, is_default: defaults.has(item_id) }));
   if (rows.length === 0) return;
   const { error } = await sb.from("variation_product_items").insert(rows);
   if (error) throw error;

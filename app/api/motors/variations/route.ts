@@ -27,7 +27,12 @@ export async function POST(req: Request) {
     if (!isEntity(b.entity)) return NextResponse.json({ error: "Unknown entity" }, { status: 400 });
     if (b.entity === "type") await createVariationType(String(b.name ?? ""), b.pairGroup ?? null);
     else if (b.entity === "item") await createVariationItem(String(b.variationId ?? ""), String(b.name ?? ""), asPrice(b.price));
-    else await setProductVariationItems(String(b.modelId ?? ""), Array.isArray(b.itemIds) ? b.itemIds.map(String) : []);
+    else
+      await setProductVariationItems(
+        String(b.modelId ?? ""),
+        Array.isArray(b.itemIds) ? b.itemIds.map(String) : [],
+        Array.isArray(b.defaultItemIds) ? b.defaultItemIds.map(String) : []
+      );
     return NextResponse.json({ ok: true });
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 400 });

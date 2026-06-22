@@ -9,6 +9,7 @@ import {
   getInventoryMap,
   getModelFilesMap,
   getModelTagMap,
+  getProductDefaultsMap,
   getProductVariationMap,
   getVariations,
   loadCatalog,
@@ -27,7 +28,7 @@ export default async function AccessoriesPage({
   const q = quoteId ? `&quote=${quoteId}` : "";
 
   const userId = await getCurrentUserId();
-  const [catalog, attributes, tagMap, effectivePrices, inventory, variations, variationMap, filesMap] = await Promise.all([
+  const [catalog, attributes, tagMap, effectivePrices, inventory, variations, variationMap, filesMap, defaultsMap] = await Promise.all([
     loadCatalog(),
     getAttributes(),
     getModelTagMap(),
@@ -36,6 +37,7 @@ export default async function AccessoriesPage({
     getVariations(),
     getProductVariationMap(), // model_id → available variation item ids
     getModelFilesMap(), // model_id → spec/cert attachments
+    getProductDefaultsMap(), // model_id → default variation item ids
   ]);
   const categories = catalog.categories;
   const activeCat = categories.find((c) => c.id === cat) ?? categories[0];
@@ -209,6 +211,7 @@ export default async function AccessoriesPage({
                               stock={stock}
                               variations={variations}
                               availableItemIds={variationMap[model.id] ?? []}
+                              defaultItemIds={defaultsMap[model.id] ?? []}
                             />
                           ) : (
                             <span className="text-[11px] text-muted">Reference</span>

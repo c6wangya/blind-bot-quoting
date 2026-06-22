@@ -23,10 +23,12 @@ export function VariationsAdmin({
   variations,
   products,
   assignment,
+  defaults,
 }: {
   variations: VariationType[];
   products: VariationProduct[];
   assignment: Record<string, string[]>;
+  defaults: Record<string, string[]>;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -68,10 +70,10 @@ export function VariationsAdmin({
       {/* ---- per-product assignment ---- */}
       <div className="space-y-3">
         <h3 className="text-[13px] font-semibold uppercase tracking-wide text-muted">Products — available items</h3>
-        <p className="text-[12px] text-muted">Pick which variation items each product can use. Crown + Drive are chosen together at quote time.</p>
+        <p className="text-[12px] text-muted">Pick which variation items each product can use; tap ★ on an item to make it the default (pre-selected at checkout). Crown + Drive are chosen together at quote time.</p>
         <Card className="divide-y divide-line">
           {products.map((p) => (
-            <ProductRow key={p.id} product={p} variations={variations} assigned={assignment[p.id] ?? []} />
+            <ProductRow key={p.id} product={p} variations={variations} assigned={assignment[p.id] ?? []} defaultIds={defaults[p.id] ?? []} />
           ))}
           {products.length === 0 && <p className="px-5 py-6 text-center text-sm text-muted">No products yet.</p>}
         </Card>
@@ -160,22 +162,46 @@ function ProductRow({
   product,
   variations,
   assigned,
+  defaultIds,
 }: {
   product: VariationProduct;
   variations: VariationType[];
   assigned: string[];
+  defaultIds: string[];
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [sel, setSel] = useState<Set<string>>(new Set(assigned));
+  const [def, setDef] = useState<Set<string>>(new Set(defaultIds));
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const dirty = sel.size !== assigned.length || assigned.some((id) => !sel.has(id));
+  const dirty =
+    sel.size !== assigned.length ||
+    assigned.some((id) => !sel.has(id)) ||
+    def.size !== defaultIds.length ||
+    defaultIds.some((id) => !def.has(id));
+
+  const itemVariation = (id: string) => variations.find((v) => v.items.some((i) => i.id === id));
 
   const toggle = (id: string) => {
     setSel((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
+      if (next.has(id)) {
+        next.delete(id);
+        setDef((d) => { const n = new Set(d); n.delete(id); return n; }); // unassigned → can't be default
+      } else next.add(id);
+      return next;
+    });
+  };
+
+  // Mark an item as the (single) default for its variation.
+  const setDefault = (id: string) => {
+    const v = itemVariation(id);
+    setDef((prev) => {
+      const next = new Set(prev);
+      const already = next.has(id);
+      if (v) for (const i of v.items) next.delete(i.id); // one default per variation
+      if (!already) next.add(id);
       return next;
     });
   };
@@ -183,7 +209,7 @@ function ProductRow({
   const save = async () => {
     setBusy(true); setErr(null);
     try {
-      await call("POST", { entity: "assignment", modelId: product.id, itemIds: [...sel] });
+      await call("POST", { entity: "assignment", modelId: product.id, itemIds: [...sel], defaultItemIds: [...def] });
       router.refresh();
     } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
   };
@@ -205,20 +231,31 @@ function ProductRow({
               <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted">
                 {v.name}{v.pairGroup && <span className="ml-1.5 font-normal normal-case text-[10px] text-[#8a6a39]">(paired)</span>}
               </div>
-              <div className="flex flex-wrap gap-1.5">
+              <div className="flex flex-wrap items-center gap-1.5">
                 {v.items.map((it) => {
                   const on = sel.has(it.id);
+                  const isDefault = def.has(it.id);
                   return (
-                    <button
+                    <span
                       key={it.id}
-                      onClick={() => toggle(it.id)}
                       className={cx(
-                        "rounded-full border px-2.5 py-1 text-[12px] transition-colors",
-                        on ? "border-ink bg-ink text-white" : "border-line bg-surface text-ink-soft hover:border-ink"
+                        "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[12px] transition-colors",
+                        on ? "border-ink bg-ink text-white" : "border-line bg-surface text-ink-soft"
                       )}
                     >
-                      {it.name}{it.price ? ` · $${it.price}` : ""}
-                    </button>
+                      <button onClick={() => toggle(it.id)} className="hover:opacity-80">
+                        {it.name}{it.price ? ` · $${it.price}` : ""}
+                      </button>
+                      {on && (
+                        <button
+                          onClick={() => setDefault(it.id)}
+                          title={isDefault ? "Default — click to clear" : "Set as default (pre-selected at checkout)"}
+                          className={cx("text-[13px] leading-none", isDefault ? "text-amber-300" : "text-white/40 hover:text-white/80")}
+                        >
+                          {isDefault ? "★" : "☆"}
+                        </button>
+                      )}
+                    </span>
                   );
                 })}
                 {v.items.length === 0 && <span className="text-[11px] text-muted">no items yet</span>}
