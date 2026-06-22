@@ -53,7 +53,7 @@ export default async function OrdersPage({
               {o.projectName && <div className="mt-1 truncate text-[13px] text-muted">{o.projectName}</div>}
               <div className="mt-2 flex items-center justify-between text-[13px]">
                 <span className="text-muted">{fmtDate(o.updatedAt)}</span>
-                <span className="font-semibold tabular-nums text-ink">{usd(o.total)}</span>
+                <span className="font-semibold tabular-nums text-ink">{usd(o.amount ?? o.total)}</span>
               </div>
             </Link>
           ))}
@@ -88,7 +88,7 @@ export default async function OrdersPage({
                   </td>
                   <td className="px-5 py-3.5 font-mono text-xs text-ink-soft">{o.supplierOrderNo ?? "—"}</td>
                   <td className="px-5 py-3.5 font-mono text-xs text-ink-soft">{o.trackingNo ?? "—"}</td>
-                  <td className="px-5 py-3.5 text-right font-semibold tabular-nums text-ink">{usd(o.total)}</td>
+                  <td className="px-5 py-3.5 text-right font-semibold tabular-nums text-ink">{usd(o.amount ?? o.total)}</td>
                   <td className="px-5 py-3.5 text-right text-xs text-muted">{fmtDate(o.updatedAt)}</td>
                 </tr>
               ))}

@@ -6,7 +6,7 @@ import { LineQtyEditor } from "@/components/LineQtyEditor";
 import { Swatch } from "@/components/renders";
 import { BackLink, Badge, Card, EmptyState, LinkButton, PageHeader } from "@/components/ui";
 import { canAccessOwned, requireUserId, userClient } from "@/lib/auth/user";
-import { getLine, getOrderRefByQuote, getProduct, getQuote, getQuoteOwnerId, loadCatalog } from "@/lib/db";
+import { getLine, getOrderRefByQuote, getProduct, getQuote, getQuoteOwnerId, getRetailerDiscount, loadCatalog } from "@/lib/db";
 import { describeConfig } from "@/lib/describe";
 import { fmtDate, usd } from "@/lib/format";
 import { isAccessoryConfig } from "@/lib/types";
@@ -35,7 +35,13 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
   const quote = await getQuote(Number(id), sb);
   if (!quote) notFound();
 
-  if (!(await canAccessOwned(userId, await getQuoteOwnerId(Number(id))))) notFound();
+  const ownerId = await getQuoteOwnerId(Number(id));
+  if (!(await canAccessOwned(userId, ownerId))) notFound();
+
+  // Order-level discount: the retailer's standing % off the subtotal (0 = none).
+  const discountPct = await getRetailerDiscount(ownerId);
+  const netTotal = Math.round(quote.total * (1 - discountPct / 100) * 100) / 100;
+  const discountAmt = Math.round((quote.total - netTotal) * 100) / 100;
 
   const order =
     quote.status === "converted" ? await getOrderRefByQuote(quote.id, sb) : undefined;
@@ -289,16 +295,28 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
                       {[...new Set(quote.items.map((i) => `v${i.computation.pricingVersion}`))].join(", ")}
                     </dd>
                   </div>
+                  {discountPct > 0 && (
+                    <>
+                      <div className="flex justify-between border-t border-line pt-2.5">
+                        <dt className="text-muted">Subtotal · FOB</dt>
+                        <dd className="font-medium tabular-nums text-ink-soft">{usd(quote.total)}</dd>
+                      </div>
+                      <div className="flex justify-between text-brass">
+                        <dt>Discount ({discountPct}%)</dt>
+                        <dd className="font-medium tabular-nums">−{usd(discountAmt)}</dd>
+                      </div>
+                    </>
+                  )}
                   <div className="flex justify-between border-t border-line pt-2.5 text-[15px]">
                     <dt className="font-semibold text-ink">Total · FOB</dt>
-                    <dd className="font-semibold tabular-nums text-ink">{usd(quote.total)}</dd>
+                    <dd className="font-semibold tabular-nums text-ink">{usd(netTotal)}</dd>
                   </div>
                 </dl>
               </Card>
 
               {quote.status === "draft" ? (
                 <>
-                  <SubmitPreOrderButton quoteId={quote.id} total={usd(quote.total)} />
+                  <SubmitPreOrderButton quoteId={quote.id} total={usd(netTotal)} />
                   <DeleteDraftButton quoteId={quote.id} />
                 </>
               ) : (

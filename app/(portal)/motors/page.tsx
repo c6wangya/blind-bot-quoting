@@ -4,6 +4,7 @@ import { TagAdmin } from "@/components/TagAdmin";
 import { ModelTagEditor, type TaggableModel } from "@/components/ModelTagEditor";
 import { MotorInventoryEditor, type InventoryRow } from "@/components/MotorInventoryEditor";
 import { MotorPriceEditor, type PriceRow, type Target } from "@/components/MotorPriceEditor";
+import { RetailerDiscountEditor } from "@/components/RetailerDiscountEditor";
 import { VariationsAdmin, type VariationProduct } from "@/components/VariationsAdmin";
 import { CatalogAdmin } from "@/components/CatalogAdmin";
 import { requireAdminPage } from "@/lib/auth/user";
@@ -15,6 +16,7 @@ import {
   getModelTagMap,
   getProductDefaultsMap,
   getProductVariationMap,
+  getRetailerDiscount,
   getRetailerOverrideMap,
   getVariations,
   listRetailers,
@@ -170,6 +172,7 @@ async function PricingTab({ retailerParam }: { retailerParam?: string }) {
 
   let target: Target;
   let overrideMap: Record<string, number> = {};
+  let discountPct = 0;
   if (retailerParam === "default") {
     target = { kind: "default" };
   } else {
@@ -182,7 +185,7 @@ async function PricingTab({ retailerParam }: { retailerParam?: string }) {
       );
     }
     target = { kind: "retailer", retailerId: r.id, label: r.company ?? r.email };
-    overrideMap = await getRetailerOverrideMap(r.id);
+    [overrideMap, discountPct] = await Promise.all([getRetailerOverrideMap(r.id), getRetailerDiscount(r.id)]);
   }
 
   const rows: PriceRow[] = (await motors()).map((m) => {
@@ -208,6 +211,9 @@ async function PricingTab({ retailerParam }: { retailerParam?: string }) {
           {target.kind === "default" ? "Editing the shared Default tier" : `Overrides for ${target.label}`}
         </span>
       </div>
+      {target.kind === "retailer" && (
+        <RetailerDiscountEditor retailerId={target.retailerId} label={target.label} initialPct={discountPct} />
+      )}
       <MotorPriceEditor target={target} rows={rows} />
     </div>
   );

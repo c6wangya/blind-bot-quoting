@@ -4,6 +4,8 @@ import type { OrderEventRow, OrderRow, OrderStatus, PaymentMethod } from "@/lib/
 import { EVENT_COLS, ORDER_COLS, round2, type ItemAgg, nextRef } from "./internal";
 import { ensureSeeded } from "./seed";
 import { getQuote } from "./quotes";
+import { getQuoteOwnerId } from "./ownership";
+import { getRetailerDiscount } from "./profile";
 import { deductMotorStock, restoreMotorStock } from "./motors";
 import { isAccessoryConfig } from "@/lib/types";
 
@@ -61,11 +63,14 @@ export async function submitPreOrder(
       await deductMotorStock(motorNeeds, admin());
       reserved = true;
     }
-    const amount = round2(quote.items.reduce((s, i) => s + i.computation.unitPrice * i.qty, 0));
+    const subtotal = round2(quote.items.reduce((s, i) => s + i.computation.unitPrice * i.qty, 0));
+    // Snapshot the retailer's standing discount so a later rate change never alters this order.
+    const discountPct = await getRetailerDiscount(await getQuoteOwnerId(quoteId));
+    const amount = round2(subtotal * (1 - discountPct / 100));
     const ref = await nextRef("orders", "PO");
     const { data: order, error } = await sb
       .from("orders")
-      .insert({ ref, quote_id: quoteId, status: "awaiting_payment", payment_method: paymentMethod, payment_status: "pending", amount })
+      .insert({ ref, quote_id: quoteId, status: "awaiting_payment", payment_method: paymentMethod, payment_status: "pending", amount, discount_pct: discountPct })
       .select(ORDER_COLS)
       .single();
     if (error) throw error;

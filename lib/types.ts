@@ -252,6 +252,8 @@ export interface OrderRow {
   paymentStatus: PaymentStatus;
   paymentRef: string | null;
   amount: number | null;
+  /** Order-level % discount snapshotted from the retailer at submit (0 = none). amount is already net. */
+  discountPct: number;
   paidAt: string | null;
   paymentProofPath: string | null;
   createdAt: string;

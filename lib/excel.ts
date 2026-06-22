@@ -154,6 +154,21 @@ export async function buildOrderWorkbook(orderId: number): Promise<{ buffer: Buf
   totalRow.getCell(12).numFmt = '"$"#,##0.00';
   totalRow.getCell(12).font = { bold: true };
 
+  // ---- order discount (when this retailer has a standing discount) ----
+  if (order.discountPct > 0) {
+    const net = order.amount ?? order.quote.total;
+    const discRow = ws.getRow(totalRowIdx + 1);
+    discRow.getCell(10).value = `折扣 Discount (${order.discountPct}%)`;
+    discRow.getCell(12).value = -(Math.round((order.quote.total - net) * 100) / 100);
+    discRow.getCell(12).numFmt = '"$"#,##0.00';
+    const netRow = ws.getRow(totalRowIdx + 2);
+    netRow.getCell(10).value = "应付 Net Total";
+    netRow.getCell(10).font = { bold: true };
+    netRow.getCell(12).value = net;
+    netRow.getCell(12).numFmt = '"$"#,##0.00';
+    netRow.getCell(12).font = { bold: true };
+  }
+
   // ---- instructions sheet ----
   const info = wb.addWorksheet("说明 Instructions");
   info.columns = [{ width: 100 }];

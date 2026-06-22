@@ -61,7 +61,7 @@ export default async function SupplierConsolePage({
               </div>
               <div className="mt-1 truncate text-[13px] text-muted">{o.retailer}{o.projectName ? ` · ${o.projectName}` : ""}</div>
               <div className="mt-2 flex items-center justify-between gap-3">
-                <span className="text-[13px] font-semibold tabular-nums text-ink">{usd(o.total)}</span>
+                <span className="text-[13px] font-semibold tabular-nums text-ink">{usd(o.amount ?? o.total)}</span>
                 <SupplierAdvanceButton orderId={o.id} status={o.status} paymentMethod={o.paymentMethod} paymentStatus={o.paymentStatus} />
               </div>
             </div>
@@ -103,7 +103,7 @@ export default async function SupplierConsolePage({
                     <StatusBadge status={o.status} />
                   </td>
                   <td className="px-5 py-3.5 font-mono text-xs text-ink-soft">{o.supplierOrderNo ?? "—"}</td>
-                  <td className="px-5 py-3.5 text-right font-semibold tabular-nums text-ink">{usd(o.total)}</td>
+                  <td className="px-5 py-3.5 text-right font-semibold tabular-nums text-ink">{usd(o.amount ?? o.total)}</td>
                   <td className="px-5 py-3.5 text-right text-xs text-muted">{fmtDate(o.createdAt)}</td>
                   <td className="px-5 py-3.5 text-right">
                     <SupplierAdvanceButton orderId={o.id} status={o.status} paymentMethod={o.paymentMethod} paymentStatus={o.paymentStatus} />

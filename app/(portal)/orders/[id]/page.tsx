@@ -191,10 +191,27 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                 );
               })}
             </ul>
-            <div className="flex justify-between border-t border-line bg-[#fafaf7] px-5 py-3.5 text-sm">
-              <span className="font-semibold text-ink">Total · FOB</span>
-              <span className="font-semibold tabular-nums text-ink">{usd(order.quote.total)}</span>
-            </div>
+            {order.discountPct > 0 ? (
+              <div className="space-y-1.5 border-t border-line bg-[#fafaf7] px-5 py-3.5 text-sm">
+                <div className="flex justify-between text-muted">
+                  <span>Subtotal · FOB</span>
+                  <span className="tabular-nums">{usd(order.quote.total)}</span>
+                </div>
+                <div className="flex justify-between text-brass">
+                  <span>Discount ({order.discountPct}%)</span>
+                  <span className="tabular-nums">−{usd(Math.round((order.quote.total - (order.amount ?? order.quote.total)) * 100) / 100)}</span>
+                </div>
+                <div className="flex justify-between pt-0.5 font-semibold text-ink">
+                  <span>Total · FOB</span>
+                  <span className="tabular-nums">{usd(order.amount ?? order.quote.total)}</span>
+                </div>
+              </div>
+            ) : (
+              <div className="flex justify-between border-t border-line bg-[#fafaf7] px-5 py-3.5 text-sm">
+                <span className="font-semibold text-ink">Total · FOB</span>
+                <span className="font-semibold tabular-nums text-ink">{usd(order.amount ?? order.quote.total)}</span>
+              </div>
+            )}
           </Card>
 
           {/* timeline */}
