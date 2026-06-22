@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { AdminCatalog, AdminCategory, AdminModel, AccessoryBrand, AccessoryModelFile, ModelFileKind } from "@/lib/db";
+import { useToast } from "./Toast";
 import { Button, Card, cx } from "./ui";
 
 type FilesMap = Record<string, AccessoryModelFile[]>;
@@ -133,6 +134,7 @@ function BrandBlock({ brand, catalog, files }: { brand: AccessoryBrand; catalog:
 
 function CategoryBlock({ category, models, files }: { category: AdminCategory; models: AdminModel[]; files: FilesMap }) {
   const router = useRouter();
+  const toast = useToast();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(category.name);
   const [blurb, setBlurb] = useState(category.blurb ?? "");
@@ -152,6 +154,21 @@ function CategoryBlock({ category, models, files }: { category: AdminCategory; m
     try { await fn(); router.refresh(); } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
   };
 
+  const syncVariation = () =>
+    run(async () => {
+      const r = await fetch("/api/motors/catalog/sync-variation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ categoryId: category.id }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data.error ?? "Sync failed");
+      toast(
+        `Synced “${category.name}” → variation: ${data.created} new, ${data.updated} updated` +
+          (data.removed ? `, ${data.removed} removed` : "")
+      );
+    });
+
   return (
     <div className="rounded-xl border border-line">
       <div className="flex flex-wrap items-center gap-2 px-3 py-2.5">
@@ -165,6 +182,14 @@ function CategoryBlock({ category, models, files }: { category: AdminCategory; m
         <Button variant="primary" busy={busy} disabled={!dirty} className="py-1 text-[12px]" onClick={() => run(() => call("PATCH", { entity: "category", id: category.id, name, blurb, orderable }))}>
           Save
         </Button>
+        <button
+          onClick={syncVariation}
+          disabled={busy}
+          title="Create/update a variation from this category's products (one option per product)"
+          className="rounded-lg border border-line px-2.5 py-1 text-[11px] font-medium text-ink-soft hover:border-brass hover:text-brass"
+        >
+          ⇅ Sync to variation
+        </button>
         <button onClick={() => run(() => call("DELETE", { entity: "category", id: category.id }))} disabled={busy} className="text-[11px] font-medium text-muted hover:text-red-500">
           Delete
         </button>
