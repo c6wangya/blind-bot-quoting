@@ -2,9 +2,20 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import type { AdminCatalog, AdminCategory, AdminModel } from "@/lib/db";
-import type { AccessoryBrand } from "@/lib/db";
+import type { AdminCatalog, AdminCategory, AdminModel, AccessoryBrand, AccessoryModelFile, ModelFileKind } from "@/lib/db";
 import { Button, Card, cx } from "./ui";
+
+type FilesMap = Record<string, AccessoryModelFile[]>;
+
+async function uploadModelFile(modelId: string, file: File, kind: ModelFileKind): Promise<void> {
+  const fd = new FormData();
+  fd.append("file", file);
+  fd.append("modelId", modelId);
+  fd.append("kind", kind);
+  const r = await fetch("/api/motors/catalog/file", { method: "POST", body: fd });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error ?? "Upload failed");
+}
 
 type QuoteRef = { quoteId: number; ref: string | null };
 async function call(
@@ -32,8 +43,8 @@ async function uploadImage(file: File): Promise<string> {
   return data.url as string;
 }
 
-/** Admin catalog tree: brands → categories → models, all editable (incl. image upload). */
-export function CatalogAdmin({ catalog }: { catalog: AdminCatalog }) {
+/** Admin catalog tree: brands → categories → models, all editable (incl. image + attachments). */
+export function CatalogAdmin({ catalog, files }: { catalog: AdminCatalog; files: FilesMap }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -57,7 +68,7 @@ export function CatalogAdmin({ catalog }: { catalog: AdminCatalog }) {
       {error && <p className="text-sm text-red-500">{error}</p>}
 
       {catalog.brands.map((brand) => (
-        <BrandBlock key={brand.id} brand={brand} catalog={catalog} />
+        <BrandBlock key={brand.id} brand={brand} catalog={catalog} files={files} />
       ))}
 
       <Card className="flex items-end gap-2 px-5 py-4">
@@ -78,7 +89,7 @@ export function CatalogAdmin({ catalog }: { catalog: AdminCatalog }) {
   );
 }
 
-function BrandBlock({ brand, catalog }: { brand: AccessoryBrand; catalog: AdminCatalog }) {
+function BrandBlock({ brand, catalog, files }: { brand: AccessoryBrand; catalog: AdminCatalog; files: FilesMap }) {
   const router = useRouter();
   const [name, setName] = useState(brand.name);
   const [tagline, setTagline] = useState(brand.tagline ?? "");
@@ -107,7 +118,7 @@ function BrandBlock({ brand, catalog }: { brand: AccessoryBrand; catalog: AdminC
 
       <div className="space-y-3 px-5 py-4">
         {cats.map((cat) => (
-          <CategoryBlock key={cat.id} category={cat} models={catalog.models.filter((m) => m.categoryId === cat.id)} />
+          <CategoryBlock key={cat.id} category={cat} models={catalog.models.filter((m) => m.categoryId === cat.id)} files={files} />
         ))}
         <div className="flex items-end gap-2">
           <input value={newCat} onChange={(e) => setNewCat(e.target.value)} placeholder="New category name" className={cx(INPUT, "w-56")} />
@@ -120,7 +131,7 @@ function BrandBlock({ brand, catalog }: { brand: AccessoryBrand; catalog: AdminC
   );
 }
 
-function CategoryBlock({ category, models }: { category: AdminCategory; models: AdminModel[] }) {
+function CategoryBlock({ category, models, files }: { category: AdminCategory; models: AdminModel[]; files: FilesMap }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(category.name);
@@ -133,6 +144,7 @@ function CategoryBlock({ category, models }: { category: AdminCategory; models: 
   const [mName, setMName] = useState("");
   const [mPrice, setMPrice] = useState("");
   const [mDesc, setMDesc] = useState("");
+  const [mImage, setMImage] = useState("");
   const dirty = name !== category.name || blurb !== (category.blurb ?? "") || orderable !== category.orderable;
 
   const run = async (fn: () => Promise<unknown>) => {
@@ -163,7 +175,7 @@ function CategoryBlock({ category, models }: { category: AdminCategory; models: 
         <div className="border-t border-line/70 bg-[#fbfaf7] px-3 py-3">
           <ul className="space-y-1.5">
             {models.map((m) => (
-              <ModelRow key={`${m.id}:${m.active}`} model={m} />
+              <ModelRow key={`${m.id}:${m.active}`} model={m} files={files[m.id] ?? []} />
             ))}
           </ul>
           <div className="mt-3 space-y-2 rounded-lg border border-dashed border-line p-2.5">
@@ -174,11 +186,24 @@ function CategoryBlock({ category, models }: { category: AdminCategory; models: 
                 <span className="text-xs text-muted">$</span>
                 <input type="number" min={0} step="0.01" value={mPrice} onChange={(e) => setMPrice(e.target.value)} placeholder="—" className="w-16 bg-transparent px-1 py-1.5 text-sm text-ink outline-none" />
               </div>
-              <Button variant="secondary" busy={busy} className="py-1 text-[12px]" onClick={() => mSku.trim() && mName.trim() && run(async () => { await call("POST", { entity: "model", categoryId: category.id, sku: mSku, name: mName, price: mPrice === "" ? null : Number(mPrice), description: mDesc }); setMSku(""); setMName(""); setMPrice(""); setMDesc(""); })}>
+              <Button variant="secondary" busy={busy} className="py-1 text-[12px]" onClick={() => mSku.trim() && mName.trim() && run(async () => { await call("POST", { entity: "model", categoryId: category.id, sku: mSku, name: mName, price: mPrice === "" ? null : Number(mPrice), description: mDesc, image: mImage }); setMSku(""); setMName(""); setMPrice(""); setMDesc(""); setMImage(""); })}>
                 + Model
               </Button>
             </div>
             <textarea value={mDesc} onChange={(e) => setMDesc(e.target.value)} rows={2} placeholder="Description (e.g. 0.3 N·m, 1 inch tube motor with built-in battery)" className={cx(INPUT, "w-full resize-none")} />
+            <div className="flex items-center gap-2">
+              {mImage ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={mImage} alt="" className="size-10 shrink-0 rounded-lg border border-line object-cover" />
+              ) : (
+                <div className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-dashed border-line text-[9px] text-muted">img</div>
+              )}
+              <label className={cx("cursor-pointer rounded-lg border border-line px-2.5 py-1.5 text-[12px] font-medium text-ink-soft hover:border-ink", busy && "pointer-events-none opacity-50")}>
+                {busy ? "…" : mImage ? "Change image" : "Upload image"}
+                <input type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) run(async () => setMImage(await uploadImage(f))); }} />
+              </label>
+              {mImage && <button onClick={() => setMImage("")} className="text-[11px] text-muted hover:text-red-500">Clear</button>}
+            </div>
           </div>
         </div>
       )}
@@ -186,7 +211,7 @@ function CategoryBlock({ category, models }: { category: AdminCategory; models: 
   );
 }
 
-function ModelRow({ model }: { model: AdminModel }) {
+function ModelRow({ model, files }: { model: AdminModel; files: AccessoryModelFile[] }) {
   const router = useRouter();
   const [name, setName] = useState(model.name);
   const [sku, setSku] = useState(model.sku);
@@ -199,6 +224,17 @@ function ModelRow({ model }: { model: AdminModel }) {
   const [err, setErr] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [confirmRefs, setConfirmRefs] = useState<QuoteRef[] | null>(null);
+  const [fileKind, setFileKind] = useState<ModelFileKind>("spec");
+
+  const deleteFile = (id: string) =>
+    run(async () => {
+      const r = await fetch("/api/motors/catalog/file", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error ?? "Delete failed");
+    });
 
   const dirty =
     name !== model.name || sku !== model.sku || active !== model.active ||
@@ -278,6 +314,34 @@ function ModelRow({ model }: { model: AdminModel }) {
             )}
           </div>
           <p className="text-[10.5px] text-muted">Upload sets the URL above; click <span className="font-medium">Save</span> to persist. PNG/JPEG/WebP ≤ 5 MB.</p>
+
+          {/* Attachments — spec sheets, certifications, etc. */}
+          <div className="mt-1 border-t border-line/70 pt-3">
+            <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted">Attachments — specs & certifications</div>
+            {files.length > 0 && (
+              <ul className="mb-2 space-y-1">
+                {files.map((f) => (
+                  <li key={f.id} className="flex items-center gap-2 text-[12px]">
+                    <span className="rounded-full bg-[#efece4] px-1.5 py-0.5 text-[10px] font-medium capitalize text-muted">{f.kind}</span>
+                    <a href={f.url} target="_blank" rel="noreferrer" className="min-w-0 flex-1 truncate font-medium text-ink hover:underline">{f.name}</a>
+                    <button onClick={() => deleteFile(f.id)} disabled={busy} className="text-[11px] font-medium text-muted hover:text-red-500">Remove</button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className="flex items-center gap-2">
+              <select value={fileKind} onChange={(e) => setFileKind(e.target.value as ModelFileKind)} className={cx(INPUT, "py-1 text-[12px]")}>
+                <option value="spec">Spec sheet</option>
+                <option value="certification">Certification</option>
+                <option value="other">Other</option>
+              </select>
+              <label className={cx("cursor-pointer rounded-lg border border-line px-2.5 py-1.5 text-[12px] font-medium text-ink-soft hover:border-ink", busy && "pointer-events-none opacity-50")}>
+                {busy ? "…" : "Upload file"}
+                <input type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) run(() => uploadModelFile(model.id, f, fileKind)); }} />
+              </label>
+              <span className="text-[10.5px] text-muted">PDF / image / doc, ≤ 15 MB</span>
+            </div>
+          </div>
         </div>
       )}
       {confirming && (() => {

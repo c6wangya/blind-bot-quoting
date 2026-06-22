@@ -11,6 +11,7 @@ import {
   getAttributes,
   getEffectivePrices,
   getInventoryMap,
+  getModelFilesMap,
   getModelTagMap,
   getProductVariationMap,
   getRetailerOverrideMap,
@@ -90,8 +91,8 @@ export default async function MotorsPage({
 }
 
 async function CatalogTab() {
-  const catalog = await loadCatalogAdmin();
-  return <CatalogAdmin catalog={catalog} />;
+  const [catalog, files] = await Promise.all([loadCatalogAdmin(), getModelFilesMap()]);
+  return <CatalogAdmin catalog={catalog} files={files} />;
 }
 
 async function InventoryTab() {

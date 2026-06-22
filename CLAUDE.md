@@ -96,7 +96,9 @@ bilingual (中文/EN) supplier workbook (`GET /api/orders/:id/excel`).
   (`AccessoryConfig` in `config` + `computation`), so a model can always be hard-deleted without
   breaking history — `deleteModel` (`lib/db/accessory-catalog-admin.ts`) deletes the model + all
   its per-model config rows (`accessory_inventory`, `accessory_prices`, `accessory_model_tags`,
-  `variation_product_items`), since none of those have an FK cascade to `accessory_models`. **Whenever you add a new table
+  `variation_product_items`), since none of those have an FK cascade to `accessory_models`.
+  (`accessory_model_files` DOES have an FK cascade for its rows — but `deleteModel` still removes
+  its Storage objects, which a DB cascade can't.) **Whenever you add a new table
   keyed by an accessory model id** (a new tag-like attribute, crown/driver-style option, or any
   extra per-model setting), add a delete of its rows to `deleteModel` so the model still deletes
   cleanly. Only `quote_items` is intentionally left untouched (it's the snapshot); anything user

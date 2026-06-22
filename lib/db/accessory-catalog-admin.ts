@@ -6,7 +6,53 @@ import type { AccessoryBrand } from "./accessory-catalog";
 // THE-772 Phase 2b — admin CRUD for the accessory catalog (brand → category → model).
 // image_url is set either by direct URL or via upload (POST /api/motors/catalog/image).
 
+export const ACCESSORY_BUCKET = "accessory-images";
+
 const slug = (s: string) => s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+
+// ---------------- per-model attachments (spec sheets, certifications) ----------------
+
+export type ModelFileKind = "spec" | "certification" | "other";
+export type AccessoryModelFile = { id: string; modelId: string; name: string; url: string; kind: ModelFileKind; sort: number };
+
+function publicUrl(path: string, sb: SupabaseClient): string {
+  return sb.storage.from(ACCESSORY_BUCKET).getPublicUrl(path).data.publicUrl;
+}
+
+/** model_id → its attachments (public URLs derived). Best-effort: {} if the table isn't present. */
+export async function getModelFilesMap(sb: SupabaseClient = admin()): Promise<Record<string, AccessoryModelFile[]>> {
+  const { data, error } = await sb
+    .from("accessory_model_files")
+    .select("id, modelId:model_id, name, path, kind, sort")
+    .order("sort")
+    .order("created_at");
+  if (error) return {};
+  const map: Record<string, AccessoryModelFile[]> = {};
+  for (const r of (data ?? []) as { id: string; modelId: string; name: string; path: string; kind: ModelFileKind; sort: number }[]) {
+    (map[r.modelId] ??= []).push({ id: r.id, modelId: r.modelId, name: r.name, kind: r.kind, sort: r.sort, url: publicUrl(r.path, sb) });
+  }
+  return map;
+}
+
+export async function addModelFile(
+  modelId: string,
+  file: { name: string; path: string; kind: ModelFileKind },
+  sb: SupabaseClient = admin()
+): Promise<void> {
+  const id = `f-${Math.random().toString(36).slice(2, 12)}`;
+  const { error } = await sb
+    .from("accessory_model_files")
+    .insert({ id, model_id: modelId, name: file.name, path: file.path, kind: file.kind });
+  if (error) throw error;
+}
+
+export async function deleteModelFile(id: string, sb: SupabaseClient = admin()): Promise<void> {
+  const { data } = await sb.from("accessory_model_files").select("path").eq("id", id).maybeSingle();
+  const path = (data as { path: string } | null)?.path;
+  if (path) await admin().storage.from(ACCESSORY_BUCKET).remove([path]).then(() => {}, () => {});
+  const { error } = await sb.from("accessory_model_files").delete().eq("id", id);
+  if (error) throw error;
+}
 
 async function uniqueId(table: string, base: string, sb: SupabaseClient): Promise<string> {
   let id = base || "x";
@@ -195,6 +241,10 @@ export async function deleteModel(
   await sb.from("accessory_prices").delete().eq("model_id", id);
   await sb.from("accessory_model_tags").delete().eq("model_id", id);
   await sb.from("variation_product_items").delete().eq("model_id", id);
+  // Attachment rows cascade via FK; remove their storage objects too (not covered by cascade).
+  const { data: files } = await sb.from("accessory_model_files").select("path").eq("model_id", id);
+  const paths = ((files ?? []) as { path: string }[]).map((f) => f.path);
+  if (paths.length) await admin().storage.from(ACCESSORY_BUCKET).remove(paths).then(() => {}, () => {});
   const { error } = await sb.from("accessory_models").delete().eq("id", id);
   if (error) throw error;
   return { status: "deleted" };

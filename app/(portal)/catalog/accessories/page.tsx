@@ -7,6 +7,7 @@ import {
   getAttributes,
   getEffectivePrices,
   getInventoryMap,
+  getModelFilesMap,
   getModelTagMap,
   getProductVariationMap,
   getVariations,
@@ -26,7 +27,7 @@ export default async function AccessoriesPage({
   const q = quoteId ? `&quote=${quoteId}` : "";
 
   const userId = await getCurrentUserId();
-  const [catalog, attributes, tagMap, effectivePrices, inventory, variations, variationMap] = await Promise.all([
+  const [catalog, attributes, tagMap, effectivePrices, inventory, variations, variationMap, filesMap] = await Promise.all([
     loadCatalog(),
     getAttributes(),
     getModelTagMap(),
@@ -34,6 +35,7 @@ export default async function AccessoriesPage({
     getInventoryMap(), // model_id → stock; absent = untracked
     getVariations(),
     getProductVariationMap(), // model_id → available variation item ids
+    getModelFilesMap(), // model_id → spec/cert attachments
   ]);
   const categories = catalog.categories;
   const activeCat = categories.find((c) => c.id === cat) ?? categories[0];
@@ -176,6 +178,21 @@ export default async function AccessoriesPage({
                               >
                                 {valueLabel[t] ?? t}
                               </span>
+                            ))}
+                          </div>
+                        )}
+                        {(filesMap[model.id] ?? []).length > 0 && (
+                          <div className="mt-1.5 flex flex-wrap gap-2">
+                            {(filesMap[model.id] ?? []).map((f) => (
+                              <a
+                                key={f.id}
+                                href={f.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1 rounded-md border border-line px-1.5 py-0.5 text-[10.5px] font-medium text-ink-soft hover:border-ink"
+                              >
+                                📄 {f.kind === "certification" ? "Cert" : f.kind === "spec" ? "Spec" : "Doc"}: {f.name}
+                              </a>
                             ))}
                           </div>
                         )}
