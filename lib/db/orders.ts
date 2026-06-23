@@ -252,11 +252,12 @@ export async function getFrequentPartIds(
   sb: SupabaseClient = admin()
 ): Promise<{ modelId: string; orderCount: number; totalQty: number }[]> {
   if (!ownerId) return [];
-  const { data: quotes } = await sb.from("quotes").select("id").eq("owner_id", ownerId);
-  const quoteIds = ((quotes ?? []) as { id: number }[]).map((q) => q.id);
-  if (quoteIds.length === 0) return [];
-  // Only quotes that became a real (non-cancelled) order count as "ordered".
-  const { data: orders } = await sb.from("orders").select("quote_id").in("quote_id", quoteIds).neq("status", "cancelled");
+  // One round-trip: this retailer's non-cancelled orders (joined to their owning quote).
+  const { data: orders } = await sb
+    .from("orders")
+    .select("quote_id, quotes!inner(owner_id)")
+    .eq("quotes.owner_id", ownerId)
+    .neq("status", "cancelled");
   const orderedQuoteIds = [...new Set(((orders ?? []) as { quote_id: number }[]).map((o) => o.quote_id))];
   if (orderedQuoteIds.length === 0) return [];
   const { data: items } = await sb
