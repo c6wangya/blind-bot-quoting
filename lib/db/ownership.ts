@@ -12,3 +12,9 @@ export async function getOrderOwnerId(orderId: number): Promise<string | null | 
   if (!o) return undefined;
   return getQuoteOwnerId((o as { quote_id: number }).quote_id);
 }
+
+/** The quote an order was placed from (for binding a pay-by-link invoice token to the order). */
+export async function getOrderQuoteId(orderId: number): Promise<number | null> {
+  const { data } = await admin().from("orders").select("quote_id").eq("id", orderId).maybeSingle();
+  return data ? (data as { quote_id: number }).quote_id : null;
+}

@@ -3,10 +3,12 @@ import { admin } from "@/lib/supabase/admin";
 import type { OrderEventRow, OrderRow, OrderStatus, PaymentMethod } from "@/lib/types";
 import { EVENT_COLS, ORDER_COLS, round2, type ItemAgg, insertWithRef } from "./internal";
 import { ensureSeeded } from "./seed";
-import { getQuote } from "./quotes";
+import { getQuote, getQuoteExpedite } from "./quotes";
 import { getQuoteOwnerId } from "./ownership";
-import { getRetailerDiscount } from "./profile";
+import { getRetailerDiscount, getShippingWaivers } from "./profile";
 import { deductMotorStock, restoreMotorStock } from "./motors";
+import { loadCatalog } from "./accessory-catalog";
+import { computeShipping, DEFAULT_SHIPPING, type ShippingMode, type ShippingState } from "@/lib/shipping";
 import { isAccessoryConfig } from "@/lib/types";
 
 /** Orders needing admin action: new submissions to acknowledge + bank transfers to confirm. */
@@ -38,7 +40,9 @@ const PAYMENT_LABEL: Record<PaymentMethod, string> = {
 export async function submitPreOrder(
   quoteId: number,
   paymentMethod: PaymentMethod,
-  sb: SupabaseClient = admin()
+  sb: SupabaseClient = admin(),
+  // Set when an admin placed this on behalf of the retailer (代下单) — audited in the timeline.
+  actingAdmin?: { email: string }
 ): Promise<OrderRow> {
   const quote = await getQuote(quoteId, sb);
   if (!quote) throw new Error("Quote not found");
@@ -65,8 +69,19 @@ export async function submitPreOrder(
     }
     const subtotal = round2(quote.items.reduce((s, i) => s + i.computation.unitPrice * i.qty, 0));
     // Snapshot the retailer's standing discount so a later rate change never alters this order.
-    const discountPct = await getRetailerDiscount(await getQuoteOwnerId(quoteId));
-    const amount = round2(subtotal * (1 - discountPct / 100));
+    const ownerId = await getQuoteOwnerId(quoteId);
+    const discountPct = await getRetailerDiscount(ownerId);
+    const net = round2(subtotal * (1 - discountPct / 100));
+    // Shipping: compute against the net goods total + the quote's chosen mode, then bake into amount
+    // so payment is correct. (FOB → 0; expedite always charged; ground waived ≥ $1000 / waived retailer.)
+    const [catalog, waivers, expedite] = await Promise.all([
+      loadCatalog(),
+      getShippingWaivers(ownerId),
+      getQuoteExpedite(quoteId, sb),
+    ]);
+    // Per-line by each motor's made-in mode; the order's snapshot mode is "ground" if any line is.
+    const ship = computeShipping(quote.items, catalog, expedite, net, waivers);
+    const amount = round2(net + ship.amount);
     const order = await insertWithRef("orders", "PO", async (ref) => {
       const { data, error } = await sb
         .from("orders")
@@ -76,11 +91,20 @@ export async function submitPreOrder(
       if (error) throw error;
       return data as unknown as OrderRow;
     });
+    // Snapshot shipping separately (best-effort) so a missing 0023 migration never blocks ordering —
+    // pre-migration ships is always FOB/0 anyway, so amount already matches.
+    await sb
+      .from("orders")
+      .update({ ship_mode: ship.hasGround ? "ground" : "fob", ship_expedite: ship.expedite, shipping: ship.amount })
+      .eq("id", order.id)
+      .then(undefined, () => {});
     await sb.from("order_events").insert({
       order_id: order.id,
       status: "awaiting_payment",
       actor: "retailer",
-      note: `Pre-order ${order.ref} placed by ${quote.retailer} — awaiting ${PAYMENT_LABEL[paymentMethod]} payment.`,
+      note: actingAdmin
+        ? `Pre-order ${order.ref} placed by admin ${actingAdmin.email} on behalf of ${quote.retailer} — awaiting ${PAYMENT_LABEL[paymentMethod]} payment.`
+        : `Pre-order ${order.ref} placed by ${quote.retailer} — awaiting ${PAYMENT_LABEL[paymentMethod]} payment.`,
     });
     return order;
   } catch (e) {
@@ -89,6 +113,25 @@ export async function submitPreOrder(
     await sb.from("quotes").update({ status: "draft", updated_at: new Date().toISOString() }).eq("id", quoteId);
     throw e;
   }
+}
+
+/**
+ * An order's snapshotted shipping (mode/expedite/amount). Read separately (not in ORDER_COLS) so the
+ * core order read never breaks before the 0023 migration runs — falls back to FOB / $0.
+ */
+export async function getOrderShipping(
+  orderId: number,
+  sb: SupabaseClient = admin()
+): Promise<ShippingState & { shipping: number }> {
+  const { data, error } = await sb
+    .from("orders")
+    .select("ship_mode, ship_expedite, shipping")
+    .eq("id", orderId)
+    .maybeSingle();
+  if (error || !data) return { ...DEFAULT_SHIPPING, shipping: 0 };
+  const row = data as { ship_mode: string | null; ship_expedite: boolean | null; shipping: number | null };
+  const mode: ShippingMode = row.ship_mode === "ground" ? "ground" : "fob";
+  return { mode, expedite: mode === "ground" && row.ship_expedite === true, shipping: Number(row.shipping ?? 0) };
 }
 
 /**

@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { BRAND } from "@/lib/brand";
+import { ActingAsSwitcher, type RetailerOption } from "./ActingAsSwitcher";
 import { cx } from "./ui";
 
 type NavItem = {
@@ -68,6 +69,8 @@ export default function Sidebar({
   accountSub,
   signedIn,
   isAdmin,
+  retailers,
+  actingAsId,
   open,
   onClose,
 }: {
@@ -78,6 +81,8 @@ export default function Sidebar({
   accountSub: string;
   signedIn: boolean;
   isAdmin: boolean;
+  retailers: RetailerOption[];
+  actingAsId: string | null;
   open: boolean;
   onClose: () => void;
 }) {
@@ -208,6 +213,12 @@ export default function Sidebar({
           </div>
         ))}
       </nav>
+
+      {isAdmin && (
+        <div className="border-t border-white/10">
+          <ActingAsSwitcher retailers={retailers} actingAsId={actingAsId} />
+        </div>
+      )}
 
       <div className="border-t border-white/10 px-5 py-4">
         <div className="flex items-center gap-3">

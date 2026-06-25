@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUserId, userClient } from "@/lib/auth/user";
+import { getActingContext } from "@/lib/auth/acting-as";
+import { admin } from "@/lib/supabase/admin";
 import {
   addAccessoryItem,
   addQuoteItem,
@@ -46,8 +48,12 @@ class PickError extends Error {
 
 export async function POST(req: Request) {
   try {
-    const userId = await getCurrentUserId();
-    if (!userId) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
+    // While acting on behalf of a retailer (代下单), items land in THAT retailer's draft and are
+    // priced with their overrides; service_role is needed so an implicit new draft can be created
+    // with the retailer as owner (RLS `quotes_insert` blocks a JWT client from doing so).
+    const acting = await getActingContext();
+    if (!acting.realUid) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
+    const userId = acting.actingAsId ?? acting.realUid;
     const body = (await req.json()) as {
       productId: string;
       config?: ItemConfig;
@@ -57,7 +63,7 @@ export async function POST(req: Request) {
     };
     const qty = Math.max(1, Math.min(500, Math.round(body.qty || 1)));
     const quoteId = typeof body.quoteId === "number" && Number.isInteger(body.quoteId) ? body.quoteId : undefined;
-    const sb = await userClient();
+    const sb = acting.actingAsId ? admin() : await userClient();
     const catalog = await loadCatalog();
 
     // Accessory (e.g. A-OK motor): fixed price, no configuration. Only orderable categories.

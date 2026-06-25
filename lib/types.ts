@@ -190,6 +190,8 @@ export interface QuoteRow {
   ref: string;
   retailer: string;
   status: QuoteStatus;
+  /** Owning retailer (auth uid); NULL = public demo quote (not invoiceable). */
+  ownerId: string | null;
   projectName: string | null;
   // Enriched header details (THE-772 — see supabase/migrations/0003_quote_details.sql).
   quoteType: string;

@@ -83,12 +83,19 @@ export const loadCatalog = cache(async (): Promise<CatalogSnapshot> => {
     .order("sort");
   const { data: mods } = await sb
     .from("accessory_models")
-    .select("id, categoryId:category_id, sku, name, description, price:default_price, imageUrl:image_url, moq, active, sort")
+    .select("id, categoryId:category_id, sku, name, description, price:default_price, imageUrl:image_url, moq, shipGround:ship_ground, shipExpedite:ship_expedite, shipMode:ship_mode, active, sort")
     .order("sort");
 
   const categories = (cats ?? []) as unknown as AccessoryCategory[];
   const models = ((mods ?? []) as unknown as (AccessoryModel & { active?: boolean })[])
     .filter((m) => m.active !== false)
-    .map((m) => ({ ...m, price: m.price == null ? null : Number(m.price), moq: Number(m.moq ?? 0) }));
+    .map((m) => ({
+      ...m,
+      price: m.price == null ? null : Number(m.price),
+      moq: Number(m.moq ?? 0),
+      shipGround: Number(m.shipGround ?? 0),
+      shipExpedite: Number(m.shipExpedite ?? 0),
+      shipMode: m.shipMode === "ground" ? ("ground" as const) : ("fob" as const),
+    }));
   return snapshot(brands[0] as AccessoryBrand, categories, models);
 });

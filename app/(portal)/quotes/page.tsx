@@ -1,8 +1,12 @@
 import Link from "next/link";
 import { Badge, Card, EmptyState, LinkButton, PageHeader } from "@/components/ui";
 import { ListToolbar } from "@/components/ListToolbar";
-import { requireUserId, userClient } from "@/lib/auth/user";
+import { redirect } from "next/navigation";
+import { userClient } from "@/lib/auth/user";
+import { getActingContext } from "@/lib/auth/acting-as";
+import { admin } from "@/lib/supabase/admin";
 import { getQuotes } from "@/lib/db";
+import { canInvoiceQuote } from "@/lib/invoice";
 import { fmtDate, usd } from "@/lib/format";
 import { pageSlice, parseListParams, PAGE_SIZE } from "@/lib/list";
 
@@ -16,8 +20,13 @@ export default async function QuotesPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const ownerId = await requireUserId("/quotes");
-  const all = await getQuotes(ownerId, await userClient());
+  // While acting on behalf of a retailer, list THAT retailer's quotes (service_role bypasses RLS
+  // for the cross-owner read); otherwise the signed-in user's own RLS-scoped quotes.
+  const ctx = await getActingContext();
+  if (!ctx.realUid) redirect(`/login?next=${encodeURIComponent("/quotes")}`);
+  const ownerId = ctx.actingAsId ?? ctx.realUid;
+  const sb = ctx.actingAsId ? admin() : await userClient();
+  const all = await getQuotes(ownerId, sb);
   const { q, status, page } = parseListParams(await searchParams);
   const ql = q.toLowerCase();
   const filtered = all.filter(
@@ -80,6 +89,7 @@ export default async function QuotesPage({
                 <th className="px-5 py-3 text-right">Items</th>
                 <th className="px-5 py-3 text-right">Total</th>
                 <th className="px-5 py-3 text-right">Updated</th>
+                <th className="px-5 py-3 text-right"></th>
               </tr>
             </thead>
             <tbody>
@@ -104,6 +114,26 @@ export default async function QuotesPage({
                   <td className="px-5 py-3.5 text-right tabular-nums text-ink-soft">{q.itemCount}</td>
                   <td className="px-5 py-3.5 text-right font-semibold tabular-nums text-ink">{usd(q.total)}</td>
                   <td className="px-5 py-3.5 text-right text-xs text-muted">{fmtDate(q.updatedAt)}</td>
+                  <td className="px-5 py-3.5 text-right">
+                    {canInvoiceQuote(q, ownerId) ? (
+                      <Link
+                        href={`/invoices/${q.id}`}
+                        prefetch={false}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs font-semibold text-brass hover:underline"
+                      >
+                        Invoice
+                      </Link>
+                    ) : (
+                      <span
+                        className="cursor-not-allowed text-xs font-semibold text-muted/40"
+                        title="Only your own quotes with complete customer & ship-to details can be invoiced"
+                      >
+                        Invoice
+                      </span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

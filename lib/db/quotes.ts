@@ -254,6 +254,23 @@ export async function getQuote(
   return { ...(q as unknown as QuoteRow), items: rows, total };
 }
 
+/**
+ * A quote's expedite flag (the only shipping field the customer controls — the FOB/Ground mode is
+ * set per-retailer by an admin). Read separately from getQuote (not in QUOTE_COLS) so the core quote
+ * read never breaks before the 0023 migration runs — falls back to false.
+ */
+export async function getQuoteExpedite(id: number, sb: SupabaseClient = admin()): Promise<boolean> {
+  const { data, error } = await sb.from("quotes").select("expedite").eq("id", id).maybeSingle();
+  if (error || !data) return false;
+  return (data as { expedite: boolean | null }).expedite === true;
+}
+
+/** Set a quote's expedite flag (RLS via the caller's client). */
+export async function setQuoteExpedite(id: number, expedite: boolean, sb: SupabaseClient = admin()): Promise<void> {
+  const { error } = await sb.from("quotes").update({ expedite: !!expedite }).eq("id", id);
+  if (error) throw error;
+}
+
 /** A quote's ref (e.g. "Q-2026-0009"), or null if it doesn't exist / isn't visible to `sb`.
  *  Used to tag a chat message with the quote it's about (RLS via the caller's client). */
 export async function getQuoteRef(id: number, sb: SupabaseClient = admin()): Promise<string | null> {

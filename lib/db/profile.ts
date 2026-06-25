@@ -1,4 +1,5 @@
 import { admin } from "@/lib/supabase/admin";
+import type { ShippingWaivers } from "@/lib/shipping";
 
 /** The signed-in retailer's profile fields used for the account display. */
 export async function getProfile(
@@ -47,6 +48,43 @@ export async function getRetailerDiscount(ownerId: string | null | undefined): P
 export async function setRetailerDiscount(retailerId: string, pct: number): Promise<void> {
   const clamped = Math.max(0, Math.min(100, Number(pct) || 0));
   const { error } = await admin().from("profiles").update({ order_discount_pct: clamped }).eq("id", retailerId);
+  if (error) throw error;
+}
+
+/**
+ * A retailer's shipping waivers. All false when unset, for the public demo (no owner), or before the
+ * columns are migrated. Expedite can only be waived on top of ground (see setWaiveExpedite).
+ */
+export async function getShippingWaivers(ownerId: string | null | undefined): Promise<ShippingWaivers> {
+  if (!ownerId) return { ground: false, expedite: false };
+  const { data, error } = await admin()
+    .from("profiles")
+    .select("waive_shipping, waive_expedite")
+    .eq("id", ownerId)
+    .maybeSingle();
+  if (error || !data) return { ground: false, expedite: false };
+  const row = data as { waive_shipping: boolean | null; waive_expedite: boolean | null };
+  const ground = row.waive_shipping === true;
+  // expedite waiver only meaningful while ground is waived (defensive — the setters enforce it too)
+  return { ground, expedite: ground && row.waive_expedite === true };
+}
+
+/** Set a retailer's GROUND-shipping waiver. Turning it off also clears the expedite waiver, since
+ *  expedite can't be waived without ground. */
+export async function setWaiveShipping(retailerId: string, waive: boolean): Promise<void> {
+  const patch: Record<string, boolean> = { waive_shipping: !!waive };
+  if (!waive) patch.waive_expedite = false;
+  const { error } = await admin().from("profiles").update(patch).eq("id", retailerId);
+  if (error) throw error;
+}
+
+/** Set a retailer's EXPEDITE-shipping waiver. Only allowed once ground is waived. */
+export async function setWaiveExpedite(retailerId: string, waive: boolean): Promise<void> {
+  if (waive) {
+    const { ground } = await getShippingWaivers(retailerId);
+    if (!ground) throw new Error("Waive ground shipping first before waiving expedite");
+  }
+  const { error } = await admin().from("profiles").update({ waive_expedite: !!waive }).eq("id", retailerId);
   if (error) throw error;
 }
 

@@ -4,7 +4,9 @@ import { TagAdmin } from "@/components/TagAdmin";
 import { ModelTagEditor, type TaggableModel } from "@/components/ModelTagEditor";
 import { MotorInventoryEditor, type InventoryRow } from "@/components/MotorInventoryEditor";
 import { MotorPriceEditor, type PriceRow, type Target } from "@/components/MotorPriceEditor";
+import { MotorShippingEditor, type ShippingRow } from "@/components/MotorShippingEditor";
 import { RetailerDiscountEditor } from "@/components/RetailerDiscountEditor";
+import { WaiveShippingEditor } from "@/components/WaiveShippingEditor";
 import { VariationsAdmin, type VariationProduct } from "@/components/VariationsAdmin";
 import { CatalogAdmin } from "@/components/CatalogAdmin";
 import { requireAdminPage } from "@/lib/auth/user";
@@ -19,27 +21,35 @@ import {
   getRestrictions,
   getRetailerDiscount,
   getRetailerOverrideMap,
+  getShippingWaivers,
   getVariations,
   listRetailers,
   loadCatalog,
   loadCatalogAdmin,
 } from "@/lib/db";
 
-type Tab = "catalog" | "inventory" | "pricing" | "tags" | "variations";
+type Tab = "catalog" | "inventory" | "pricing" | "shipping" | "tags" | "variations";
 const TABS: { id: Tab; label: string }[] = [
   { id: "catalog", label: "Catalog" },
   { id: "inventory", label: "Inventory" },
   { id: "pricing", label: "Pricing" },
+  { id: "shipping", label: "Shipping" },
   { id: "tags", label: "Tags" },
   { id: "variations", label: "Variations" },
 ];
 
-/** Orderable motor models with category, the surface inventory/pricing share. */
+/** Orderable motor models with category, the surface inventory/pricing/shipping share. */
 async function motors() {
   const cat = await loadCatalog();
   return cat.categories
     .filter((c) => c.orderable)
-    .flatMap((c) => cat.modelsIn(c.id).map((m) => ({ id: m.id, name: m.name, sku: m.sku, category: c.name, moq: m.moq ?? 0 })));
+    .flatMap((c) =>
+      cat.modelsIn(c.id).map((m) => ({
+        id: m.id, name: m.name, sku: m.sku, category: c.name, moq: m.moq ?? 0,
+        shipGround: m.shipGround ?? 0, shipExpedite: m.shipExpedite ?? 0,
+        shipMode: m.shipMode ?? "fob",
+      }))
+    );
 }
 
 /** Every accessory catalog model with its category — variations can apply to any product. */
@@ -88,6 +98,7 @@ export default async function MotorsPage({
       {tab === "catalog" && <CatalogTab />}
       {tab === "inventory" && <InventoryTab />}
       {tab === "pricing" && <PricingTab retailerParam={retailer} />}
+      {tab === "shipping" && <ShippingTab />}
       {tab === "tags" && <TagsTab />}
       {tab === "variations" && <VariationsTab />}
     </div>
@@ -109,6 +120,29 @@ async function InventoryTab() {
     stock: m.id in inv ? inv[m.id] : null,
   }));
   return <MotorInventoryEditor rows={rows} />;
+}
+
+async function ShippingTab() {
+  const rows: ShippingRow[] = (await motors()).map((m) => ({
+    modelId: m.id,
+    name: m.name,
+    sku: m.sku,
+    category: m.category,
+    mode: m.shipMode,
+    ground: m.shipGround,
+    expedite: m.shipExpedite,
+  }));
+  return (
+    <div className="space-y-3">
+      <p className="max-w-2xl text-[13px] leading-relaxed text-muted">
+        Set where each motor is made: <b>FOB</b> (China — air/sea, no domestic freight) or <b>US Ground</b>
+        (domestic freight at the per-unit rates below). A quote prices shipping per item by its mode.
+        <b> 0 = free</b> (e.g. crown/drive parts). Standard ground is waived on orders ≥ $1,000 or for
+        waived retailers; <b>expedite is always charged</b>.
+      </p>
+      <MotorShippingEditor rows={rows} />
+    </div>
+  );
 }
 
 async function TagsTab() {
@@ -175,6 +209,7 @@ async function PricingTab({ retailerParam }: { retailerParam?: string }) {
   let target: Target;
   let overrideMap: Record<string, number> = {};
   let discountPct = 0;
+  let waivers = { ground: false, expedite: false };
   if (retailerParam === "default") {
     target = { kind: "default" };
   } else {
@@ -187,7 +222,11 @@ async function PricingTab({ retailerParam }: { retailerParam?: string }) {
       );
     }
     target = { kind: "retailer", retailerId: r.id, label: r.company ?? r.email };
-    [overrideMap, discountPct] = await Promise.all([getRetailerOverrideMap(r.id), getRetailerDiscount(r.id)]);
+    [overrideMap, discountPct, waivers] = await Promise.all([
+      getRetailerOverrideMap(r.id),
+      getRetailerDiscount(r.id),
+      getShippingWaivers(r.id),
+    ]);
   }
 
   const rows: PriceRow[] = (await motors()).map((m) => {
@@ -214,7 +253,15 @@ async function PricingTab({ retailerParam }: { retailerParam?: string }) {
         </span>
       </div>
       {target.kind === "retailer" && (
-        <RetailerDiscountEditor retailerId={target.retailerId} label={target.label} initialPct={discountPct} />
+        <>
+          <RetailerDiscountEditor retailerId={target.retailerId} label={target.label} initialPct={discountPct} />
+          <WaiveShippingEditor
+            retailerId={target.retailerId}
+            label={target.label}
+            initialGround={waivers.ground}
+            initialExpedite={waivers.expedite}
+          />
+        </>
       )}
       <MotorPriceEditor key={retailerParam} target={target} rows={rows} />
     </div>

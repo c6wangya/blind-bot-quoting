@@ -1,0 +1,350 @@
+import Link from "next/link";
+import { headers } from "next/headers";
+import { notFound, redirect } from "next/navigation";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { InvoicePayOrderButton, PrintInvoiceButton } from "@/components/InvoiceActions";
+import { SubmitPreOrderButton } from "@/components/QuoteActions";
+import { Badge, Button } from "@/components/ui";
+import { canAccessOwned, userClient } from "@/lib/auth/user";
+import { getActingContext } from "@/lib/auth/acting-as";
+import { admin } from "@/lib/supabase/admin";
+import { BRAND } from "@/lib/brand";
+import {
+  getBankInfo,
+  getOrAssignInvoiceRef,
+  getOrder,
+  getOrderRefByQuote,
+  getQuote,
+  getQuoteOwnerId,
+  getRetailerDiscount,
+} from "@/lib/db";
+import { signInvoiceToken, verifyInvoiceToken } from "@/lib/invoice-token";
+import { fmtDate, usd } from "@/lib/format";
+import {
+  buildInvoiceLines,
+  canInvoiceQuote,
+  INVOICE_CONDITIONS,
+  INVOICE_NOTES,
+  INVOICE_TERMS_LABEL,
+  SELLER,
+} from "@/lib/invoice";
+
+const round2 = (n: number) => Math.round(n * 100) / 100;
+/** Plain 2-decimal number (no currency symbol) — line rows show bare amounts like the reference. */
+const num2 = (n: number) => n.toFixed(2);
+
+/** Pull the issue date out of an INV{YYYYMMDD}{NN} number so it matches the number on the page. */
+function issueDateFromRef(ref: string): string | null {
+  const m = ref.match(/^INV(\d{4})(\d{2})(\d{2})\d+$/);
+  return m ? `${m[1]}-${m[2]}-${m[3]}T00:00:00` : null;
+}
+
+/**
+ * Printable customer invoice for a quote. Proforma while the quote is a draft (a "Confirm & pay"
+ * button runs the real submit→checkout flow); a final invoice with live Paid status once the quote
+ * has converted into an order. Standalone (no portal chrome) so it prints clean — the browser's
+ * print dialog is the PDF export.
+ */
+export default async function InvoicePage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ t?: string }>;
+}) {
+  const { id } = await params;
+  const quoteId = Number(id);
+  if (!Number.isInteger(quoteId)) notFound();
+
+  // Public pay-by-link: a valid HMAC token (typically embedded in the shared/printed PDF) grants
+  // anonymous view + pay with a service_role read — no portal login. Otherwise the page mirrors
+  // /quotes: an admin acting on behalf of a retailer (代下单) reads as that retailer (service_role),
+  // a plain retailer reads their own (RLS). Using the same identity as the list keeps the Invoice
+  // link and this page in agreement (else acting-as 404s here).
+  const { t } = await searchParams;
+  const publicMode = verifyInvoiceToken(quoteId, t);
+
+  let sb: SupabaseClient;
+  if (publicMode) {
+    sb = admin();
+  } else {
+    const ctx = await getActingContext();
+    if (!ctx.realUid) redirect(`/login?next=${encodeURIComponent(`/invoices/${id}`)}`);
+    sb = ctx.actingAsId ? admin() : await userClient();
+    if (!(await canAccessOwned(ctx.realUid, await getQuoteOwnerId(quoteId)))) notFound();
+  }
+
+  const quote = await getQuote(quoteId, sb);
+  if (!quote) notFound();
+
+  // Eligibility (both modes): a real owned quote (no public demo samples) with complete Bill-To
+  // details. Access was already gated above, so "the viewer's own quote" reduces to "an owned
+  // quote" — pass the owner itself.
+  if (!canInvoiceQuote(quote, quote.ownerId ?? "")) notFound();
+  const ownerId = quote.ownerId as string;
+
+  const invoiceRef = await getOrAssignInvoiceRef(quoteId);
+  const orderRef = quote.status === "converted" ? await getOrderRefByQuote(quoteId, sb) : undefined;
+  const order = orderRef ? await getOrder(orderRef.id, sb) : undefined;
+  const bank = await getBankInfo();
+
+  const lines = buildInvoiceLines(quote.items);
+  const discountPct = await getRetailerDiscount(ownerId);
+  const subtotal = round2(quote.total);
+  const discountAmt = round2((subtotal * discountPct) / 100);
+  const total = order?.amount ?? round2(subtotal - discountAmt);
+  const paid = order?.paymentStatus === "paid";
+  const balanceDue = paid ? 0 : total;
+
+  // Absolute URL to this online invoice — the Payment Options links must be absolute so they stay
+  // clickable from a downloaded/printed PDF (a relative href is meaningless once the PDF is off-site).
+  // It carries the share token so opening it from the PDF lands in public (no-login) pay mode.
+  const shareToken = signInvoiceToken(quoteId);
+  const tokenQuery = shareToken ? `?t=${shareToken}` : "";
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host");
+  const proto = h.get("x-forwarded-proto") ?? (host?.startsWith("localhost") ? "http" : "https");
+  const invoiceUrl = `${host ? `${proto}://${host}` : ""}/invoices/${quote.id}${tokenQuery}`;
+
+  const issuedAt = issueDateFromRef(invoiceRef) ?? order?.createdAt ?? quote.createdAt;
+  const billToName = quote.customerName ?? quote.retailer;
+  const billToLines = [
+    quote.shipAddress1,
+    quote.shipAddress2,
+    [quote.shipCity, quote.shipState, quote.shipZip].filter(Boolean).join(", ") || null,
+    quote.customerEmail,
+    quote.customerPhone,
+  ].filter(Boolean) as string[];
+
+  return (
+    <div className="min-h-screen bg-[#f4f2ec] py-6 print:bg-white print:py-0">
+      {/* Action bar — hidden when printing */}
+      <div className="mx-auto mb-5 flex max-w-3xl items-center justify-between gap-3 px-4 print:hidden">
+        {publicMode ? (
+          <span />
+        ) : (
+          <Link href={`/quotes/${quote.id}`} className="text-sm font-medium text-muted hover:text-ink">
+            ← Back to {quote.ref}
+          </Link>
+        )}
+        <div className="flex items-center gap-2">
+          <PrintInvoiceButton fileName={`${SELLER.name} ${invoiceRef}`} />
+          {paid ? (
+            <Badge tone="green">Paid {order?.paidAt ? `· ${fmtDate(order.paidAt)}` : ""}</Badge>
+          ) : quote.status === "converted" && order ? (
+            publicMode ? (
+              order.paymentMethod === "bank_transfer" ? (
+                <Badge tone="amber">Awaiting bank transfer</Badge>
+              ) : (
+                <InvoicePayOrderButton orderId={order.id} token={shareToken} label="Pay this invoice →" />
+              )
+            ) : (
+              <Link href={`/orders/${order.id}`}>
+                <Button variant="primary" className="py-2.5">
+                  Pay this invoice →
+                </Button>
+              </Link>
+            )
+          ) : (
+            <SubmitPreOrderButton quoteId={quote.id} total={usd(total)} token={publicMode ? shareToken : undefined} />
+          )}
+        </div>
+      </div>
+
+      {/* Invoice sheet */}
+      <div className="mx-auto max-w-3xl bg-white px-10 py-10 text-[13px] text-ink shadow-sm ring-1 ring-line [-webkit-print-color-adjust:exact] [print-color-adjust:exact] print:max-w-none print:shadow-none print:ring-0">
+        {/* Header */}
+        <div className="flex items-start justify-between gap-6">
+          <div>
+            <div className="flex size-12 items-center justify-center rounded-xl bg-gradient-to-br from-brass to-[#8a6a39] text-lg font-bold text-white">
+              {BRAND.monogram}
+            </div>
+            <div className="mt-3 text-base font-bold text-ink">{SELLER.name}</div>
+            {SELLER.addressLines.map((l, i) => (
+              <div key={i} className="text-[12px] text-muted">
+                {l}
+              </div>
+            ))}
+            <div className="mt-1 text-[12px] text-muted">Tax ID: {SELLER.taxId}</div>
+          </div>
+          <div className="text-right">
+            <div className="text-3xl font-light uppercase tracking-wide text-ink">Invoice</div>
+            <div className="mt-1 text-[13px] font-semibold text-ink"># {invoiceRef}</div>
+            <div className="mt-4 inline-block rounded-lg bg-[#f4f2ec] px-4 py-2 text-right">
+              <div className="text-[10.5px] font-semibold uppercase tracking-wider text-muted">Balance Due</div>
+              <div className="text-xl font-bold tabular-nums text-ink">{usd(balanceDue)}</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Bill-to + meta */}
+        <div className="mt-8 flex justify-between gap-8">
+          <div>
+            <div className="text-[10.5px] font-semibold uppercase tracking-wider text-muted">Bill To</div>
+            <div className="mt-1 text-[13px] font-semibold text-ink">{billToName}</div>
+            {billToLines.map((l, i) => (
+              <div key={i} className="text-[12px] text-muted">
+                {l}
+              </div>
+            ))}
+          </div>
+          <table className="text-[12.5px]">
+            <tbody>
+              <tr>
+                <td className="py-0.5 pr-6 text-muted">Invoice Date</td>
+                <td className="py-0.5 text-right text-ink">{fmtDate(issuedAt)}</td>
+              </tr>
+              <tr>
+                <td className="py-0.5 pr-6 text-muted">Terms</td>
+                <td className="py-0.5 text-right text-ink">{INVOICE_TERMS_LABEL}</td>
+              </tr>
+              <tr>
+                <td className="py-0.5 pr-6 text-muted">Due Date</td>
+                <td className="py-0.5 text-right text-ink">{fmtDate(issuedAt)}</td>
+              </tr>
+              {quote.po && (
+                <tr>
+                  <td className="py-0.5 pr-6 text-muted">PO #</td>
+                  <td className="py-0.5 text-right text-ink">{quote.po}</td>
+                </tr>
+              )}
+              <tr>
+                <td className="py-0.5 pr-6 text-muted">Quote Ref</td>
+                <td className="py-0.5 text-right text-ink">{quote.ref}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        {/* Line items — styled to match the reference invoice */}
+        <table className="mt-8 w-full border-collapse text-[13px]">
+          <colgroup>
+            <col className="w-10" />
+            <col />
+            <col className="w-20" />
+            <col className="w-24" />
+            <col className="w-28" />
+          </colgroup>
+          <thead>
+            <tr className="bg-[#3a3a3a] text-left font-normal text-white">
+              <th className="px-4 py-2.5 text-center font-normal">#</th>
+              <th className="px-4 py-2.5 font-normal">Item &amp; Description</th>
+              <th className="px-4 py-2.5 text-right font-normal">Qty</th>
+              <th className="px-4 py-2.5 text-right font-normal">Rate</th>
+              <th className="px-4 py-2.5 text-right font-normal">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {lines.map((l) => (
+              <tr key={l.n} className="border-b border-[#e6e3db] align-top">
+                <td className="px-4 py-4 text-center text-ink">{l.n}</td>
+                <td className="px-4 py-4">
+                  <div className="text-ink">{l.sku ? `${l.name} ${l.sku}` : l.name}</div>
+                  {l.description && <div className="mt-0.5 text-[12px] text-[#8a8a8a]">{l.description}</div>}
+                </td>
+                <td className="px-4 py-4 text-right tabular-nums text-ink">
+                  {l.qty}
+                  <div className="text-[12px] text-[#8a8a8a]">Each</div>
+                </td>
+                <td className="px-4 py-4 text-right tabular-nums text-ink">{num2(l.rate)}</td>
+                <td className="px-4 py-4 text-right tabular-nums text-ink">{num2(l.amount)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {/* Totals */}
+        <div className="mt-4 flex justify-end">
+          <table className="w-[340px] text-[13px]">
+            <tbody>
+              <tr>
+                <td className="py-2 pl-4 text-right text-ink">Sub Total</td>
+                <td className="py-2 pl-8 pr-4 text-right tabular-nums text-ink">{num2(subtotal)}</td>
+              </tr>
+              {discountPct > 0 && (
+                <tr>
+                  <td className="py-2 pl-4 text-right text-ink">Discount ({discountPct}%)</td>
+                  <td className="py-2 pl-8 pr-4 text-right tabular-nums text-ink">−{num2(discountAmt)}</td>
+                </tr>
+              )}
+              <tr>
+                <td className="py-2 pl-4 text-right font-bold text-ink">Total</td>
+                <td className="py-2 pl-8 pr-4 text-right font-bold tabular-nums text-ink">{usd(total)}</td>
+              </tr>
+              <tr className="bg-[#f3f1ec]">
+                <td className="py-3 pl-4 text-right font-bold text-ink">Balance Due</td>
+                <td className="py-3 pl-8 pr-4 text-right font-bold tabular-nums text-ink">{usd(balanceDue)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        {/* Notes / Terms / Bank */}
+        <div className="mt-10 space-y-5 border-t border-line pt-6 text-[12px]">
+          {INVOICE_NOTES && (
+            <div>
+              <div className="font-semibold text-ink">Notes</div>
+              <p className="mt-1 text-muted">{INVOICE_NOTES}</p>
+            </div>
+          )}
+          {/* Payment Options — accepted methods, mirroring the reference invoice. Each chip links to
+              this online invoice (absolute URL) so it stays clickable from a downloaded PDF, landing
+              on the page whose action bar runs the real payment flow (the "Pay" action above). */}
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="font-semibold text-ink">Payment Options</span>
+            <span className="inline-flex items-center divide-x divide-line overflow-hidden rounded-md border border-line bg-[#fafaf7] text-[11.5px] font-medium text-ink-soft">
+              {[
+                { label: "PayPal", icon: "🅿️" },
+                { label: "Credit / debit card", icon: "💳" },
+                { label: "Bank transfer", icon: "🏦" },
+              ].map((m) => (
+                <a
+                  key={m.label}
+                  href={invoiceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 transition-colors hover:bg-[#f1efe9] hover:text-ink"
+                >
+                  <span>{m.icon}</span>
+                  {m.label}
+                </a>
+              ))}
+            </span>
+          </div>
+          {INVOICE_CONDITIONS.length > 0 && (
+            <div>
+              <div className="font-semibold text-ink">Terms &amp; Conditions</div>
+              <ol className="mt-1 list-inside list-decimal text-muted">
+                {INVOICE_CONDITIONS.map((c, i) => (
+                  <li key={i}>{c}</li>
+                ))}
+              </ol>
+            </div>
+          )}
+          {bank.bankName && (
+            <div>
+              <div className="font-semibold text-ink">Bank Transfer</div>
+              <div className="mt-1 grid grid-cols-2 gap-x-8 gap-y-0.5 text-muted sm:max-w-md">
+                {bank.accountName && <Field label="Account holder" value={bank.accountName} />}
+                {bank.bankName && <Field label="Bank" value={bank.bankName} />}
+                {bank.accountNumber && <Field label="Account №" value={bank.accountNumber} />}
+                {bank.routingNumber && <Field label="Routing / ABA" value={bank.routingNumber} />}
+                {bank.swift && <Field label="SWIFT / BIC" value={bank.swift} />}
+              </div>
+              {bank.instructions && <p className="mt-1 text-muted">{bank.instructions}</p>}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="contents">
+      <span>{label}</span>
+      <span className="text-ink">{value}</span>
+    </div>
+  );
+}

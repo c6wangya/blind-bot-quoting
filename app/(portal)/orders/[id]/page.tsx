@@ -5,7 +5,7 @@ import { BackLink, Badge, Card, cx, PageHeader, StatusBadge } from "@/components
 import { OrderPayment } from "@/components/OrderPayment";
 import { canAccessOwned, isAdmin, requireUserId, userClient } from "@/lib/auth/user";
 import { admin } from "@/lib/supabase/admin";
-import { getBankInfo, getLine, getOrder, getOrderOwnerId, getProduct, loadCatalog } from "@/lib/db";
+import { getBankInfo, getLine, getOrder, getOrderOwnerId, getOrderShipping, getProduct, loadCatalog } from "@/lib/db";
 import { describeConfig } from "@/lib/describe";
 import { isAccessoryConfig } from "@/lib/types";
 import { ACTOR_LABEL, fmtDate, fmtDateTime, ORDER_STATUS_META, usd } from "@/lib/format";
@@ -21,6 +21,14 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
 
   const catalog = await loadCatalog(); // for accessory line images / names
   const stageIdx = ORDER_STATUSES.indexOf(order.status as (typeof ORDER_STATUSES)[number]);
+
+  // Snapshotted shipping (mode + amount baked into order.amount at submit). Breakdown:
+  // goods net = amount − shipping; subtotal − goods net = discount.
+  const ship = await getOrderShipping(order.id);
+  const orderTotal = order.amount ?? order.quote.total;
+  const goodsNet = Math.round((orderTotal - ship.shipping) * 100) / 100;
+  const discountAmt = Math.round((order.quote.total - goodsNet) * 100) / 100;
+  const showBreakdown = order.discountPct > 0 || ship.mode === "ground";
 
   // Payment layer (retailer view; admin confirmation lives in the Supplier Console)
   const bankInfo = order.paymentMethod === "bank_transfer" ? await getBankInfo() : null;
@@ -191,25 +199,36 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                 );
               })}
             </ul>
-            {order.discountPct > 0 ? (
+            {showBreakdown ? (
               <div className="space-y-1.5 border-t border-line bg-[#fafaf7] px-5 py-3.5 text-sm">
                 <div className="flex justify-between text-muted">
                   <span>Subtotal · FOB</span>
                   <span className="tabular-nums">{usd(order.quote.total)}</span>
                 </div>
-                <div className="flex justify-between text-brass">
-                  <span>Discount ({order.discountPct}%)</span>
-                  <span className="tabular-nums">−{usd(Math.round((order.quote.total - (order.amount ?? order.quote.total)) * 100) / 100)}</span>
+                {order.discountPct > 0 && (
+                  <div className="flex justify-between text-brass">
+                    <span>Discount ({order.discountPct}%)</span>
+                    <span className="tabular-nums">−{usd(discountAmt)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between text-muted">
+                  <span>
+                    Shipping
+                    {ship.mode === "ground" && <span className="ml-1 text-muted/80">· {ship.expedite ? "Expedite" : "Ground"}</span>}
+                  </span>
+                  <span className="tabular-nums">
+                    {ship.mode !== "ground" ? "FOB — you arrange" : ship.shipping > 0 ? `+${usd(ship.shipping)}` : "Free"}
+                  </span>
                 </div>
                 <div className="flex justify-between pt-0.5 font-semibold text-ink">
-                  <span>Total · FOB</span>
-                  <span className="tabular-nums">{usd(order.amount ?? order.quote.total)}</span>
+                  <span>Total{ship.mode !== "ground" ? " · FOB" : ""}</span>
+                  <span className="tabular-nums">{usd(orderTotal)}</span>
                 </div>
               </div>
             ) : (
               <div className="flex justify-between border-t border-line bg-[#fafaf7] px-5 py-3.5 text-sm">
                 <span className="font-semibold text-ink">Total · FOB</span>
-                <span className="font-semibold tabular-nums text-ink">{usd(order.amount ?? order.quote.total)}</span>
+                <span className="font-semibold tabular-nums text-ink">{usd(orderTotal)}</span>
               </div>
             )}
           </Card>

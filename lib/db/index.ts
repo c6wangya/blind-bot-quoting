@@ -16,6 +16,7 @@ export * from "./profile";
 export * from "./ownership";
 export * from "./pricing";
 export * from "./quotes";
+export * from "./invoices";
 export * from "./orders";
 export * from "./tags";
 export * from "./motors";

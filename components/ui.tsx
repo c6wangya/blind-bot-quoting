@@ -142,15 +142,21 @@ export function LinkButton({
   variant = "primary",
   children,
   className,
+  target,
+  rel,
 }: {
   href: string;
   variant?: "primary" | "secondary";
   children: React.ReactNode;
   className?: string;
+  target?: string;
+  rel?: string;
 }) {
   return (
     <Link
       href={href}
+      target={target}
+      rel={rel ?? (target === "_blank" ? "noopener noreferrer" : undefined)}
       className={cx(
         "inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brass/50 focus-visible:ring-offset-1",
         variant === "primary"

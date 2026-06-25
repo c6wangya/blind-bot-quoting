@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import Sidebar from "./Sidebar";
 import { ToastProvider } from "./Toast";
+import { type RetailerOption } from "./ActingAsSwitcher";
 import { BRAND } from "@/lib/brand";
 
 /**
@@ -20,6 +21,8 @@ export default function PortalShell({
   accountSub,
   signedIn,
   isAdmin,
+  retailers,
+  actingAsId,
   children,
 }: {
   draftCount: number;
@@ -29,6 +32,8 @@ export default function PortalShell({
   accountSub: string;
   signedIn: boolean;
   isAdmin: boolean;
+  retailers: RetailerOption[];
+  actingAsId: string | null;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -101,6 +106,8 @@ export default function PortalShell({
         accountSub={accountSub}
         signedIn={signedIn}
         isAdmin={isAdmin}
+        retailers={retailers}
+        actingAsId={actingAsId}
         open={open}
         onClose={close}
       />

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { DeleteDraftButton, RemoveItemButton, SubmitPreOrderButton } from "@/components/QuoteActions";
 import { QuoteDetailsDrawer } from "@/components/QuoteDetailsDrawer";
+import { QuoteShippingPicker } from "@/components/QuoteShippingPicker";
 import { LineQtyEditor } from "@/components/LineQtyEditor";
 import { Swatch } from "@/components/renders";
 import { BackLink, Badge, Card, EmptyState, LinkButton, PageHeader } from "@/components/ui";
@@ -15,10 +16,14 @@ import {
   getProduct,
   getQuote,
   getQuoteOwnerId,
+  getQuoteExpedite,
   getRetailerDiscount,
+  getShippingWaivers,
   getUnreadCount,
   loadCatalog,
 } from "@/lib/db";
+import { computeShipping } from "@/lib/shipping";
+import { canInvoiceQuote } from "@/lib/invoice";
 import { describeConfig } from "@/lib/describe";
 import { fmtDate, usd } from "@/lib/format";
 import { isAccessoryConfig } from "@/lib/types";
@@ -58,6 +63,13 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
   const order =
     quote.status === "converted" ? await getOrderRefByQuote(quote.id, sb) : undefined;
   const catalog = await loadCatalog(); // for accessory line images / names
+
+  // Shipping: each motor's mode (FOB/Ground) is set per-model by an admin; the customer only controls
+  // expedite. Priced per line, live against the net goods total (server is the source of truth).
+  const expedite = await getQuoteExpedite(quote.id, sb);
+  const waivers = await getShippingWaivers(ownerId);
+  const ship = computeShipping(quote.items, catalog, expedite, netTotal, waivers);
+  const grandTotal = Math.round((netTotal + ship.amount) * 100) / 100;
 
   // Retailer-facing "message us about this quote" bubble. Admins reply from the full inbox at
   // /messages (where the quote chip carries the context), so the launcher is retailer-only.
@@ -272,8 +284,8 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
                         <div className="mt-1 text-[11.5px] italic text-muted">Note: {desc.note}</div>
                       )}
                       <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                        {desc.options.map((o) => (
-                          <span key={o} className="rounded-md bg-[#f1efe9] px-2 py-0.5 text-[11px] font-medium text-ink-soft">
+                        {desc.options.map((o, i) => (
+                          <span key={`${o}-${i}`} className="rounded-md bg-[#f1efe9] px-2 py-0.5 text-[11px] font-medium text-ink-soft">
                             {o}
                           </span>
                         ))}
@@ -320,28 +332,57 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
                       {[...new Set(quote.items.map((i) => `v${i.computation.pricingVersion}`))].join(", ")}
                     </dd>
                   </div>
+                  <div className="flex justify-between border-t border-line pt-2.5">
+                    <dt className="text-muted">Subtotal · FOB</dt>
+                    <dd className="font-medium tabular-nums text-ink-soft">{usd(quote.total)}</dd>
+                  </div>
                   {discountPct > 0 && (
-                    <>
-                      <div className="flex justify-between border-t border-line pt-2.5">
-                        <dt className="text-muted">Subtotal · FOB</dt>
-                        <dd className="font-medium tabular-nums text-ink-soft">{usd(quote.total)}</dd>
-                      </div>
-                      <div className="flex justify-between text-brass">
-                        <dt>Discount ({discountPct}%)</dt>
-                        <dd className="font-medium tabular-nums">−{usd(discountAmt)}</dd>
-                      </div>
-                    </>
+                    <div className="flex justify-between text-brass">
+                      <dt>Discount ({discountPct}%)</dt>
+                      <dd className="font-medium tabular-nums">−{usd(discountAmt)}</dd>
+                    </div>
+                  )}
+                  <div className="flex justify-between">
+                    <dt className="text-muted">
+                      Shipping
+                      {ship.hasGround && (
+                        <span className="ml-1 text-muted/80">· {ship.expedite ? "Expedite" : "Ground"}</span>
+                      )}
+                    </dt>
+                    <dd className="font-medium tabular-nums text-ink-soft">
+                      {!ship.hasGround ? (
+                        <span className="text-muted">FOB — you arrange</span>
+                      ) : ship.amount > 0 ? (
+                        `+${usd(ship.amount)}`
+                      ) : ship.waiver === "retailer" ? (
+                        <span className="text-emerald-600">Waived</span>
+                      ) : ship.waiver === "threshold" ? (
+                        <span className="text-emerald-600">Free (over $1,000)</span>
+                      ) : (
+                        usd(0)
+                      )}
+                    </dd>
+                  </div>
+                  {ship.hasGround && ship.leadDays != null && (
+                    <div className="-mt-1 text-[11px] text-muted">
+                      US-made items · est. arrival ≈ {ship.leadDays} business days
+                      {ship.hasFob && " · China-made items ship FOB (freight arranged by you)"}
+                    </div>
                   )}
                   <div className="flex justify-between border-t border-line pt-2.5 text-[15px]">
-                    <dt className="font-semibold text-ink">Total · FOB</dt>
-                    <dd className="font-semibold tabular-nums text-ink">{usd(netTotal)}</dd>
+                    <dt className="font-semibold text-ink">Total{!ship.hasGround ? " · FOB" : ""}</dt>
+                    <dd className="font-semibold tabular-nums text-ink">{usd(grandTotal)}</dd>
                   </div>
                 </dl>
               </Card>
 
+              {quote.status === "draft" && ship.hasGround && (
+                <QuoteShippingPicker quoteId={quote.id} expedite={expedite} />
+              )}
+
               {quote.status === "draft" ? (
                 <>
-                  <SubmitPreOrderButton quoteId={quote.id} total={usd(netTotal)} />
+                  <SubmitPreOrderButton quoteId={quote.id} total={usd(grandTotal)} />
                   <DeleteDraftButton quoteId={quote.id} />
                 </>
               ) : (
@@ -350,6 +391,19 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
                     View pre-order {order.ref} →
                   </LinkButton>
                 )
+              )}
+              {/* Access already gated by canAccessOwned above, so "is this the viewer's own quote"
+                  reduces to "is it an owned (non-demo) quote" — pass the owner itself (works for
+                  admins acting on behalf of a retailer too, where userId is the admin, not the owner). */}
+              {canInvoiceQuote(quote, ownerId ?? "") && (
+                <LinkButton
+                  href={`/invoices/${quote.id}`}
+                  variant="secondary"
+                  target="_blank"
+                  className="w-full justify-center"
+                >
+                  Invoice / PDF
+                </LinkButton>
               )}
             </div>
           </div>

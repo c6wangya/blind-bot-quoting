@@ -1,7 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { canAccessOwned, getCurrentUserId, isAdmin, userClient } from "@/lib/auth/user";
-import { getOrderOwnerId, getQuoteOwnerId } from "@/lib/db";
+import { admin } from "@/lib/supabase/admin";
+import { getOrderOwnerId, getOrderQuoteId, getQuoteOwnerId } from "@/lib/db";
+import { verifyInvoiceToken } from "@/lib/invoice-token";
 
 /**
  * Shared ownership gate for `/[id]` API routes. Resolves the route's `id`, requires a
@@ -34,6 +36,52 @@ export const requireQuoteAccess = (ctx: { params: Promise<{ id: string }> }) =>
 
 export const requireOrderAccess = (ctx: { params: Promise<{ id: string }> }) =>
   requireAccess(ctx, getOrderOwnerId);
+
+/** Access granted either by login+ownership OR by a valid pay-by-link invoice token. `viaToken`
+ *  flags the anonymous path (no uid, service_role client). */
+export type TokenAccess = { id: number; sb: SupabaseClient; viaToken: boolean };
+
+/** The invoice share token from the request — header (client fetch) or `?t=` (direct navigation). */
+function invoiceTokenFrom(req: Request): string | null {
+  const h = req.headers.get("x-invoice-token");
+  if (h) return h;
+  try {
+    return new URL(req.url).searchParams.get("t");
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Gate a `/[id]` payment route, allowing EITHER the owner (login + RLS) OR an anonymous holder of a
+ * valid invoice token. `ownerLookup` resolves the route id's owner; `quoteIdLookup` maps the route id
+ * to the quote the token is bound to (identity for quote routes, order→quote for order routes).
+ */
+async function requireAccessOrInvoiceToken(
+  req: Request,
+  ctx: { params: Promise<{ id: string }> },
+  ownerLookup: (id: number) => Promise<string | null | undefined>,
+  quoteIdLookup: (id: number) => Promise<number | null>
+): Promise<TokenAccess | NextResponse> {
+  const id = Number((await ctx.params).id);
+  if (!Number.isInteger(id)) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  const uid = await getCurrentUserId();
+  if (uid && (await canAccessOwned(uid, await ownerLookup(id)))) {
+    return { id, sb: await userClient(), viaToken: false };
+  }
+  const qid = await quoteIdLookup(id);
+  if (qid != null && verifyInvoiceToken(qid, invoiceTokenFrom(req))) {
+    return { id, sb: admin(), viaToken: true }; // anonymous pay-by-link — amount is server-computed
+  }
+  return NextResponse.json({ error: uid ? "Not found" : "Unauthorized" }, { status: uid ? 404 : 401 });
+}
+
+export const requireQuoteAccessOrToken = (req: Request, ctx: { params: Promise<{ id: string }> }) =>
+  requireAccessOrInvoiceToken(req, ctx, getQuoteOwnerId, async (id) => id);
+
+export const requireOrderAccessOrToken = (req: Request, ctx: { params: Promise<{ id: string }> }) =>
+  requireAccessOrInvoiceToken(req, ctx, getOrderOwnerId, getOrderQuoteId);
 
 /**
  * Admin-only gate for back-office API routes. Returns the RLS-scoped client on success

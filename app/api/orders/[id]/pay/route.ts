@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireOrderAccess } from "@/lib/auth/api";
+import { requireOrderAccessOrToken } from "@/lib/auth/api";
 import { getOrder } from "@/lib/db";
 import { createCheckoutSession } from "@/lib/payments/stripe";
 import { createPaypalOrder } from "@/lib/payments/paypal";
@@ -7,7 +7,7 @@ import { publicOrigin } from "@/lib/site-url";
 
 /** Start (or retry) a gateway payment (Stripe or PayPal) for an existing awaiting order. Returns { url }. */
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
-  const gate = await requireOrderAccess(ctx);
+  const gate = await requireOrderAccessOrToken(req, ctx);
   if (gate instanceof NextResponse) return gate;
   const { id, sb } = gate;
   const order = await getOrder(id, sb);

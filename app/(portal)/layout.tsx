@@ -1,22 +1,37 @@
 import PortalShell from "@/components/PortalShell";
-import { getCurrentUserId, userClient } from "@/lib/auth/user";
-import { getAdminPendingCount, getDraftQuote, getProfile, getQuote, getUnreadCount } from "@/lib/db";
+import { userClient } from "@/lib/auth/user";
+import { getActingContext } from "@/lib/auth/acting-as";
+import { admin } from "@/lib/supabase/admin";
+import {
+  getAdminPendingCount,
+  getDraftQuote,
+  getProfile,
+  getQuote,
+  getUnreadCount,
+  listRetailers,
+} from "@/lib/db";
 
 // Every portal page reads live DB state; opt this subtree out of static prerendering.
 export const dynamic = "force-dynamic";
 
 export default async function PortalLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  const ownerId = await getCurrentUserId();
-  const sb = ownerId ? await userClient() : undefined;
-  const draft = ownerId ? await getDraftQuote(ownerId, sb) : undefined;
+  const ctx = await getActingContext();
+  const realUid = ctx.realUid;
+  // While acting, the sidebar draft + quote views reflect the acted-for retailer; service_role
+  // bypasses RLS for the cross-owner reads. Otherwise the retailer's own RLS-scoped client.
+  const effectiveOwner = ctx.actingAsId ?? realUid;
+  const sb = realUid ? (ctx.actingAsId ? admin() : await userClient()) : undefined;
+  const draft = effectiveOwner ? await getDraftQuote(effectiveOwner, sb) : undefined;
   const draftCount = draft ? (await getQuote(draft.id, sb))?.items.length ?? 0 : 0;
 
-  const profile = ownerId ? await getProfile(ownerId) : null;
+  // Account chrome always shows the REAL signed-in user — acting-on-behalf is not impersonation.
+  const profile = realUid ? await getProfile(realUid) : null;
   const accountName = profile?.company || profile?.email || "Guest";
   const accountSub = profile ? (profile.company ? profile.email : "Retailer account") : "Not signed in";
-  const isAdmin = profile?.role === "admin";
-  const unreadCount = ownerId ? await getUnreadCount(ownerId, isAdmin) : 0;
+  const isAdmin = ctx.isAdmin;
+  const unreadCount = realUid ? await getUnreadCount(realUid, isAdmin) : 0;
   const supplierPendingCount = isAdmin ? await getAdminPendingCount() : 0;
+  const retailers = isAdmin ? await listRetailers() : [];
 
   return (
     <PortalShell
@@ -25,8 +40,10 @@ export default async function PortalLayout({ children }: Readonly<{ children: Re
       supplierPendingCount={supplierPendingCount}
       accountName={accountName}
       accountSub={accountSub}
-      signedIn={!!ownerId}
+      signedIn={!!realUid}
       isAdmin={isAdmin}
+      retailers={retailers}
+      actingAsId={ctx.actingAsId}
     >
       {children}
     </PortalShell>

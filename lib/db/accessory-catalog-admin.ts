@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { admin } from "@/lib/supabase/admin";
 import type { AccessoryCategory, AccessoryModel } from "@/lib/accessories-data";
 import type { AccessoryBrand } from "./accessory-catalog";
+import { round2 } from "./internal";
 
 // THE-772 Phase 2b — admin CRUD for the accessory catalog (brand → category → model).
 // image_url is set either by direct URL or via upload (POST /api/motors/catalog/image).
@@ -202,6 +203,7 @@ export async function updateModel(
   patch: {
     categoryId?: string; sku?: string; name?: string; description?: string;
     price?: number | null; image?: string; active?: boolean; sort?: number; moq?: number;
+    shipGround?: number; shipExpedite?: number; shipMode?: "fob" | "ground";
   },
   sb: SupabaseClient = admin()
 ): Promise<void> {
@@ -215,9 +217,22 @@ export async function updateModel(
   if (patch.active !== undefined) cols.active = patch.active;
   if (patch.sort !== undefined) cols.sort = patch.sort;
   if (patch.moq !== undefined) cols.moq = Math.max(0, Math.round(patch.moq));
+  if (patch.shipGround !== undefined) cols.ship_ground = Math.max(0, round2(patch.shipGround));
+  if (patch.shipExpedite !== undefined) cols.ship_expedite = Math.max(0, round2(patch.shipExpedite));
+  if (patch.shipMode !== undefined) cols.ship_mode = patch.shipMode === "ground" ? "ground" : "fob";
   if (Object.keys(cols).length === 0) return;
   const { error } = await sb.from("accessory_models").update(cols).eq("id", id);
   if (error) throw error;
+}
+
+/** Batch-set per-motor shipping rates + mode ("Save all" on the Shipping tab). */
+export async function setMotorShippingBatch(
+  rates: { modelId: string; ground: number; expedite: number; mode: "fob" | "ground" }[],
+  sb: SupabaseClient = admin()
+): Promise<void> {
+  for (const r of rates) {
+    await updateModel(r.modelId, { shipGround: r.ground, shipExpedite: r.expedite, shipMode: r.mode }, sb);
+  }
 }
 
 export type DeleteModelResult =

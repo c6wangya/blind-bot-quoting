@@ -61,7 +61,17 @@ const PAY_METHODS: { id: PayMethod; label: string; note: string; enabled: boolea
   { id: "bank_transfer", label: "Bank transfer", note: "We confirm once received", enabled: true },
 ];
 
-export function SubmitPreOrderButton({ quoteId, total }: { quoteId: number; total: string }) {
+export function SubmitPreOrderButton({
+  quoteId,
+  total,
+  token,
+}: {
+  quoteId: number;
+  total: string;
+  /** Pay-by-link token — when set, this is the public invoice (no portal session), so we authorize
+   *  the submit with the token and stay on the invoice page afterwards instead of the portal order. */
+  token?: string;
+}) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -74,16 +84,20 @@ export function SubmitPreOrderButton({ quoteId, total }: { quoteId: number; tota
     try {
       const r = await fetch(`/api/quotes/${quoteId}/submit`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(token ? { "x-invoice-token": token } : {}) },
         body: JSON.stringify({ method }),
       });
       const data = await r.json();
       if (!r.ok) throw new Error(data.error ?? "Submission failed");
       if (data.redirect) {
-        window.location.href = data.redirect; // gateway hand-off (Stripe/PayPal — later)
+        window.location.href = data.redirect; // gateway hand-off (Stripe/PayPal)
         return;
       }
-      router.push(`/orders/${data.order.id}`);
+      // Bank transfer: no gateway. A public payer can't open the portal order page, so just refresh
+      // the invoice (now converted → shows bank details + awaiting status); the owner goes to the
+      // full order page as before.
+      if (token) router.refresh();
+      else router.push(`/orders/${data.order.id}`);
       router.refresh();
     } catch (e) {
       setError((e as Error).message);

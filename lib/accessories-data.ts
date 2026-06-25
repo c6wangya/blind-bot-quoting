@@ -28,6 +28,9 @@ export interface AccessoryModel {
   price: number | null; // USD; null = "included" / no standalone price
   imageUrl?: string;
   moq?: number; // minimum order quantity; 0/undefined = no minimum
+  shipGround?: number; // USD/unit US ground shipping; 0/undefined = free (e.g. crown/drive parts)
+  shipExpedite?: number; // USD/unit expedite shipping; 0/undefined = free
+  shipMode?: "fob" | "ground"; // where it's made: fob = China (no domestic freight), ground = US
 }
 
 export const ACCESSORY_BRAND = { id: "a-ok", name: "A-OK", tagline: "Window covering motors & controls" };
