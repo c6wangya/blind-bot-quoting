@@ -1,5 +1,5 @@
 import PortalShell from "@/components/PortalShell";
-import { userClient } from "@/lib/auth/user";
+import { mustChangePassword, userClient } from "@/lib/auth/user";
 import { getActingContext } from "@/lib/auth/acting-as";
 import { admin } from "@/lib/supabase/admin";
 import {
@@ -32,6 +32,7 @@ export default async function PortalLayout({ children }: Readonly<{ children: Re
   const unreadCount = realUid ? await getUnreadCount(realUid, isAdmin) : 0;
   const supplierPendingCount = isAdmin ? await getAdminPendingCount() : 0;
   const retailers = isAdmin ? await listRetailers() : [];
+  const nudgePassword = realUid ? await mustChangePassword() : false;
 
   return (
     <PortalShell
@@ -44,6 +45,7 @@ export default async function PortalLayout({ children }: Readonly<{ children: Re
       isAdmin={isAdmin}
       retailers={retailers}
       actingAsId={ctx.actingAsId}
+      nudgePassword={nudgePassword}
     >
       {children}
     </PortalShell>

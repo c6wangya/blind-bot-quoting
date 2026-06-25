@@ -222,13 +222,32 @@ export default function Sidebar({
 
       <div className="border-t border-white/10 px-5 py-4">
         <div className="flex items-center gap-3">
-          <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#5b6b8f] to-[#3a4763] text-xs font-semibold">
-            {initials}
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-[12.5px] font-medium">{accountName}</div>
-            <div className="truncate text-[10.5px] text-white/40">{accountSub}</div>
-          </div>
+          {signedIn ? (
+            <Link
+              href="/account"
+              onClick={onClose}
+              title="Account settings"
+              className="flex min-w-0 flex-1 items-center gap-3 rounded-lg -mx-1 px-1 py-0.5 transition-colors hover:bg-white/10"
+            >
+              <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#5b6b8f] to-[#3a4763] text-xs font-semibold">
+                {initials}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[12.5px] font-medium">{accountName}</div>
+                <div className="truncate text-[10.5px] text-white/40">{accountSub}</div>
+              </div>
+            </Link>
+          ) : (
+            <>
+              <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#5b6b8f] to-[#3a4763] text-xs font-semibold">
+                {initials}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[12.5px] font-medium">{accountName}</div>
+                <div className="truncate text-[10.5px] text-white/40">{accountSub}</div>
+              </div>
+            </>
+          )}
           {signedIn && (
             <button
               type="button"

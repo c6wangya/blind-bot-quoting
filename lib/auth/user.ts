@@ -31,6 +31,20 @@ export async function requireUserId(next: string): Promise<string> {
   return id;
 }
 
+/**
+ * Whether the signed-in user is still on the migration's initial password and should be nudged
+ * (not forced) to change it. Backed by `auth.users.user_metadata.must_change_password`, cleared
+ * when they set a new password via the Account page.
+ */
+export async function mustChangePassword(): Promise<boolean> {
+  const supabase = await createClient();
+  if (!supabase) return false;
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  return user?.user_metadata?.must_change_password === true;
+}
+
 /** True if the user's profile role is admin. */
 export async function isAdmin(userId: string): Promise<boolean> {
   const profile = await getProfile(userId);

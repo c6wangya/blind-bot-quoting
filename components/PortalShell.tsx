@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import Sidebar from "./Sidebar";
 import { ToastProvider } from "./Toast";
+import { PasswordPromptModal } from "./PasswordPromptModal";
 import { type RetailerOption } from "./ActingAsSwitcher";
 import { BRAND } from "@/lib/brand";
 
@@ -23,6 +24,7 @@ export default function PortalShell({
   isAdmin,
   retailers,
   actingAsId,
+  nudgePassword,
   children,
 }: {
   draftCount: number;
@@ -34,6 +36,7 @@ export default function PortalShell({
   isAdmin: boolean;
   retailers: RetailerOption[];
   actingAsId: string | null;
+  nudgePassword: boolean;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -114,7 +117,10 @@ export default function PortalShell({
 
       <main className="min-h-screen pt-14 md:ml-60 md:pt-0">
         <div className="mx-auto max-w-6xl px-5 py-8 md:px-8 md:py-10">
-          <ToastProvider>{children}</ToastProvider>
+          <ToastProvider>
+            {nudgePassword && <PasswordPromptModal />}
+            {children}
+          </ToastProvider>
         </div>
       </main>
     </>
