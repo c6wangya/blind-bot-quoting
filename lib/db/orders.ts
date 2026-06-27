@@ -12,12 +12,17 @@ import { getVariationItemModelMap } from "./variations";
 import { computeShipping, DEFAULT_SHIPPING, type MotorRate, type ShippingMode, type ShippingState } from "@/lib/shipping";
 import { isAccessoryConfig } from "@/lib/types";
 
-/** Orders needing admin action: new submissions to acknowledge + bank transfers to confirm. */
+/**
+ * Orders needing admin action: product orders awaiting acknowledgement, accessory orders awaiting
+ * shipment (they auto-acknowledge on payment), and bank transfers to confirm.
+ */
 export async function getAdminPendingCount(sb: SupabaseClient = admin()): Promise<number> {
   const { count } = await sb
     .from("orders")
     .select("id", { count: "exact", head: true })
-    .or("status.eq.submitted,and(status.eq.awaiting_payment,payment_method.eq.bank_transfer)");
+    .or(
+      "status.eq.submitted,and(status.eq.acknowledged,accessory_only.eq.true),and(status.eq.awaiting_payment,payment_method.eq.bank_transfer)"
+    );
   return count ?? 0;
 }
 
@@ -102,10 +107,13 @@ export async function submitPreOrder(
     }
     const expediteFee = exp.status === "quoted" ? round2(exp.fee ?? 0) : 0;
     const amount = round2(net + ship.amount + expediteFee);
+    // Accessory-only orders use the collapsed 3-step flow (auto-ack + manual tracking); any product
+    // line keeps the full 6-step pipeline.
+    const accessoryOnly = quote.items.every((i) => isAccessoryConfig(i.config));
     const order = await insertWithRef("orders", "PO", async (ref) => {
       const { data, error } = await sb
         .from("orders")
-        .insert({ ref, quote_id: quoteId, status: "awaiting_payment", payment_method: paymentMethod, payment_status: "pending", amount, discount_pct: discountPct })
+        .insert({ ref, quote_id: quoteId, status: "awaiting_payment", payment_method: paymentMethod, payment_status: "pending", amount, discount_pct: discountPct, accessory_only: accessoryOnly })
         .select(ORDER_COLS)
         .single();
       if (error) throw error;
@@ -214,8 +222,18 @@ export async function expireStaleAwaitingOrders(
   return expired;
 }
 
+const rand = (len: number) => {
+  let s = "";
+  for (let i = 0; i < len; i++) s += Math.floor(Math.random() * 10);
+  return s;
+};
+
 /**
- * Mark an order paid and move it into the pipeline (`submitted`). Idempotent: a no-op if the
+ * Mark an order paid and move it into the pipeline (`submitted`). For accessory-only orders the
+ * payment ALSO auto-completes the `acknowledged` step (the collapsed 3-step flow): we record the
+ * `submitted` milestone, then immediately issue the supplier order no. + ETA and land on
+ * `acknowledged` — the supplier's only remaining step is shipping. Product orders stay at
+ * `submitted` and follow the full 6-step pipeline (manual acknowledge). Idempotent: a no-op if the
  * order is no longer awaiting payment. `proofPath` records a bank-transfer receipt.
  */
 export async function markOrderPaid(
@@ -223,22 +241,50 @@ export async function markOrderPaid(
   opts: { ref?: string | null; proofPath?: string | null } = {},
   sb: SupabaseClient = admin()
 ): Promise<void> {
-  const { data: cur } = await sb.from("orders").select("status, payment_method").eq("id", orderId).maybeSingle();
+  const { data: cur } = await sb
+    .from("orders")
+    .select("status, payment_method, accessory_only")
+    .eq("id", orderId)
+    .maybeSingle();
   if (!cur) throw new Error("Order not found");
-  if ((cur as { status: string }).status !== "awaiting_payment") return; // already paid / in pipeline
+  const row = cur as { status: string; payment_method: PaymentMethod | null; accessory_only: boolean | null };
+  if (row.status !== "awaiting_payment") return; // already paid / in pipeline
   const now = new Date().toISOString();
+  const accessoryOnly = row.accessory_only === true;
   const patch: Record<string, unknown> = { payment_status: "paid", paid_at: now, status: "submitted", updated_at: now };
   if (opts.ref !== undefined) patch.payment_ref = opts.ref;
   if (opts.proofPath !== undefined) patch.payment_proof_path = opts.proofPath;
+
+  const method = row.payment_method;
+  const events: Record<string, unknown>[] = [
+    {
+      order_id: orderId,
+      status: "submitted",
+      actor: method === "bank_transfer" ? "system" : "retailer",
+      note: `Payment received (${method ? PAYMENT_LABEL[method] : "payment"}). Pre-order submitted to supplier.`,
+    },
+  ];
+
+  // Accessory-only: auto-acknowledge (issue supplier order no. + ETA) so the only manual step is shipping.
+  if (accessoryOnly) {
+    const supplierOrderNo = `SZF-${rand(5)}`;
+    const eta = new Date();
+    eta.setDate(eta.getDate() + 21);
+    const etaDate = eta.toISOString().slice(0, 10);
+    patch.status = "acknowledged";
+    patch.supplier_order_no = supplierOrderNo;
+    patch.eta_date = etaDate;
+    events.push({
+      order_id: orderId,
+      status: "acknowledged",
+      actor: "supplier",
+      note: `Supplier confirmed order — supplier order no. ${supplierOrderNo}. ETA ${etaDate}.`,
+    });
+  }
+
   const { error } = await sb.from("orders").update(patch).eq("id", orderId);
   if (error) throw error;
-  const method = (cur as { payment_method: PaymentMethod | null }).payment_method;
-  await sb.from("order_events").insert({
-    order_id: orderId,
-    status: "submitted",
-    actor: method === "bank_transfer" ? "system" : "retailer",
-    note: `Payment received (${method ? PAYMENT_LABEL[method] : "payment"}). Pre-order submitted to supplier.`,
-  });
+  await sb.from("order_events").insert(events);
 }
 
 /** Flag a failed gateway payment; the order stays `awaiting_payment` so the retailer can retry. */
@@ -388,7 +434,7 @@ export async function changeOrderPaymentMethod(
 
 export async function updateOrder(
   id: number,
-  patch: Partial<Pick<OrderRow, "status" | "supplierOrderNo" | "trackingNo" | "carrier" | "etaDate">>,
+  patch: Partial<Pick<OrderRow, "status" | "supplierOrderNo" | "trackingNo" | "trackingNos" | "carrier" | "etaDate">>,
   event: { status: OrderStatus | "note"; note: string; actor: OrderEventRow["actor"] },
   sb: SupabaseClient = admin()
 ): Promise<OrderRow> {
@@ -396,6 +442,7 @@ export async function updateOrder(
   if (patch.status !== undefined) dbPatch.status = patch.status;
   if (patch.supplierOrderNo !== undefined) dbPatch.supplier_order_no = patch.supplierOrderNo;
   if (patch.trackingNo !== undefined) dbPatch.tracking_no = patch.trackingNo;
+  if (patch.trackingNos !== undefined) dbPatch.tracking_nos = patch.trackingNos;
   if (patch.carrier !== undefined) dbPatch.carrier = patch.carrier;
   if (patch.etaDate !== undefined) dbPatch.eta_date = patch.etaDate;
 

@@ -62,7 +62,7 @@ export default async function SupplierConsolePage({
               <div className="mt-1 truncate text-[13px] text-muted">{o.retailer}{o.projectName ? ` · ${o.projectName}` : ""}</div>
               <div className="mt-2 flex items-center justify-between gap-3">
                 <span className="text-[13px] font-semibold tabular-nums text-ink">{usd(o.amount ?? o.total)}</span>
-                <SupplierAdvanceButton orderId={o.id} status={o.status} paymentMethod={o.paymentMethod} paymentStatus={o.paymentStatus} />
+                <SupplierAdvanceButton orderId={o.id} status={o.status} accessoryOnly={o.accessoryOnly} paymentMethod={o.paymentMethod} paymentStatus={o.paymentStatus} />
               </div>
             </div>
           ))}
@@ -106,7 +106,7 @@ export default async function SupplierConsolePage({
                   <td className="px-5 py-3.5 text-right font-semibold tabular-nums text-ink">{usd(o.amount ?? o.total)}</td>
                   <td className="px-5 py-3.5 text-right text-xs text-muted">{fmtDate(o.createdAt)}</td>
                   <td className="px-5 py-3.5 text-right">
-                    <SupplierAdvanceButton orderId={o.id} status={o.status} paymentMethod={o.paymentMethod} paymentStatus={o.paymentStatus} />
+                    <SupplierAdvanceButton orderId={o.id} status={o.status} accessoryOnly={o.accessoryOnly} paymentMethod={o.paymentMethod} paymentStatus={o.paymentStatus} />
                   </td>
                 </tr>
               ))}

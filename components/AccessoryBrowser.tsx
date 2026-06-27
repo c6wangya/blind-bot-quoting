@@ -211,10 +211,29 @@ function VariationPanel({
     return m;
   }, [avail]);
 
-  // Single-select per type (one item per CROWN / DRIVE …). "" = none. Seeded from admin defaults.
+  // Single-select per type (one item per CROWN / DRIVE …). "" = none. Initial state defaults to
+  // one pick per type — the admin default if set, else the first in-stock, non-conflicting item.
+  // Not mandatory: the user can Clear any of them.
   const [pick, setPick] = useState<Record<string, string>>(() => {
     const p: Record<string, string> = {};
-    for (const t of avail) p[t.id] = t.items.find((i) => model.defaultItemIds.includes(i.id))?.id ?? "";
+    const chosen = new Set<string>(); // already-seeded ids, for the 互斥 (mutual-exclusion) check
+    const inStock = (id: string) => {
+      const s = variationStock[id];
+      return s === undefined || s === null || s > 0;
+    };
+    const compatible = (id: string) => {
+      const c = blocked.get(id);
+      if (!c) return true;
+      for (const x of chosen) if (c.has(x)) return false;
+      return true;
+    };
+    for (const t of avail) {
+      const def = t.items.find((i) => model.defaultItemIds.includes(i.id));
+      const fallback = t.items.find((i) => inStock(i.id) && compatible(i.id));
+      const id = def?.id ?? fallback?.id ?? "";
+      p[t.id] = id;
+      if (id) chosen.add(id);
+    }
     return p;
   });
   const [itemQty, setItemQty] = useState<Record<string, number>>({});

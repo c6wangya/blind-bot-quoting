@@ -227,6 +227,7 @@ export interface QuoteDetails {
   sidemark?: string | null;
 }
 
+// Full fulfilment pipeline — used by PRODUCT orders (6 steps).
 export const ORDER_STATUSES = [
   "submitted",
   "acknowledged",
@@ -235,6 +236,10 @@ export const ORDER_STATUSES = [
   "in_transit",
   "delivered",
 ] as const;
+
+// Accessory-only orders use a collapsed 3-step flow: payment auto-completes `acknowledged`, then
+// the supplier ships (terminal). The `accessory_only` flag on the order selects which list applies.
+export const ORDER_STATUSES_ACCESSORY = ["submitted", "acknowledged", "shipped"] as const;
 
 // 'awaiting_payment' is the pre-pipeline state, 'cancelled' a terminal one; the manual advance
 // machine covers only ORDER_STATUSES.
@@ -250,7 +255,11 @@ export interface OrderRow {
   status: OrderStatus;
   supplierOrderNo: string | null;
   trackingNo: string | null;
+  /** All tracking numbers for the shipment (an order can ship in several parcels). */
+  trackingNos: string[] | null;
   carrier: string | null;
+  /** True when every line is an accessory → collapsed 3-step flow + manual tracking entry. */
+  accessoryOnly: boolean;
   etaDate: string | null;
   paymentMethod: PaymentMethod | null;
   paymentStatus: PaymentStatus;

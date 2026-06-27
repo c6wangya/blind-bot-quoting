@@ -9,7 +9,7 @@ import { getBankInfo, getLine, getOrder, getOrderOwnerId, getOrderShipping, getP
 import { describeConfig } from "@/lib/describe";
 import { isAccessoryConfig } from "@/lib/types";
 import { ACTOR_LABEL, fmtDate, fmtDateTime, ORDER_STATUS_META, usd } from "@/lib/format";
-import { ORDER_STATUSES } from "@/lib/types";
+import { ORDER_STATUSES, ORDER_STATUSES_ACCESSORY, type OrderStatus } from "@/lib/types";
 
 export default async function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -20,7 +20,9 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   if (!(await canAccessOwned(userId, await getOrderOwnerId(Number(id))))) notFound();
 
   const catalog = await loadCatalog(); // for accessory line images / names
-  const stageIdx = ORDER_STATUSES.indexOf(order.status as (typeof ORDER_STATUSES)[number]);
+  // Accessory-only orders run the collapsed 3-step pipeline; products run all 6.
+  const stages: readonly OrderStatus[] = order.accessoryOnly ? ORDER_STATUSES_ACCESSORY : ORDER_STATUSES;
+  const stageIdx = stages.indexOf(order.status);
 
   // Snapshotted shipping (mode + amount baked into order.amount at submit). Breakdown:
   // goods net = amount − shipping; subtotal − goods net = discount.
@@ -88,11 +90,11 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
       {stageIdx >= 0 && (
       <Card className="rise px-6 py-5">
         <div className="flex items-center">
-          {ORDER_STATUSES.map((s, i) => {
+          {stages.map((s, i) => {
             const reached = i <= stageIdx;
             const meta = ORDER_STATUS_META[s];
             return (
-              <div key={s} className={cx("flex items-center", i < ORDER_STATUSES.length - 1 && "flex-1")}>
+              <div key={s} className={cx("flex items-center", i < stages.length - 1 && "flex-1")}>
                 <div className="flex flex-col items-center">
                   <div
                     className={cx(
@@ -111,7 +113,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                     {meta.label}
                   </div>
                 </div>
-                {i < ORDER_STATUSES.length - 1 && (
+                {i < stages.length - 1 && (
                   <div className={cx("mx-2 mb-5 h-0.5 flex-1 rounded", i < stageIdx ? "bg-ink" : "bg-line")} />
                 )}
               </div>
@@ -282,10 +284,18 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                   <dd className="mt-0.5 font-mono text-sm text-ink">{order.supplierOrderNo ?? "Awaiting acknowledgement"}</dd>
                 </div>
                 <div>
-                  <dt className="text-[11px] font-semibold uppercase tracking-wider text-muted">Tracking №</dt>
-                  <dd className="mt-0.5 font-mono text-sm text-ink">
-                    {order.trackingNo ?? "Issued at dispatch"}
-                  </dd>
+                  <dt className="text-[11px] font-semibold uppercase tracking-wider text-muted">
+                    Tracking {order.trackingNos && order.trackingNos.length > 1 ? "№s" : "№"}
+                  </dt>
+                  {order.trackingNos && order.trackingNos.length > 0 ? (
+                    <dd className="mt-0.5 space-y-0.5">
+                      {order.trackingNos.map((t) => (
+                        <div key={t} className="font-mono text-sm text-ink">{t}</div>
+                      ))}
+                    </dd>
+                  ) : (
+                    <dd className="mt-0.5 font-mono text-sm text-ink">{order.trackingNo ?? "Issued at dispatch"}</dd>
+                  )}
                   {order.carrier && <dd className="text-xs text-muted">{order.carrier}</dd>}
                 </div>
                 <div>
@@ -299,9 +309,20 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
 
             <Card className="bg-[#fbf8f1] px-5 py-4">
               <p className="text-[12px] leading-relaxed text-ink-soft">
-                <span className="font-semibold">How this works:</span> on submission the portal generated the
-                bilingual supplier order file and queued it for delivery. The supplier returns an order number,
-                production status, then a tracking number — all synced here and pushed to you until delivery.
+                <span className="font-semibold">How this works:</span>{" "}
+                {order.accessoryOnly ? (
+                  <>
+                    on payment the portal generated the bilingual supplier order file and confirmed the order
+                    automatically — a supplier order number and ETA are issued. The supplier then ships and
+                    records the tracking number(s), synced here and pushed to you.
+                  </>
+                ) : (
+                  <>
+                    on submission the portal generated the bilingual supplier order file and queued it for
+                    delivery. The supplier returns an order number, production status, then a tracking number —
+                    all synced here and pushed to you until delivery.
+                  </>
+                )}
               </p>
             </Card>
           </div>

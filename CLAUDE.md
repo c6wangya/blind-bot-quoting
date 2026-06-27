@@ -64,10 +64,17 @@ children inherit via the parent quote; admins (`profiles.role`) see all. App-lay
 never trusted with prices — `POST /api/quote-items` re-prices server-side. Producibility is data
 (`validOpacities` + `validateConfig`; `POST /api/price` returns 422 on non-producible combos).
 
-**Order state machine:** `submitted → acknowledged → in_production → shipped → in_transit →
-delivered`, via `POST /api/orders/:id/advance` (admin; 409 on out-of-order). Every transition
-writes an `order_events` row — the retailer-facing update channel. `lib/excel.ts` builds the
-bilingual (中文/EN) supplier workbook (`GET /api/orders/:id/excel`).
+**Order state machine** — two flows keyed by `orders.accessory_only` (set at submit = every line is
+an accessory). **Product orders (6 steps):** `submitted → acknowledged → in_production → shipped →
+in_transit → delivered` (manual acknowledge; `ship` auto-issues a tracking no.). **Accessory-only
+orders (3 steps):** `submitted → acknowledged → shipped` — payment (`markOrderPaid`) auto-completes
+`acknowledged` (issues supplier order no. + ETA), and `ship` takes admin-entered tracking number(s)
+(`orders.tracking_nos jsonb`, migration 0030) via a modal in `components/SupplierActions.tsx`. Both
+share `POST /api/orders/:id/advance` (admin; 409 on out-of-order); the `ship` precondition differs by
+flow (`acknowledged` vs `in_production`). `ORDER_STATUSES` / `ORDER_STATUSES_ACCESSORY` in
+`lib/types.ts` drive the per-order stepper. Every transition writes an `order_events` row — the
+retailer-facing update channel. `lib/excel.ts` builds the bilingual (中文/EN) supplier workbook
+(`GET /api/orders/:id/excel`).
 
 **Auth & blind-bot handoff.**
 - Supabase auth: Google + email/password + the blind-bot handoff. `lib/auth/blindbot-handoff.ts`

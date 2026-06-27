@@ -1,7 +1,23 @@
+"use client";
+
+import { useSyncExternalStore } from "react";
 import { AddAccessoryButton } from "./AccessoryActions";
 import { Card } from "./ui";
 import type { VariationRestriction, VariationType } from "@/lib/db";
 import { usd } from "@/lib/format";
+
+// Dismissal persists across navigation (localStorage) and re-renders via a custom event.
+const DISMISS_KEY = "frequent-parts-dismissed";
+const EVENT = "frequent-parts-change";
+
+function subscribe(cb: () => void) {
+  window.addEventListener(EVENT, cb);
+  return () => window.removeEventListener(EVENT, cb);
+}
+function dismissFrequentParts() {
+  localStorage.setItem(DISMISS_KEY, "1");
+  window.dispatchEvent(new Event(EVENT));
+}
 
 export type FrequentPart = {
   modelId: string;
@@ -31,10 +47,25 @@ export function FrequentParts({
   variations: VariationType[];
   restrictions: VariationRestriction[];
 }) {
-  if (parts.length === 0) return null;
+  // Hidden during SSR (server snapshot = true) so a previously-dismissed card never flashes in.
+  const hidden = useSyncExternalStore(
+    subscribe,
+    () => localStorage.getItem(DISMISS_KEY) === "1",
+    () => true,
+  );
+
+  if (parts.length === 0 || hidden) return null;
   return (
-    <Card className="rise mb-5 px-4 py-4 sm:px-5">
-      <div className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+    <Card className="rise relative mb-5 px-4 py-4 sm:px-5">
+      <button
+        type="button"
+        onClick={dismissFrequentParts}
+        aria-label="Dismiss"
+        className="absolute right-3 top-3 text-muted transition-colors hover:text-ink"
+      >
+        ✕
+      </button>
+      <div className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-0.5 pr-6">
         <span className="text-[13px] font-semibold text-ink">★ Frequently ordered</span>
         <span className="text-[11.5px] text-muted">Your most-ordered parts — add again in one tap</span>
       </div>

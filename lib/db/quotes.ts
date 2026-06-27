@@ -15,6 +15,16 @@ import type {
 import { isAccessoryConfig } from "@/lib/types";
 import { ITEM_COLS, QUOTE_COLS, round2, type ItemAgg, insertWithRef } from "./internal";
 import { DEMO_RETAILER, ensureSeeded } from "./seed";
+import { getProfile } from "./profile";
+
+/**
+ * The retailer display name snapshotted onto a quote (and inherited by its order): the owner's
+ * company, else their email. Falls back to the demo label only when the profile can't be read.
+ */
+async function retailerNameFor(ownerId: string): Promise<string> {
+  const profile = await getProfile(ownerId).catch(() => null);
+  return profile?.company?.trim() || profile?.email || DEMO_RETAILER;
+}
 
 // Map camelCase QuoteDetails → snake_case columns; only keys actually present are written.
 const DETAIL_KEYS: (keyof QuoteDetails)[] = [
@@ -68,10 +78,11 @@ export async function getOrCreateDraftQuote(
 ): Promise<QuoteRow> {
   const existing = await getDraftQuote(ownerId, sb);
   if (existing) return existing;
+  const retailer = await retailerNameFor(ownerId);
   return insertWithRef("quotes", "Q", async (ref) => {
     const { data, error } = await sb
       .from("quotes")
-      .insert({ ref, retailer: DEMO_RETAILER, status: "draft", owner_id: ownerId, project_name: projectName ?? null })
+      .insert({ ref, retailer, status: "draft", owner_id: ownerId, project_name: projectName ?? null })
       .select(QUOTE_COLS)
       .single();
     if (error) throw error;
@@ -86,10 +97,11 @@ export async function createQuote(
   sb: SupabaseClient = admin()
 ): Promise<QuoteRow> {
   await ensureSeeded();
+  const retailer = await retailerNameFor(ownerId);
   return insertWithRef("quotes", "Q", async (ref) => {
     const { data, error } = await sb
       .from("quotes")
-      .insert({ ref, retailer: DEMO_RETAILER, status: "draft", owner_id: ownerId, ...detailColumns(details) })
+      .insert({ ref, retailer, status: "draft", owner_id: ownerId, ...detailColumns(details) })
       .select(QUOTE_COLS)
       .single();
     if (error) throw error;

@@ -6,12 +6,19 @@ import type { OrderStatus, PaymentMethod, PaymentStatus } from "@/lib/types";
 import { useToast } from "./Toast";
 import { Button, cx } from "./ui";
 
-const NEXT_ACTION: Partial<Record<OrderStatus, { action: string; label: string }>> = {
+// Product orders run the full 6-step pipeline.
+const NEXT_ACTION_PRODUCT: Partial<Record<OrderStatus, { action: string; label: string }>> = {
   submitted: { action: "acknowledge", label: "Acknowledge + issue order №" },
   acknowledged: { action: "start_production", label: "Start production" },
   in_production: { action: "ship", label: "Ship + issue tracking №" },
   shipped: { action: "in_transit", label: "Mark in transit" },
   in_transit: { action: "deliver", label: "Mark delivered" },
+};
+
+// Accessory-only orders auto-acknowledge on payment, so the supplier's only manual step is shipping.
+const NEXT_ACTION_ACCESSORY: Partial<Record<OrderStatus, { action: string; label: string }>> = {
+  submitted: { action: "acknowledge", label: "Acknowledge + issue order №" },
+  acknowledged: { action: "ship", label: "Ship + issue tracking №" },
 };
 
 const BTN = "rounded-xl border border-line bg-surface px-3.5 py-2 text-xs font-semibold text-ink shadow-sm transition-all";
@@ -23,11 +30,13 @@ function fmtSize(bytes: number) {
 export default function SupplierAdvanceButton({
   orderId,
   status,
+  accessoryOnly = false,
   paymentMethod,
   paymentStatus,
 }: {
   orderId: number;
   status: OrderStatus;
+  accessoryOnly?: boolean;
   paymentMethod?: PaymentMethod | null;
   paymentStatus?: PaymentStatus;
 }) {
@@ -38,6 +47,10 @@ export default function SupplierAdvanceButton({
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [confirmClose, setConfirmClose] = useState(false);
+  // Ship modal: one carrier + one-or-more tracking numbers.
+  const [shipOpen, setShipOpen] = useState(false);
+  const [carrier, setCarrier] = useState("SF Express Intl");
+  const [tracks, setTracks] = useState<string[]>([""]);
 
   const post = async (url: string, init?: RequestInit, successMsg?: string) => {
     setBusy(true);
@@ -76,6 +89,27 @@ export default function SupplierAdvanceButton({
       Close order
     </button>
   );
+
+  const setTrack = (i: number, v: string) => setTracks((t) => t.map((x, j) => (j === i ? v : x)));
+  const addTrack = () => setTracks((t) => [...t, ""]);
+  const removeTrack = (i: number) => setTracks((t) => (t.length > 1 ? t.filter((_, j) => j !== i) : t));
+
+  const submitShip = async () => {
+    const nums = tracks.map((t) => t.trim()).filter(Boolean);
+    if (nums.length === 0) {
+      setError("Enter at least one tracking number.");
+      return;
+    }
+    const ok = await post(
+      `/api/orders/${orderId}/advance`,
+      { headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "ship", carrier, trackingNos: nums }) },
+      "Order shipped — tracking issued"
+    );
+    if (ok) {
+      setShipOpen(false);
+      setTracks([""]);
+    }
+  };
 
   const submitReceipt = async () => {
     if (!file) return;
@@ -160,19 +194,120 @@ export default function SupplierAdvanceButton({
   if (status === "cancelled") return <span className="text-xs text-muted">Cancelled</span>;
 
   // ---- Fulfilment advance ----
-  const next = NEXT_ACTION[status];
+  const next = (accessoryOnly ? NEXT_ACTION_ACCESSORY : NEXT_ACTION_PRODUCT)[status];
   if (!next) return <span className="text-xs font-medium text-emerald-600">Complete ✓</span>;
+
+  // Accessory orders collect tracking numbers via a modal on ship; everything else advances directly.
+  const isShip = next.action === "ship" && accessoryOnly;
+  const filledTracks = tracks.filter((t) => t.trim()).length;
 
   return (
     <div className="flex items-center justify-end gap-2">
       <button
-        onClick={() => post(`/api/orders/${orderId}/advance`, { headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: next.action }) }, "Order updated")}
+        onClick={() =>
+          isShip
+            ? (setError(null), setShipOpen(true))
+            : post(`/api/orders/${orderId}/advance`, { headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: next.action }) }, "Order updated")
+        }
         disabled={busy}
         className={cx(BTN, busy ? "opacity-50" : "hover:border-brass hover:text-brass")}
       >
         {busy ? "Syncing…" : next.label + " →"}
       </button>
-      {error && <span className="text-[11px] text-red-500">{error}</span>}
+      {error && !shipOpen && <span className="text-[11px] text-red-500">{error}</span>}
+
+      {shipOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6 text-left">
+          <div className="absolute inset-0 bg-black/30" onClick={() => !busy && setShipOpen(false)} aria-hidden />
+          <div className="relative w-full max-w-md rounded-2xl bg-surface p-6 shadow-2xl">
+            <h2 className="text-base font-semibold tracking-tight text-ink">Ship order · issue tracking</h2>
+            <p className="mt-1 text-[12.5px] text-muted">
+              Mark this order shipped and record its tracking number(s). Add one row per parcel — all are pushed
+              to the retailer.
+            </p>
+
+            <div className="mt-4 space-y-4">
+              <div>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-muted">Carrier</label>
+                <input
+                  list="ship-carriers"
+                  value={carrier}
+                  onChange={(e) => setCarrier(e.target.value)}
+                  placeholder="e.g. SF Express Intl"
+                  className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-ink"
+                />
+                <datalist id="ship-carriers">
+                  {["SF Express Intl", "DHL Express", "FedEx", "UPS", "USPS", "China Post", "Cainiao"].map((c) => (
+                    <option key={c} value={c} />
+                  ))}
+                </datalist>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-muted">
+                  Tracking number{tracks.length > 1 ? "s" : ""}
+                </label>
+                <div className="space-y-2">
+                  {tracks.map((t, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <span className="w-5 shrink-0 text-right text-[11px] tabular-nums text-muted">{i + 1}.</span>
+                      <input
+                        autoFocus={i === tracks.length - 1}
+                        value={t}
+                        onChange={(e) => setTrack(i, e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            if (t.trim() && i === tracks.length - 1) addTrack();
+                          }
+                        }}
+                        placeholder="Scan or paste tracking number"
+                        className="min-w-0 flex-1 rounded-lg border border-line bg-surface px-3 py-2 font-mono text-[13px] text-ink outline-none focus:border-ink"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeTrack(i)}
+                        disabled={tracks.length === 1}
+                        aria-label="Remove tracking number"
+                        className="shrink-0 rounded-lg p-1.5 text-muted transition-colors hover:bg-[#faf3f3] hover:text-red-500 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-muted"
+                      >
+                        <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                          <path d="M6 6l12 12M18 6L6 18" />
+                        </svg>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={addTrack}
+                  className="mt-2 inline-flex items-center gap-1 text-[12px] font-medium text-brass hover:underline"
+                >
+                  <svg viewBox="0 0 24 24" className="size-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                    <path d="M12 5v14M5 12h14" />
+                  </svg>
+                  Add another tracking number
+                </button>
+              </div>
+            </div>
+
+            {error && <p className="mt-3 text-xs text-red-500">{error}</p>}
+            <div className="mt-5 flex items-center justify-between">
+              <span className="text-[11.5px] text-muted">
+                {filledTracks} number{filledTracks === 1 ? "" : "s"} · {carrier.trim() || "SF Express Intl"}
+              </span>
+              <div className="flex gap-2">
+                <Button variant="secondary" onClick={() => setShipOpen(false)} disabled={busy} className="py-2">
+                  Cancel
+                </Button>
+                <Button variant="primary" onClick={submitShip} busy={busy} disabled={filledTracks === 0} className="py-2">
+                  {busy ? "Shipping…" : "Mark shipped →"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

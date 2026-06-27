@@ -451,7 +451,7 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
               </Card>
 
 
-              {viewerIsAdmin && quote.status === "draft" && ship.hasGround && (
+              {viewerIsAdmin && quote.status === "draft" && ship.hasGround && expediteState.status !== "none" && (
                 <AdminExpediteBox
                   quoteId={quote.id}
                   status={expediteState.status}
