@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "use:staging": "cp .env.local.staging .env.local && echo '✅ 已切到 STAGING (重启 dev server 生效)'",
+    "use:beta": "cp .env.local.beta .env.local && echo '✅ 已切到 BETA (重启 dev server 生效)'"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.0",

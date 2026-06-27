@@ -40,6 +40,9 @@ export default function PortalShell({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  // The accessory browser is a wide, dense layout — give it a flush 20px gutter instead of the
+  // centered, max-width content column the other pages use.
+  const fullBleed = pathname?.startsWith("/catalog/accessories") ?? false;
   const [open, setOpen] = useState(false);
   const [unread, setUnread] = useState(unreadCount);
   const [supplierPending, setSupplierPending] = useState(supplierPendingCount);
@@ -116,7 +119,9 @@ export default function PortalShell({
       />
 
       <main className="min-h-screen pt-14 md:ml-60 md:pt-0">
-        <div className="mx-auto max-w-6xl px-5 py-8 md:px-8 md:py-10">
+        {/* Wide, dense pages (e.g. the accessory browser) get a flush 20px gutter, full width.
+            Everything else keeps the centered, roomier content column. */}
+        <div className={fullBleed ? "p-5" : "mx-auto max-w-6xl px-5 py-8 md:px-8 md:py-10"}>
           <ToastProvider>
             {nudgePassword && <PasswordPromptModal />}
             {children}

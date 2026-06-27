@@ -14,6 +14,8 @@ export type VariationSelection = {
   itemId: string;
   itemLabel: string;
   price: number;
+  /** How many of this sub-part per parent motor unit (THE-772). */
+  qty: number;
 };
 /** A pair of variation items that cannot be selected together (symmetric; itemLo < itemHi). */
 export type VariationRestriction = { itemLo: string; itemHi: string };
@@ -252,15 +254,22 @@ export async function setProductVariationItems(
  */
 export async function resolveVariationSelections(
   modelId: string,
-  itemIds: string[],
+  requested: Array<{ itemId: string; qty?: number }>,
   sb: SupabaseClient = admin()
 ): Promise<VariationSelection[]> {
-  const chosen = [...new Set(itemIds)].filter(Boolean);
+  // Dedup by itemId (last qty wins); a per-sub-part qty defaults to 1 and is clamped to [1, 999].
+  const qtyByItem = new Map<string, number>();
+  for (const r of requested) {
+    if (!r.itemId) continue;
+    qtyByItem.set(r.itemId, Math.max(1, Math.min(999, Math.round(r.qty || 1))));
+  }
+  const chosen = [...qtyByItem.keys()];
   if (chosen.length === 0) return [];
   const available = await getVariationsForModel(modelId, sb);
   const itemIndex = new Map<string, { type: VariationType; item: VariationItem }>();
   for (const t of available) for (const i of t.items) itemIndex.set(i.id, { type: t, item: i });
 
+  // Add-on parts are single-select per type (one CROWN, one DRIVE …) with no pair-group coupling.
   const selections: VariationSelection[] = [];
   const chosenTypeIds = new Set<string>();
   for (const id of chosen) {
@@ -274,18 +283,8 @@ export async function resolveVariationSelections(
       itemId: hit.item.id,
       itemLabel: hit.item.name,
       price: hit.item.price,
+      qty: qtyByItem.get(id)!,
     });
-  }
-
-  // Pair-group all-or-none: if any type in a group is chosen, all of that group's types
-  // (that are available for this product) must be chosen.
-  const groups = new Map<string, VariationType[]>();
-  for (const t of available) if (t.pairGroup) (groups.get(t.pairGroup) ?? groups.set(t.pairGroup, []).get(t.pairGroup)!).push(t);
-  for (const [, types] of groups) {
-    const chosenInGroup = types.filter((t) => chosenTypeIds.has(t.id));
-    if (chosenInGroup.length > 0 && chosenInGroup.length < types.length) {
-      throw new Error(`${types.map((t) => t.name).join(" + ")} must be selected together`);
-    }
   }
 
   // Compatibility: reject any chosen pair that admins marked incompatible. The client greys

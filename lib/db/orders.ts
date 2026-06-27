@@ -3,7 +3,7 @@ import { admin } from "@/lib/supabase/admin";
 import type { OrderEventRow, OrderRow, OrderStatus, PaymentMethod } from "@/lib/types";
 import { EVENT_COLS, ORDER_COLS, round2, type ItemAgg, insertWithRef } from "./internal";
 import { ensureSeeded } from "./seed";
-import { getQuote, getQuoteExpedite } from "./quotes";
+import { getQuote, getQuoteExpedite, getQuoteExpediteState } from "./quotes";
 import { getQuoteOwnerId } from "./ownership";
 import { getRetailerDiscount, getShippingWaivers } from "./profile";
 import { deductMotorStock, restoreMotorStock } from "./motors";
@@ -89,7 +89,14 @@ export async function submitPreOrder(
     }
     // Per-line by each motor's (and its variations') made-in mode; snapshot mode is "ground" if any.
     const ship = computeShipping(quote.items, catalog, itemRates, expedite, net, waivers);
-    const amount = round2(net + ship.amount);
+    // Admin-priced expedite (migration 0026): a flat fee on top, set by the admin after the customer
+    // requested it. Can't pay while the request is still awaiting our price.
+    const exp = await getQuoteExpediteState(quoteId, sb);
+    if (exp.status === "requested") {
+      throw new Error("Expedited shipping is awaiting our price — you'll be able to pay once we send the quote.");
+    }
+    const expediteFee = exp.status === "quoted" ? round2(exp.fee ?? 0) : 0;
+    const amount = round2(net + ship.amount + expediteFee);
     const order = await insertWithRef("orders", "PO", async (ref) => {
       const { data, error } = await sb
         .from("orders")
@@ -103,7 +110,7 @@ export async function submitPreOrder(
     // pre-migration ships is always FOB/0 anyway, so amount already matches.
     await sb
       .from("orders")
-      .update({ ship_mode: ship.hasGround ? "ground" : "fob", ship_expedite: ship.expedite, shipping: ship.amount })
+      .update({ ship_mode: ship.hasGround ? "ground" : "fob", ship_expedite: ship.expedite, shipping: round2(ship.amount + expediteFee) })
       .eq("id", order.id)
       .then(undefined, () => {});
     await sb.from("order_events").insert({

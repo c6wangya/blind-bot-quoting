@@ -188,9 +188,14 @@ export async function addAccessoryItem(
   const lines = [{ label: "Unit price", detail: model.sku, amount: base }];
   let price = base;
   for (const v of variations) {
+    const vqty = v.qty ?? 1;
     if (v.price) {
-      lines.push({ label: v.variationName, detail: v.itemLabel, amount: v.price });
-      price += v.price;
+      lines.push({
+        label: v.variationName,
+        detail: vqty > 1 ? `${v.itemLabel} ×${vqty}` : v.itemLabel,
+        amount: round2(v.price * vqty),
+      });
+      price += v.price * vqty;
     }
   }
   const computation: QuoteComputation = {
@@ -200,7 +205,10 @@ export async function addAccessoryItem(
     facts: [
       { label: "Brand", value: brandName },
       { label: "Model #", value: model.sku },
-      ...variations.map((v) => ({ label: v.variationName, value: v.itemLabel })),
+      ...variations.map((v) => ({
+        label: v.variationName,
+        value: (v.qty ?? 1) > 1 ? `${v.itemLabel} ×${v.qty}` : v.itemLabel,
+      })),
     ],
     pricingVersion: ACCESSORY_PRICING_VERSION,
   };
@@ -268,6 +276,43 @@ export async function getQuoteExpedite(id: number, sb: SupabaseClient = admin())
 /** Set a quote's expedite flag (RLS via the caller's client). */
 export async function setQuoteExpedite(id: number, expedite: boolean, sb: SupabaseClient = admin()): Promise<void> {
   const { error } = await sb.from("quotes").update({ expedite: !!expedite }).eq("id", id);
+  if (error) throw error;
+}
+
+// ── Admin-priced expedited shipping ("custom expedite quote", migration 0026) ────────────────────
+// Distinct from the legacy `expedite` boolean above (kept intact — it drove the now-superseded
+// per-line auto-accumulation). The new flow: the customer requests expedite, the admin sends one flat
+// fee, and that fee is baked into the quote/order total while status = 'quoted'.
+export type ExpediteStatus = "none" | "requested" | "quoted";
+export type ExpediteState = { status: ExpediteStatus; fee: number | null };
+
+/** A quote's expedite request state. Best-effort (returns 'none' before the 0026 migration runs). */
+export async function getQuoteExpediteState(id: number, sb: SupabaseClient = admin()): Promise<ExpediteState> {
+  const { data, error } = await sb.from("quotes").select("expedite_status, expedite_fee").eq("id", id).maybeSingle();
+  if (error || !data) return { status: "none", fee: null };
+  const row = data as { expedite_status: string | null; expedite_fee: number | null };
+  const status: ExpediteStatus =
+    row.expedite_status === "requested" || row.expedite_status === "quoted" ? row.expedite_status : "none";
+  return { status, fee: row.expedite_fee == null ? null : Number(row.expedite_fee) };
+}
+
+/** Customer asks for an expedite price → 'requested' (clears any prior fee so it's re-quoted). */
+export async function requestExpedite(id: number, sb: SupabaseClient = admin()): Promise<void> {
+  const { error } = await sb.from("quotes").update({ expedite_status: "requested", expedite_fee: null }).eq("id", id);
+  if (error) throw error;
+}
+
+/** Customer withdraws the request → back to 'none'. */
+export async function cancelExpedite(id: number, sb: SupabaseClient = admin()): Promise<void> {
+  const { error } = await sb.from("quotes").update({ expedite_status: "none", expedite_fee: null }).eq("id", id);
+  if (error) throw error;
+}
+
+/** Admin sets the flat expedite fee → 'quoted'. */
+export async function setExpediteQuote(id: number, fee: number, sb: SupabaseClient = admin()): Promise<void> {
+  const f = round2(Number(fee));
+  if (!Number.isFinite(f) || f < 0) throw new Error("Enter a valid fee (0 or more).");
+  const { error } = await sb.from("quotes").update({ expedite_status: "quoted", expedite_fee: f }).eq("id", id);
   if (error) throw error;
 }
 

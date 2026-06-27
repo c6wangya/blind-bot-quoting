@@ -6,6 +6,9 @@ import { admin } from "@/lib/supabase/admin";
 // userClient() so RLS scopes them to their own conversation.
 
 export type ChatRole = "retailer" | "admin";
+// 'chat' = ordinary message; 'expedite_request' = a customer's expedite-pricing request, rendered as
+// an inline card the admin can price (migration 0026).
+export type ChatKind = "chat" | "expedite_request";
 
 export const CHAT_BUCKET = "chat-attachments";
 const SIGNED_URL_TTL = 3600; // 1h — re-signed on every fetch (polling), so short is fine
@@ -24,6 +27,11 @@ export type ChatMessage = {
   // snapshot so the "Re: Q-…" chip still renders after the quote is deleted (quoteId → null).
   quoteId?: number | null;
   quoteRef?: string | null;
+  // Expedite-request card (kind='expedite_request'): refFee = system reference snapshot at request
+  // time; quotedFee = the flat fee the admin entered from this card (null = still pending).
+  kind?: ChatKind;
+  expediteRefFee?: number | null;
+  expediteQuotedFee?: number | null;
 };
 
 /** The quote a message is tagged with — passed to the send helpers from a quote's chat. */
@@ -51,7 +59,7 @@ const CONV_COLS =
   "lastSenderRole:last_sender_role, retailerLastReadAt:retailer_last_read_at, adminLastReadAt:admin_last_read_at";
 const MSG_COLS =
   "id, conversationId:conversation_id, senderId:sender_id, senderRole:sender_role, body, createdAt:created_at, " +
-  "quoteId:quote_id, quoteRef:quote_ref, " +
+  "quoteId:quote_id, quoteRef:quote_ref, kind, expediteRefFee:expedite_ref_fee, expediteQuotedFee:expedite_quoted_fee, " +
   "attachmentPath:attachment_path, attachmentName:attachment_name, attachmentType:attachment_type, attachmentSize:attachment_size";
 
 type RawMessage = Omit<ChatMessage, "attachment"> & {
@@ -180,6 +188,49 @@ export async function sendMessage(
   const raw = data as unknown as RawMessage;
   await bumpConversation(conversationId, senderRole, raw.createdAt, text.slice(0, 140), sb);
   return toChatMessage(raw, null);
+}
+
+/**
+ * Insert a customer's expedite-pricing request as a special card message (kind='expedite_request')
+ * carrying the system reference fee, then refresh the conversation. Sent into the retailer's own
+ * support conversation (sender_role='retailer') regardless of who triggered it (admin acting-as
+ * included), so it routes to the admin inbox exactly like a customer message.
+ */
+export async function sendExpediteRequest(
+  conversationId: string,
+  retailerId: string,
+  quote: QuoteTag,
+  body: string,
+  refFee: number,
+  sb: SupabaseClient = admin()
+): Promise<ChatMessage> {
+  const { data, error } = await sb
+    .from("messages")
+    .insert({
+      conversation_id: conversationId,
+      sender_id: retailerId,
+      sender_role: "retailer",
+      body: body.trim(),
+      kind: "expedite_request",
+      quote_id: quote.id,
+      quote_ref: quote.ref,
+      expedite_ref_fee: refFee,
+    })
+    .select(MSG_COLS)
+    .single();
+  if (error) throw error;
+  const raw = data as unknown as RawMessage;
+  await bumpConversation(conversationId, "retailer", raw.createdAt, `⚡ Expedite request · ${quote.ref}`, sb);
+  return toChatMessage(raw, null);
+}
+
+/** Record the flat fee an admin entered on an expedite-request card (so it shows "Quoted"). */
+export async function setExpediteQuotedFeeOnMessage(
+  messageId: string,
+  fee: number,
+  sb: SupabaseClient = admin()
+): Promise<void> {
+  await sb.from("messages").update({ expedite_quoted_fee: fee }).eq("id", messageId);
 }
 
 /** Insert an attachment message (optional caption) and refresh the conversation. */

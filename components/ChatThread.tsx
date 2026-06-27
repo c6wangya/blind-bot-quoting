@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChatMessage, ChatRole, QuoteTag } from "@/lib/db";
 import { BRAND } from "@/lib/brand";
+import { ExpediteRequestCard } from "./ExpediteRequestCard";
 import { Button, cx } from "./ui";
 
 type UiMessage = ChatMessage & { pending?: boolean };
@@ -353,6 +354,18 @@ export function ChatThread({
                 >
                   {!mine && <div className="w-7 shrink-0">{groupEnd && <Avatar support={peerSupport} name={peerName} />}</div>}
                   <div className={cx("flex max-w-[78%] flex-col gap-1 sm:max-w-[70%]", mine ? "items-end" : "items-start")}>
+                    {m.kind === "expedite_request" ? (
+                      <ExpediteRequestCard
+                        messageId={m.id}
+                        quoteId={m.quoteId ?? null}
+                        quoteRef={m.quoteRef ?? null}
+                        body={m.body}
+                        refFee={m.expediteRefFee ?? null}
+                        quotedFee={m.expediteQuotedFee ?? null}
+                        role={role}
+                      />
+                    ) : (
+                      <>
                     {showChip && <QuoteChip quoteId={m.quoteId ?? null} quoteRef={m.quoteRef!} mine={mine} />}
                     {m.body && (
                       <div
@@ -395,6 +408,8 @@ export function ChatThread({
                           </span>
                         </a>
                       ))}
+                      </>
+                    )}
                     {groupEnd && (
                       <div className={cx("mt-1 px-1 text-[10.5px] text-muted", mine ? "text-right" : "text-left")}>
                         {fmtTime(m.createdAt)}

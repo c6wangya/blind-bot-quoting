@@ -4,6 +4,7 @@ import { DeleteDraftButton, RemoveItemButton, SubmitPreOrderButton } from "@/com
 import { QuoteDetailsDrawer } from "@/components/QuoteDetailsDrawer";
 import { ShippingSummaryRow } from "@/components/ShippingSummaryRow";
 import { ShippingRecalcProvider } from "@/components/ShippingRecalcContext";
+import { AdminExpediteBox } from "@/components/AdminExpediteBox";
 import { LineQtyEditor } from "@/components/LineQtyEditor";
 import { Swatch } from "@/components/renders";
 import { BackLink, Badge, Card, EmptyState, LinkButton, PageHeader } from "@/components/ui";
@@ -18,6 +19,7 @@ import {
   getQuote,
   getQuoteOwnerId,
   getQuoteExpedite,
+  getQuoteExpediteState,
   getRetailerDiscount,
   getShippingWaivers,
   getUnreadCount,
@@ -78,21 +80,31 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
     if (m) itemRates[itemId] = { shipGround: m.shipGround, shipExpedite: m.shipExpedite, shipMode: m.shipMode };
   }
   const ship = computeShipping(quote.items, catalog, itemRates, expedite, netTotal, waivers);
-  const grandTotal = Math.round((netTotal + ship.amount) * 100) / 100;
+  // Admin-priced expedite (migration 0026): the customer requests it, an admin sets one flat fee.
+  // The system reference (old per-line accumulation, always-charged → rawAmount) is shown to the
+  // admin as a suggestion; the quoted fee folds into the total once set.
+  const expediteState = await getQuoteExpediteState(quote.id, sb);
+  const expediteRef = computeShipping(quote.items, catalog, itemRates, true, netTotal, {
+    ground: false,
+    expedite: false,
+  }).rawAmount;
+  const expediteFee = expediteState.status === "quoted" ? expediteState.fee ?? 0 : 0;
+  const grandTotal = Math.round((netTotal + ship.amount + expediteFee) * 100) / 100;
   // Per-item shipping breakdown (each US-made / ground motor + any US-made variation sub-part).
   const unitOf = (r: MotorRate) => (expedite ? r.shipExpedite ?? 0 : r.shipGround ?? 0);
   const shipLineDetail = ship.hasGround
     ? quote.items.flatMap((it) => {
         if (!isAccessoryConfig(it.config)) return [];
         const rows: { name: string; qty: number; unit: number; total: number }[] = [];
-        const push = (name: string, r?: MotorRate) => {
+        const push = (name: string, r?: MotorRate, units = it.qty) => {
           if (r?.shipMode !== "ground") return;
           const unit = unitOf(r);
-          rows.push({ name, qty: it.qty, unit, total: Math.round(unit * it.qty * 100) / 100 });
+          rows.push({ name, qty: units, unit, total: Math.round(unit * units * 100) / 100 });
         };
         const m = catalog.model(it.productId);
         push(m?.name ?? it.config.name, m);
-        for (const v of it.config.variations ?? []) push(v.itemLabel, itemRates[v.itemId]);
+        // Sub-parts ship per motor unit, so the shippable count is motorQty × per-motor qty.
+        for (const v of it.config.variations ?? []) push(v.itemLabel, itemRates[v.itemId], it.qty * (v.qty ?? 1));
         return rows;
       })
     : [];
@@ -223,7 +235,11 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
                               <div className="mt-1 text-[11.5px] text-ink-soft">
                                 {cfg.variations.map((v) => (
                                   <span key={v.itemId} className="mr-2">
-                                    {v.variationName}: <span className="font-medium">{v.itemLabel}</span>
+                                    {v.variationName}:{" "}
+                                    <span className="font-medium">
+                                      {v.itemLabel}
+                                      {(v.qty ?? 1) > 1 ? ` ×${v.qty}/ea` : ""}
+                                    </span>
                                   </span>
                                 ))}
                               </div>
@@ -376,9 +392,10 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
                     waiver={ship.waiver}
                     hasGround={ship.hasGround}
                     hasFob={ship.hasFob}
-                    expedite={ship.expedite}
                     leadDays={ship.leadDays}
                     lines={shipLineDetail}
+                    expediteStatus={expediteState.status}
+                    expediteFee={expediteState.fee}
                   />
                   <div className="flex justify-between border-t border-line pt-2.5 text-[15px]">
                     <dt className="font-semibold text-ink">Total{!ship.hasGround ? " · FOB" : ""}</dt>
@@ -388,9 +405,22 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
               </Card>
 
 
+              {viewerIsAdmin && quote.status === "draft" && ship.hasGround && (
+                <AdminExpediteBox
+                  quoteId={quote.id}
+                  status={expediteState.status}
+                  refFee={expediteRef}
+                  currentFee={expediteState.fee}
+                />
+              )}
+
               {quote.status === "draft" ? (
                 <>
-                  <SubmitPreOrderButton quoteId={quote.id} total={usd(grandTotal)} />
+                  <SubmitPreOrderButton
+                    quoteId={quote.id}
+                    total={usd(grandTotal)}
+                    blockedReason={expediteState.status === "requested" ? "Awaiting expedite price…" : undefined}
+                  />
                   <DeleteDraftButton quoteId={quote.id} />
                 </>
               ) : (

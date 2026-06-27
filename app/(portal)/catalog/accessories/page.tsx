@@ -1,24 +1,26 @@
 import Link from "next/link";
-import { AddAccessoryButton } from "@/components/AccessoryActions";
+import { AccessoryBrowser, type BrowserModel } from "@/components/AccessoryBrowser";
 import { AccessoryFilters } from "@/components/AccessoryFilters";
 import { AccessorySearchBox } from "@/components/AccessorySearchBox";
+import { AccessoryToolbar } from "@/components/AccessoryToolbar";
 import { FrequentParts, type FrequentPart } from "@/components/FrequentParts";
-import { Badge, Card, cx, PageHeader } from "@/components/ui";
+import { getEffectiveOwnerId } from "@/lib/auth/acting-as";
 import { getCurrentUserId } from "@/lib/auth/user";
 import {
   getAttributes,
   getEffectivePrices,
   getFrequentPartIds,
   getInventoryMap,
+  getQuotes,
   getModelFilesMap,
   getModelTagMap,
   getProductDefaultsMap,
   getProductVariationMap,
   getRestrictions,
+  getVariationItemModelMap,
   getVariations,
   loadCatalog,
 } from "@/lib/db";
-import { usd } from "@/lib/format";
 
 export default async function AccessoriesPage({
   searchParams,
@@ -32,7 +34,7 @@ export default async function AccessoriesPage({
   const q = quoteId ? `&quote=${quoteId}` : "";
 
   const userId = await getCurrentUserId();
-  const [catalog, attributes, tagMap, effectivePrices, inventory, variations, variationMap, filesMap, defaultsMap, restrictions, frequentRaw] = await Promise.all([
+  const [catalog, attributes, tagMap, effectivePrices, inventory, variations, variationMap, filesMap, defaultsMap, restrictions, itemModelMap, frequentRaw] = await Promise.all([
     loadCatalog(),
     getAttributes(),
     getModelTagMap(),
@@ -43,8 +45,24 @@ export default async function AccessoriesPage({
     getModelFilesMap(), // model_id → spec/cert attachments
     getProductDefaultsMap(), // model_id → default variation item ids
     getRestrictions(), // item↔item incompatibility pairs (grey-out in the options modal)
+    getVariationItemModelMap(), // variation item_id → its source model id (for stock)
     userId ? getFrequentPartIds(userId, 12) : Promise.resolve([]), // over-fetch; stale ids filtered below
   ]);
+
+  // Each add-on part inherits its source model's stock (absent = untracked / unlimited).
+  const variationStock: Record<string, number | null> = {};
+  for (const [itemId, modelId] of Object.entries(itemModelMap)) {
+    variationStock[itemId] = modelId in inventory ? inventory[modelId] : null;
+  }
+
+  // The current user's open (draft) quotes — offered in the in-page "Add to quote" picker so a
+  // motor can be dropped into a quote without leaving the catalog.
+  const effectiveOwner = await getEffectiveOwnerId();
+  const draftQuotes = effectiveOwner
+    ? (await getQuotes(effectiveOwner))
+        .filter((qu) => qu.status === "draft" && qu.ownerId === effectiveOwner)
+        .map((qu) => ({ id: qu.id, ref: qu.ref, projectName: qu.projectName, itemCount: qu.itemCount }))
+    : [];
 
   // Enrich the frequently-ordered ids with the live catalog; drop any that are gone /
   // no longer orderable / unpriced so we never pin a stale suggestion, then keep the top 3.
@@ -114,16 +132,89 @@ export default async function AccessoriesPage({
   // their catalog order).
   const models = [...filtered].sort((a, b) => Number((a.model.moq ?? 0) > 0) - Number((b.model.moq ?? 0) > 0));
 
+  // Flatten to serializable rows for the client browser (tags resolved to labels here).
+  const browserModels: BrowserModel[] = models.map(({ model, cat: modelCat }) => ({
+    id: model.id,
+    name: model.name,
+    sku: model.sku,
+    description: model.description,
+    image: catalog.image(model),
+    price: effectivePrices[model.id] ?? model.price ?? null,
+    stock: model.id in inventory ? inventory[model.id] : null,
+    moq: model.moq ?? 0,
+    categoryName: modelCat.name,
+    orderable: !!modelCat.orderable,
+    tags: (tagMap[model.id] ?? []).map((t) => valueLabel[t] ?? t),
+    files: (filesMap[model.id] ?? []).map((f) => ({ id: f.id, url: f.url, kind: f.kind, name: f.name })),
+    availableItemIds: variationMap[model.id] ?? [],
+    defaultItemIds: defaultsMap[model.id] ?? [],
+  }));
+
+  // ---- Toolbar data: breadcrumb categories + active-filter chips ----
+  const description =
+    "Motors, controls and power. Motors are orderable and add to the same quote as full products; other parts are reference for now.";
+  const attrName: Record<string, string> = {};
+  for (const a of attributes) attrName[a.id] = a.name;
+
+  const buildHref = (sel: Record<string, string>, moqVal: string) => {
+    const p = new URLSearchParams();
+    if (cat) p.set("cat", cat);
+    if (quoteId) p.set("quote", String(quoteId));
+    for (const [k, v] of Object.entries(sel)) if (v) p.set(`t_${k}`, v);
+    if (moqVal) p.set("moq", moqVal);
+    if (searchRaw) p.set("q", searchRaw);
+    const qs = p.toString();
+    return qs ? `/catalog/accessories?${qs}` : "/catalog/accessories";
+  };
+
+  const categoriesData = categories.map((c) => ({
+    id: c.id,
+    name: c.name,
+    count: catalog.modelsIn(c.id).length,
+    orderable: !!c.orderable,
+    href: `/catalog/accessories?cat=${c.id}${q}`,
+    active: !filtering && c.id === activeCat.id,
+  }));
+
+  const chips: { label: string; href: string }[] = [];
+  for (const [attrId, valueId] of Object.entries(selected)) {
+    const rest = { ...selected };
+    delete rest[attrId];
+    chips.push({ label: `${attrName[attrId] ?? "Filter"}: ${valueLabel[valueId] ?? valueId}`, href: buildHref(rest, moq) });
+  }
+  if (moq) chips.push({ label: moq === "1" ? "Has minimum order" : "No minimum order", href: buildHref(selected, "") });
+  const filterCount = Object.keys(selected).length + (moq ? 1 : 0);
+  const activeLabel = filtering ? `Search results · ${models.length}` : activeCat.name;
+
   return (
-    <div>
-      <PageHeader
-        eyebrow="Catalog · Accessories"
-        title="Parts & Accessories"
-        description="Motors, controls and power — browse by brand and category, or filter motors by their attributes. Motors are orderable and add to the same quote as full products; other parts are reference for now."
-      />
+    // Full-height, no page scroll — the list + detail pane scroll inside their own card.
+    <div className="flex h-[calc(100vh-2.5rem)] flex-col">
+      {/* Compact header — description folded into an info tooltip */}
+      <div className="mb-3 flex items-center gap-2">
+        <h1 className="text-[20px] font-semibold tracking-tight text-ink">Parts &amp; Accessories</h1>
+        <span className="group relative inline-flex">
+          <svg
+            width="17"
+            height="17"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="cursor-help text-muted hover:text-ink-soft"
+          >
+            <circle cx="12" cy="12" r="10" />
+            <path d="M12 16v-4M12 8h.01" />
+          </svg>
+          <span className="pointer-events-none absolute left-1/2 top-full z-30 mt-1.5 hidden w-64 -translate-x-1/2 rounded-lg bg-ink px-3 py-2 text-[11.5px] font-normal leading-snug text-white shadow-lg group-hover:block">
+            {description}
+          </span>
+        </span>
+      </div>
 
       {quoteId && (
-        <div className="rise mb-4 flex items-center justify-between gap-3 rounded-xl border border-brass/40 bg-brass-soft/40 px-4 py-2.5 text-[13px] text-ink-soft">
+        <div className="rise mb-3 flex items-center justify-between gap-3 rounded-xl border border-brass/40 bg-brass-soft/40 px-4 py-2.5 text-[13px] text-ink-soft">
           <span>Adding to your quote — pick a motor to add.</span>
           <Link href={`/quotes/${quoteId}`} className="shrink-0 font-medium text-brass hover:underline">
             Back to quote →
@@ -133,175 +224,26 @@ export default async function AccessoriesPage({
 
       <FrequentParts parts={frequentParts} quoteId={quoteId} variations={variations} restrictions={restrictions} />
 
-      <AccessoryFilters attributes={attributes} selected={selected} moq={moq} q={searchRaw} cat={cat} quote={quoteId} />
+      <AccessoryToolbar
+        brandName={catalog.brand.name}
+        categories={categoriesData}
+        activeLabel={activeLabel}
+        chips={chips}
+        clearAllHref={buildHref({}, "")}
+        filterCount={filterCount}
+        searchSlot={<AccessorySearchBox q={searchRaw} baseParams={baseParams} />}
+        filtersSlot={<AccessoryFilters attributes={attributes} selected={selected} moq={moq} q={searchRaw} cat={cat} quote={quoteId} />}
+      />
 
-      {/* 3-level master-detail: Brand → Category → Models */}
-      <div className="grid gap-4 lg:grid-cols-[200px_240px_1fr]">
-        {/* L1 — Brand */}
-        <div>
-          <div className="mb-2 px-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">Brand</div>
-          <Card className="overflow-hidden">
-            <div className="flex items-center gap-3 bg-[#1a2336] px-4 py-3 text-white">
-              <div className="flex size-8 items-center justify-center rounded-lg bg-white/10 text-sm font-bold">A</div>
-              <div>
-                <div className="text-sm font-semibold">{catalog.brand.name}</div>
-                <div className="text-[10.5px] text-white/50">{catalog.brand.tagline}</div>
-              </div>
-            </div>
-          </Card>
-        </div>
-
-        {/* L2 — Category */}
-        <div>
-          <div className="mb-2 px-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">Category</div>
-          <Card className="overflow-hidden">
-            <ul className="divide-y divide-line/70">
-              {categories.map((c) => {
-                const count = catalog.modelsIn(c.id).length;
-                const active = !filtering && c.id === activeCat.id;
-                return (
-                  <li key={c.id}>
-                    <Link
-                      href={`/catalog/accessories?cat=${c.id}${q}`}
-                      className={cx(
-                        "flex items-center justify-between gap-2 px-4 py-3 transition-colors",
-                        active ? "bg-[#fbf8f1]" : "hover:bg-[#faf9f5]"
-                      )}
-                    >
-                      <div className="min-w-0">
-                        <div className={cx("truncate text-[13.5px] font-medium", active ? "text-brass" : "text-ink")}>
-                          {c.name}
-                        </div>
-                        <div className="truncate text-[11px] text-muted">{count} models</div>
-                      </div>
-                      {c.orderable ? <Badge tone="green">Orderable</Badge> : <Badge tone="slate">Reference</Badge>}
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          </Card>
-        </div>
-
-        {/* L3 — Models */}
-        <div>
-          <div className="mb-2 flex items-center gap-2 px-1">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">
-              {filtering ? `Filtered · ${models.length} motor${models.length === 1 ? "" : "s"}` : `${catalog.brand.name} · ${activeCat.name}`}
-            </span>
-            {!filtering && !activeCat.orderable && (
-              <span className="text-[10.5px] text-muted">— reference only (not yet orderable)</span>
-            )}
-            <div className="ml-auto">
-              <AccessorySearchBox q={searchRaw} baseParams={baseParams} />
-            </div>
-          </div>
-          <Card className="overflow-hidden">
-            {models.length === 0 ? (
-              <div className="px-5 py-10 text-center text-sm text-muted">No models match these filters.</div>
-            ) : (
-              <ul className="divide-y divide-line/70">
-                {models.map(({ model, cat: modelCat }) => {
-                  const tags = tagMap[model.id] ?? [];
-                  const price = effectivePrices[model.id] ?? model.price;
-                  const stock = model.id in inventory ? inventory[model.id] : null;
-                  const moq = model.moq ?? 0;
-                  const img = catalog.image(model);
-                  return (
-                    <li key={model.id} className="relative flex items-center gap-4 px-4 py-3.5">
-                      {moq > 0 && (
-                        <span className="absolute right-3 top-2 inline-flex items-center gap-1 rounded-md bg-amber-100 px-1.5 py-0.5 text-[10.5px] font-semibold text-amber-800">
-                          Minimum order quantity {moq}
-                          <span className="group/moq relative flex size-3.5 cursor-help items-center justify-center rounded-full bg-amber-200 text-[9px] font-bold text-amber-900">
-                            ?
-                            <span className="pointer-events-none absolute right-full top-1/2 z-20 mr-2 hidden w-max max-w-[220px] -translate-y-1/2 rounded-md bg-ink px-2.5 py-1.5 text-[11px] font-normal leading-snug text-white shadow-lg group-hover/moq:block">
-                              Out of stock — a minimum of {moq} units must be ordered.
-                            </span>
-                          </span>
-                        </span>
-                      )}
-                      {img ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={img}
-                          alt={model.name}
-                          className="size-14 shrink-0 rounded-xl bg-[#0e0e10] object-contain p-1.5"
-                        />
-                      ) : (
-                        <div className="flex size-14 shrink-0 items-center justify-center rounded-xl bg-[#0e0e10] text-[10px] font-medium text-white/40">
-                          No image
-                        </div>
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-[14px] font-semibold text-ink">{model.name}</span>
-                          <span className="rounded bg-[#f1efe9] px-1.5 py-0.5 font-mono text-[10.5px] text-ink-soft">
-                            {model.sku}
-                          </span>
-                          {filtering && <span className="text-[10.5px] text-muted">{modelCat.name}</span>}
-                        </div>
-                        <p className="mt-0.5 line-clamp-2 text-[12.5px] leading-relaxed text-muted">
-                          {model.description}
-                        </p>
-                        {tags.length > 0 && (
-                          <div className="mt-1.5 flex flex-wrap gap-1">
-                            {tags.map((t) => (
-                              <span
-                                key={t}
-                                className="rounded-md bg-brass-soft px-1.5 py-0.5 text-[10.5px] font-medium text-[#8a6a39]"
-                              >
-                                {valueLabel[t] ?? t}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                        {(filesMap[model.id] ?? []).length > 0 && (
-                          <div className="mt-1.5 flex flex-wrap gap-2">
-                            {(filesMap[model.id] ?? []).map((f) => (
-                              <a
-                                key={f.id}
-                                href={f.url}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="inline-flex items-center gap-1 rounded-md border border-line px-1.5 py-0.5 text-[10.5px] font-medium text-ink-soft hover:border-ink"
-                              >
-                                📄 {f.kind === "certification" ? "Cert" : f.kind === "spec" ? "Spec" : "Doc"}: {f.name}
-                              </a>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                      <div className="shrink-0 text-right">
-                        <div className="text-[15px] font-semibold tabular-nums text-ink">
-                          {price === null ? "Incl." : usd(price)}
-                        </div>
-                        <div className="mt-1.5">
-                          {modelCat.orderable && price !== null ? (
-                            <AddAccessoryButton
-                              modelId={model.id}
-                              quoteId={quoteId}
-                              stock={stock}
-                              variations={variations}
-                              availableItemIds={variationMap[model.id] ?? []}
-                              defaultItemIds={defaultsMap[model.id] ?? []}
-                              restrictions={restrictions}
-                              minOrder={moq}
-                            />
-                          ) : (
-                            <span className="text-[11px] text-muted">Reference</span>
-                          )}
-                        </div>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </Card>
-          <p className="mt-3 px-1 text-[11px] text-muted">
-            Imported from A-OK 2025 pricing. Stock, pricing, tags and variations are managed by an admin under Admin · Motors.
-          </p>
-        </div>
+      <div className="min-h-0 flex-1">
+        <AccessoryBrowser
+          models={browserModels}
+          variations={variations}
+          restrictions={restrictions}
+          variationStock={variationStock}
+          quotes={draftQuotes}
+          showCategory={filtering}
+        />
       </div>
     </div>
   );

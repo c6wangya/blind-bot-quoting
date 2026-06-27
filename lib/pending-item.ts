@@ -4,7 +4,13 @@
 
 export type PendingItem =
   | { kind: "product"; productId: string; lineId: string; config: unknown; qty: number }
-  | { kind: "accessory"; productId: string; qty: number; variationItemIds?: string[] };
+  | {
+      kind: "accessory";
+      productId: string;
+      qty: number;
+      variationItemIds?: string[];
+      variationItems?: Array<{ itemId: string; qty: number }>;
+    };
 
 const KEY = "pendingQuoteItem";
 
@@ -37,5 +43,11 @@ export function clearPendingItem(): void {
 export function pendingItemBody(item: PendingItem, quoteId: number) {
   return item.kind === "product"
     ? { productId: item.productId, config: item.config, qty: item.qty, quoteId }
-    : { productId: item.productId, qty: item.qty, quoteId, variationItemIds: item.variationItemIds };
+    : {
+        productId: item.productId,
+        qty: item.qty,
+        quoteId,
+        variationItemIds: item.variationItemIds,
+        variationItems: item.variationItems,
+      };
 }

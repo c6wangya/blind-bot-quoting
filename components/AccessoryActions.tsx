@@ -11,7 +11,7 @@ import { Button, cx } from "./ui";
  *  otherwise a text dropdown. `allowNone` adds a "None" choice (independent variations).
  *  `disabled` items are incompatible with the current selection elsewhere and can't be picked;
  *  `disabledReason` maps an item id → the conflicting option's name, shown on hover. */
-function VariationPicker({
+export function VariationPicker({
   type,
   value,
   onChange,
@@ -221,7 +221,7 @@ export function AddAccessoryButton({
 
   const tracked = stock !== null && stock !== undefined;
   const outOfStock = tracked && stock === 0;
-  const max = tracked ? (stock as number) : 500;
+  const max = tracked ? (stock as number) : Infinity;
 
   const submit = async (variationItemIds: string[]) => {
     setBusy(true);
@@ -287,7 +287,24 @@ export function AddAccessoryButton({
           <button onClick={() => setQty((q) => Math.max(minQty, q - 1))} disabled={qty <= minQty} aria-label="Decrease quantity" className="px-2.5 py-1 text-ink-soft hover:text-ink disabled:opacity-30">
             −
           </button>
-          <span className="w-7 text-center text-sm font-semibold tabular-nums">{qty}</span>
+          <input
+            type="number"
+            min={minQty}
+            max={tracked ? max : undefined}
+            value={qty}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (v === "") { setQty(minQty); return; }
+              const n = Math.floor(Number(v));
+              if (!Number.isNaN(n)) setQty(Math.min(max, Math.max(minQty, n)));
+            }}
+            onBlur={(e) => {
+              const n = Math.floor(Number(e.target.value));
+              setQty(Number.isNaN(n) ? minQty : Math.min(max, Math.max(minQty, n)));
+            }}
+            aria-label="Quantity"
+            className="w-12 border-0 bg-transparent text-center text-sm font-semibold tabular-nums outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+          />
           <button onClick={() => setQty((q) => Math.min(max, q + 1))} disabled={qty >= max} aria-label="Increase quantity" className="px-2.5 py-1 text-ink-soft hover:text-ink disabled:opacity-30">
             +
           </button>

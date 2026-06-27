@@ -66,17 +66,21 @@ export function SubmitPreOrderButton({
   quoteId,
   total,
   token,
+  blockedReason,
 }: {
   quoteId: number;
   total: string;
   /** Pay-by-link token — when set, this is the public invoice (no portal session), so we authorize
    *  the submit with the token and stay on the invoice page afterwards instead of the portal order. */
   token?: string;
+  /** When set, paying is disabled and this reason is shown (e.g. expedite price still pending). */
+  blockedReason?: string;
 }) {
   const router = useRouter();
   // Shipping recalculation (e.g. toggling expedite) must finish before paying — otherwise the
   // customer could pay against a stale total.
   const { pending: shippingBusy } = useShippingRecalc();
+  const blocked = shippingBusy || !!blockedReason;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
@@ -115,10 +119,10 @@ export function SubmitPreOrderButton({
         <Button
           variant="primary"
           onClick={() => setOpen(true)}
-          disabled={shippingBusy}
+          disabled={blocked}
           className="w-full py-3"
         >
-          {shippingBusy ? "Updating shipping…" : "Confirm & pay →"}
+          {blockedReason ?? (shippingBusy ? "Updating shipping…" : "Confirm & pay →")}
         </Button>
         {error && <p className="mt-2 text-xs text-red-500">{error}</p>}
       </div>

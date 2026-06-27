@@ -110,6 +110,8 @@ export interface VariationSnapshot {
   itemId: string;
   itemLabel: string;
   price: number;
+  /** How many of this sub-part per parent motor unit (THE-772). Absent on pre-qty lines = 1. */
+  qty?: number;
 }
 
 /** A motor's Crown + Driver selection on a quote line. */

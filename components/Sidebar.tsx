@@ -2,12 +2,16 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import {
   BookOpen,
+  ChevronUp,
   Cpu,
   Factory,
   FileText,
+  KeyRound,
   LayoutDashboard,
+  LogOut,
   type LucideIcon,
   MessageSquare,
   Package,
@@ -88,6 +92,23 @@ export default function Sidebar({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close the account popover on outside click / Escape.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setMenuOpen(false);
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [menuOpen]);
 
   const isActive = (href: string) =>
     href === "/"
@@ -220,52 +241,67 @@ export default function Sidebar({
         </div>
       )}
 
-      <div className="border-t border-white/10 px-5 py-4">
-        <div className="flex items-center gap-3">
-          {signedIn ? (
+      <div ref={menuRef} className="relative border-t border-white/10 px-3 py-3">
+        {/* Account popover — opens upward, anchored to the user row below. */}
+        {signedIn && menuOpen && (
+          <div className="absolute inset-x-3 bottom-full mb-2 overflow-hidden rounded-xl bg-white text-ink shadow-2xl ring-1 ring-black/10">
             <Link
               href="/account"
-              onClick={onClose}
-              title="Account settings"
-              className="flex min-w-0 flex-1 items-center gap-3 rounded-lg -mx-1 px-1 py-0.5 transition-colors hover:bg-white/10"
+              onClick={() => {
+                setMenuOpen(false);
+                onClose();
+              }}
+              className="flex items-center gap-3 px-4 py-3 text-[13.5px] font-medium text-ink transition-colors hover:bg-black/[0.04]"
             >
-              <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#5b6b8f] to-[#3a4763] text-xs font-semibold">
-                {initials}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-[12.5px] font-medium">{accountName}</div>
-                <div className="truncate text-[10.5px] text-white/40">{accountSub}</div>
-              </div>
+              <KeyRound className="size-[18px] text-muted" strokeWidth={1.75} />
+              Change password
             </Link>
-          ) : (
-            <>
-              <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#5b6b8f] to-[#3a4763] text-xs font-semibold">
-                {initials}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-[12.5px] font-medium">{accountName}</div>
-                <div className="truncate text-[10.5px] text-white/40">{accountSub}</div>
-              </div>
-            </>
-          )}
-          {signedIn && (
+            <div className="h-px bg-black/[0.06]" />
             <button
               type="button"
-              onClick={handleSignOut}
-              title="Sign out"
-              aria-label="Sign out"
-              className="shrink-0 rounded-lg p-1.5 text-white/40 transition-colors hover:bg-white/10 hover:text-white/80"
+              onClick={() => {
+                setMenuOpen(false);
+                handleSignOut();
+              }}
+              className="flex w-full items-center gap-3 px-4 py-3 text-[13.5px] font-medium text-ink transition-colors hover:bg-black/[0.04]"
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="size-4">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15M12 9l3 3m0 0-3 3m3-3H2.25"
-                />
-              </svg>
+              <LogOut className="size-[18px] text-muted" strokeWidth={1.75} />
+              Sign out
             </button>
-          )}
-        </div>
+          </div>
+        )}
+
+        {signedIn ? (
+          <button
+            type="button"
+            onClick={() => setMenuOpen((o) => !o)}
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            className="flex w-full items-center gap-3 rounded-lg px-2 py-1.5 transition-colors hover:bg-white/10"
+          >
+            <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#5b6b8f] to-[#3a4763] text-xs font-semibold">
+              {initials}
+            </div>
+            <div className="min-w-0 flex-1 text-left">
+              <div className="truncate text-[12.5px] font-medium">{accountName}</div>
+              <div className="truncate text-[10.5px] text-white/40">{accountSub}</div>
+            </div>
+            <ChevronUp
+              className={cx("size-4 shrink-0 text-white/40 transition-transform", menuOpen ? "rotate-180" : "")}
+              strokeWidth={2}
+            />
+          </button>
+        ) : (
+          <div className="flex items-center gap-3 px-2 py-1.5">
+            <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#5b6b8f] to-[#3a4763] text-xs font-semibold">
+              {initials}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-[12.5px] font-medium">{accountName}</div>
+              <div className="truncate text-[10.5px] text-white/40">{accountSub}</div>
+            </div>
+          </div>
+        )}
       </div>
     </aside>
   );

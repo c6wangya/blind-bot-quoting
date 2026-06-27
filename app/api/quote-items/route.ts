@@ -7,10 +7,12 @@ import {
   addQuoteItem,
   getActivePricing,
   getLine,
+  getInventoryMap,
   getOrCreateDraftQuote,
   getProduct,
   getQuote,
   getStock,
+  getVariationItemModelMap,
   loadCatalog,
   removeQuoteItem,
   resolveMotorPrice,
@@ -59,7 +61,10 @@ export async function POST(req: Request) {
       config?: ItemConfig;
       qty: number;
       quoteId?: number;
+      /** Legacy: chosen variation item ids (qty 1 each). */
       variationItemIds?: string[];
+      /** Per-sub-part selection with a per-motor quantity (THE-772). */
+      variationItems?: Array<{ itemId: string; qty?: number }>;
     };
     const qty = Math.max(1, Math.min(500, Math.round(body.qty || 1)));
     const quoteId = typeof body.quoteId === "number" && Number.isInteger(body.quoteId) ? body.quoteId : undefined;
@@ -87,11 +92,34 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: `Minimum order for this motor is ${moq}` }, { status: 409 });
       }
       // Resolve the chosen variation items (validates availability + pairing; snapshots labels/prices).
-      const variations = await resolveVariationSelections(
-        accessory.id,
-        Array.isArray(body.variationItemIds) ? body.variationItemIds : [],
-        sb
-      );
+      const requested = Array.isArray(body.variationItems)
+        ? body.variationItems
+        : Array.isArray(body.variationItemIds)
+          ? body.variationItemIds.map((itemId) => ({ itemId, qty: 1 }))
+          : [];
+      const variations = await resolveVariationSelections(accessory.id, requested, sb);
+      // Add-on parts carry stock too (via their source model). Total needed per part = motorQty ×
+      // per-motor qty; never let a single add exceed what's available.
+      if (variations.length) {
+        const [itemModelMap, inv] = await Promise.all([getVariationItemModelMap(), getInventoryMap()]);
+        for (const v of variations) {
+          const modelId = itemModelMap[v.itemId];
+          const partStock = modelId ? inv[modelId] : undefined;
+          if (partStock === undefined) continue; // untracked
+          const need = qty * v.qty;
+          if (need > partStock) {
+            return NextResponse.json(
+              {
+                error:
+                  partStock === 0
+                    ? `${v.itemLabel} is out of stock`
+                    : `Only ${partStock} of ${v.itemLabel} in stock (you need ${need})`,
+              },
+              { status: 409 }
+            );
+          }
+        }
+      }
       const quote = await resolveTargetQuote(userId, sb, quoteId);
       // Snapshot this retailer's effective price (override → default → static).
       const unitPrice = await resolveMotorPrice(accessory.id, userId);
