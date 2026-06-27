@@ -45,7 +45,7 @@ export default async function SupplierConsolePage({
       {all.length === 0 ? (
         <EmptyState
           title="Nothing in the pipeline"
-          description="Pre-orders submitted by retailers appear here for fulfillment."
+          description="Orders submitted by retailers appear here for fulfillment."
         />
       ) : (
         <>

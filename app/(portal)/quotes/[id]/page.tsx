@@ -7,6 +7,7 @@ import { ShippingRecalcProvider } from "@/components/ShippingRecalcContext";
 import { AdminExpediteBox } from "@/components/AdminExpediteBox";
 import { ExpediteStatusPoller } from "@/components/ExpediteStatusPoller";
 import { AccessoryLineEditor, type EditorVariation } from "@/components/AccessoryLineEditor";
+import { AccessoryVariations } from "@/components/AccessoryVariations";
 import { LineQtyEditor } from "@/components/LineQtyEditor";
 import { Swatch } from "@/components/renders";
 import { BackLink, Badge, Card, EmptyState, LinkButton } from "@/components/ui";
@@ -256,27 +257,13 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
                                   s <= 0 ? "Out of stock" : s <= 5 ? `Only ${s} left` : `${s} in stock`;
                                 return <div className={`mt-1 text-[11.5px] font-medium ${tone}`}>{label}</div>;
                               })()}
-                            {cfg.variations?.length ? (
-                              // Draft: the editor below renders these with qty steppers + stock.
-                              quote.status === "draft" ? null : (
-                                <div className="mt-1 text-[11.5px] text-ink-soft">
-                                  {cfg.variations.map((v) => (
-                                    <span key={v.itemId} className="mr-2">
-                                      {v.variationName}:{" "}
-                                      <span className="font-medium">
-                                        {v.itemLabel}
-                                        {(v.qty ?? 1) > 1 ? ` ×${v.qty}/ea` : ""}
-                                      </span>
-                                    </span>
-                                  ))}
-                                </div>
-                              )
-                            ) : cfg.crownDriver?.mode === "crown-driver" ? (
-                              <div className="mt-1 text-[11.5px] text-ink-soft">
-                                Crown: <span className="font-medium">{cfg.crownDriver.crownLabel}</span> · Drive:{" "}
-                                <span className="font-medium">{cfg.crownDriver.driverLabel}</span>
-                              </div>
-                            ) : null}
+                            {quote.status === "draft"
+                              ? // Draft: the editor below renders variations with qty steppers + stock;
+                                // only a legacy crown/driver line (no variations) needs a static row here.
+                                !cfg.variations?.length && (
+                                  <AccessoryVariations cfg={cfg} motorQty={item.qty} />
+                                )
+                              : <AccessoryVariations cfg={cfg} motorQty={item.qty} />}
                           </div>
                           <div className="text-right">
                             <div className="font-semibold tabular-nums text-ink">
@@ -478,7 +465,7 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
               ) : (
                 order && (
                   <LinkButton href={`/orders/${order.id}`} className="w-full justify-center">
-                    View pre-order {order.ref} →
+                    View order {order.ref} →
                   </LinkButton>
                 )
               )}

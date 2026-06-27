@@ -187,8 +187,11 @@ async function buildAccessoryLine(
   variations: VariationSnapshot[]
 ): Promise<{ config: AccessoryConfig; computation: QuoteComputation }> {
   const cat = await loadCatalog();
-  const brandName = cat.brand.name;
   const category = cat.category(model.categoryId);
+  // Resolve the model's actual brand via its category (multi-brand catalog); fall back to the
+  // default brand only when the category has no brandId / the brand row is missing.
+  const brandName =
+    cat.brands.find((b) => b.id === category?.brandId)?.name ?? cat.brand.name;
   const config: AccessoryConfig = {
     kind: "accessory",
     sku: model.sku,

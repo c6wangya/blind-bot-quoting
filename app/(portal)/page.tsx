@@ -26,13 +26,13 @@ export default async function Dashboard() {
       <PageHeader
         eyebrow="Harbor & Lane Interiors"
         title="Trade Dashboard"
-        description="Quote factory-direct roller shades and drapery, place pre-orders straight into the supply chain, and track every order to the door."
+        description="Quote factory-direct roller shades and drapery, place orders straight into the supply chain, and track every order to the door."
         actions={<LinkButton href="/catalog">Browse catalog →</LinkButton>}
       />
 
       <div className="rise grid grid-cols-2 gap-4 lg:grid-cols-4">
         <Stat label="Open quotes" value={usd(draftValue)} sub={`${draftQuotes.length} draft${draftQuotes.length === 1 ? "" : "s"} in progress`} />
-        <Stat label="Active pre-orders" value={active.length} sub={`${usd(activeValue)} committed`} />
+        <Stat label="Active orders" value={active.length} sub={`${usd(activeValue)} committed`} />
         <Stat
           label="In production"
           value={orders.filter((o) => o.status === "in_production").length}
@@ -113,7 +113,7 @@ export default async function Dashboard() {
               <p className="mt-0.5 text-xs text-muted">Status pushed from the supplier &amp; logistics layer</p>
             </div>
             <LinkButton href="/orders" variant="secondary" className="px-3 py-1.5 text-xs">
-              All pre-orders
+              All orders
             </LinkButton>
           </div>
           <ul className="mt-4 divide-y divide-line/70">

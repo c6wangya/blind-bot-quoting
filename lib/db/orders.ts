@@ -329,6 +329,18 @@ export async function getOrders(ownerId?: string, sb: SupabaseClient = admin()):
   );
   const aggs = (items ?? []) as unknown as ItemAgg[];
 
+  // Resolve the *live* retailer name from each owner's profile (company → email), so the column
+  // reflects the actual account rather than the name snapshotted onto the quote at creation time.
+  // Public/demo quotes (owner_id null) keep their snapshot label.
+  const ownerIds = [...new Set([...qById.values()].map((q) => q.ownerId).filter((id): id is string => !!id))];
+  const nameByOwner = new Map<string, string>();
+  if (ownerIds.length > 0) {
+    const { data: profiles } = await admin().from("profiles").select("id, email, company").in("id", ownerIds);
+    for (const p of (profiles ?? []) as { id: string; email: string | null; company: string | null }[]) {
+      nameByOwner.set(p.id, p.company?.trim() || p.email || "");
+    }
+  }
+
   return orderRows
     .filter((o) => {
       if (!ownerId) return true; // back-office (Supplier Console): all orders
@@ -342,7 +354,7 @@ export async function getOrders(ownerId?: string, sb: SupabaseClient = admin()):
       return {
         ...o,
         quoteRef: q?.ref ?? "",
-        retailer: q?.retailer ?? "",
+        retailer: (q?.ownerId ? nameByOwner.get(q.ownerId) : "") || q?.retailer || "",
         projectName: q?.projectName ?? null,
         itemCount: its.length,
         total,

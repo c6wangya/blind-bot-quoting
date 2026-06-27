@@ -85,7 +85,7 @@ export default function LoginForm({ initialError, next }: { initialError?: strin
     <div className="w-full max-w-sm">
       <div className="text-center">
         <h1 className="text-2xl font-semibold tracking-tight text-ink">{BRAND.name}</h1>
-        <p className="mt-1 text-sm text-muted">Sign in to quote and pre-order.</p>
+        <p className="mt-1 text-sm text-muted">Sign in to quote and order.</p>
       </div>
 
       <button

@@ -46,7 +46,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
         conv.id,
         adminUid,
         "admin",
-        `Expedited shipping for ${ref} is ${usd(fee)}. Your quote total has been updated — you can place the pre-order whenever you're ready.`,
+        `Expedited shipping for ${ref} is ${usd(fee)}. Your quote total has been updated — you can place the order whenever you're ready.`,
         admin(),
         { id, ref }
       );

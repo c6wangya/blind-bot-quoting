@@ -41,7 +41,7 @@ export default async function QuotesPage({
       <PageHeader
         eyebrow="Quoting"
         title="Quotes"
-        description="Auto-priced by the backend formula engine from catalog, variations and dimensions. Submit a draft to convert it into a supply-chain pre-order."
+        description="Auto-priced by the backend formula engine from catalog, variations and dimensions. Submit a draft to convert it into a supply-chain order."
         actions={<LinkButton href="/quotes/new">Create New Quote</LinkButton>}
       />
 
@@ -108,7 +108,7 @@ export default async function QuotesPage({
                     {q.status === "draft" ? (
                       <Badge tone="amber">Draft</Badge>
                     ) : (
-                      <Badge tone="green">Converted to pre-order</Badge>
+                      <Badge tone="green">Converted to order</Badge>
                     )}
                   </td>
                   <td className="px-5 py-3.5 text-right tabular-nums text-ink-soft">{q.itemCount}</td>

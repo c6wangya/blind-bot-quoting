@@ -28,14 +28,14 @@ export default async function OrdersPage({
     <div>
       <PageHeader
         eyebrow="Fulfillment"
-        title="Pre-Orders"
+        title="Orders"
         description="Confirmed quotes flowing through the China supply chain. Status updates sync automatically from the supplier and logistics layer."
       />
 
       {all.length === 0 ? (
         <EmptyState
-          title="No pre-orders yet"
-          description="Submit a draft quote and it becomes a pre-order tracked here, end to end."
+          title="No orders yet"
+          description="Submit a draft quote and it becomes an order tracked here, end to end."
           action={<LinkButton href="/quotes">Go to quotes</LinkButton>}
         />
       ) : (
@@ -57,7 +57,7 @@ export default async function OrdersPage({
               </div>
             </Link>
           ))}
-          {rows.length === 0 && <p className="py-8 text-center text-sm text-muted">No pre-orders match your search.</p>}
+          {rows.length === 0 && <p className="py-8 text-center text-sm text-muted">No orders match your search.</p>}
         </div>
 
         {/* Desktop: table */}
@@ -65,7 +65,7 @@ export default async function OrdersPage({
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-line bg-[#fafaf7] text-left text-[11px] font-semibold uppercase tracking-wider text-muted">
-                <th className="px-5 py-3">Pre-order</th>
+                <th className="px-5 py-3">Order</th>
                 <th className="px-5 py-3">Project</th>
                 <th className="px-5 py-3">Status</th>
                 <th className="px-5 py-3">Purchase order №</th>
@@ -94,7 +94,7 @@ export default async function OrdersPage({
               ))}
             </tbody>
           </table>
-          {rows.length === 0 && <p className="px-5 py-8 text-center text-sm text-muted">No pre-orders match your search.</p>}
+          {rows.length === 0 && <p className="px-5 py-8 text-center text-sm text-muted">No orders match your search.</p>}
         </Card>
         </>
       )}

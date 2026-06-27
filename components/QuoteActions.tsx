@@ -139,7 +139,7 @@ export function SubmitPreOrderButton({
 
   return (
     <div className="rounded-xl border border-brass/40 bg-brass-soft/60 p-4">
-      <p className="text-[13px] font-medium text-ink">Pay {total} to place this pre-order</p>
+      <p className="text-[13px] font-medium text-ink">Pay {total} to place this order</p>
       <div className="mt-3 space-y-2">
         {PAY_METHODS.map((m) => (
           <label
@@ -158,7 +158,7 @@ export function SubmitPreOrderButton({
       </div>
       <div className="mt-3 flex gap-2">
         <Button variant="primary" onClick={submit} busy={busy} disabled={shippingBusy} className="py-2">
-          {busy ? "Placing…" : shippingBusy ? "Updating…" : "Place pre-order"}
+          {busy ? "Placing…" : shippingBusy ? "Updating…" : "Place order"}
         </Button>
         <Button variant="secondary" onClick={() => setOpen(false)} disabled={busy} className="py-2">
           Cancel

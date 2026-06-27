@@ -8,6 +8,7 @@ import { admin } from "@/lib/supabase/admin";
 import { getBankInfo, getLine, getOrder, getOrderOwnerId, getOrderShipping, getProduct, loadCatalog } from "@/lib/db";
 import { describeConfig } from "@/lib/describe";
 import { isAccessoryConfig } from "@/lib/types";
+import { AccessoryVariations } from "@/components/AccessoryVariations";
 import { ACTOR_LABEL, fmtDate, fmtDateTime, ORDER_STATUS_META, usd } from "@/lib/format";
 import { ORDER_STATUSES, ORDER_STATUSES_ACCESSORY, type OrderStatus } from "@/lib/types";
 
@@ -44,9 +45,9 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
 
   return (
     <div>
-      <BackLink href={adminUser ? "/supplier" : "/orders"}>{adminUser ? "Supplier Console" : "All pre-orders"}</BackLink>
+      <BackLink href={adminUser ? "/supplier" : "/orders"}>{adminUser ? "Supplier Console" : "All orders"}</BackLink>
       <PageHeader
-        eyebrow={`Pre-order · placed ${fmtDate(order.createdAt)}`}
+        eyebrow={`Order · placed ${fmtDate(order.createdAt)}`}
         title={order.ref}
         description={order.quote.projectName ?? undefined}
         actions={
@@ -67,7 +68,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
               <StatusBadge status="cancelled" />
             </div>
             <p className="mt-2 text-[13px] text-ink-soft">
-              This pre-order was cancelled before payment. The quote has been reopened for editing —{" "}
+              This order was cancelled before payment. The quote has been reopened for editing —{" "}
               <Link href={`/quotes/${order.quoteId}`} className="font-medium text-brass hover:underline">
                 edit quote {order.quote.ref} →
               </Link>
@@ -140,7 +141,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                   const acc = catalog.model(item.productId);
                   const img = cfg.image ?? (acc ? catalog.image(acc) : null);
                   return (
-                    <li key={item.id} className="flex items-center gap-4 px-5 py-3.5">
+                    <li key={item.id} className="flex items-start gap-4 px-5 py-3.5">
                       {img && (
                         /* eslint-disable-next-line @next/next/no-img-element */
                         <img src={img} alt={cfg.name} className="size-11 shrink-0 rounded-lg bg-[#0e0e10] object-contain p-1" />
@@ -151,6 +152,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                           <span className="ml-2 font-normal text-muted">{cfg.brand} · {cfg.sku}</span>
                         </div>
                         <div className="mt-0.5 truncate text-xs text-muted">{cfg.category}</div>
+                        <AccessoryVariations cfg={cfg} motorQty={item.qty} />
                       </div>
                       <div className="text-right">
                         <div className="text-sm font-semibold tabular-nums text-ink">
