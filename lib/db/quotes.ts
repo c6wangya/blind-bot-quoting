@@ -16,6 +16,7 @@ import { isAccessoryConfig } from "@/lib/types";
 import { ITEM_COLS, QUOTE_COLS, round2, type ItemAgg, insertWithRef } from "./internal";
 import { DEMO_RETAILER, ensureSeeded } from "./seed";
 import { getProfile } from "./profile";
+import { restoreMotorStock, motorNeedsOf } from "./motors";
 
 /**
  * The retailer display name snapshotted onto a quote (and inherited by its order): the owner's
@@ -176,9 +177,33 @@ export async function updateQuoteItem(
  */
 export async function deleteQuote(quoteId: number, sb: SupabaseClient = admin()): Promise<void> {
   const sbAdmin = admin();
-  const { data: orders } = await sbAdmin.from("orders").select("id").eq("quote_id", quoteId);
-  const orderIds = (orders ?? []).map((o) => (o as { id: number }).id);
+  const { data: orders } = await sbAdmin.from("orders").select("id, status").eq("quote_id", quoteId);
+  const orderRows = (orders ?? []) as { id: number; status: string }[];
+  const orderIds = orderRows.map((o) => o.id);
   if (orderIds.length) {
+    // An unpaid (awaiting_payment) order still HOLDS reserved motor stock that nothing has released
+    // yet — hard-deleting it here (the quote shows as "draft" until paid, so it's deleted via the
+    // normal draft path) would leak that reservation. Release it first, exactly like cancelOrder.
+    // cancelled/refunded orders already released their stock (or intentionally kept it, post-ship);
+    // paid in-pipeline orders represent committed units — none of those get restored here.
+    //
+    // Atomically CLAIM the unpaid order (awaiting_payment → cancelled) before restoring, and only
+    // restore if we won the row. This closes the race with a concurrent markOrderPaid / cancelOrder
+    // (both also flip awaiting_payment): otherwise we could restore stock for an order that just got
+    // paid, or double-restore one being cancelled in parallel. The rows are deleted right after.
+    const { data: claimed } = await sbAdmin
+      .from("orders")
+      .update({ status: "cancelled", updated_at: new Date().toISOString() })
+      .eq("quote_id", quoteId)
+      .eq("status", "awaiting_payment")
+      .select("id");
+    if ((claimed ?? []).length) {
+      const quote = await getQuote(quoteId, sbAdmin);
+      // Variation-aware: releases the motor model AND every chosen sub-part's source-model stock.
+      const needs = await motorNeedsOf(quote?.items ?? [], sbAdmin);
+      // At most one awaiting_payment order per quote (partial-unique index), so restore once.
+      if (needs.length) await restoreMotorStock(needs, sbAdmin);
+    }
     await sbAdmin.from("order_events").delete().in("order_id", orderIds);
     const { error: oErr } = await sbAdmin.from("orders").delete().in("id", orderIds);
     if (oErr) throw oErr;

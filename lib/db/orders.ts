@@ -6,7 +6,7 @@ import { ensureSeeded } from "./seed";
 import { getQuote, getQuoteExpedite, getQuoteExpediteState, expediteSignature } from "./quotes";
 import { getQuoteOwnerId } from "./ownership";
 import { getRetailerDiscount, getShippingWaivers } from "./profile";
-import { deductMotorStock, restoreMotorStock } from "./motors";
+import { deductMotorStock, restoreMotorStock, motorNeedsOf } from "./motors";
 import { loadCatalog } from "./accessory-catalog";
 import { getVariationItemModelMap } from "./variations";
 import { computeShipping, DEFAULT_SHIPPING, type MotorRate, type ShippingMode, type ShippingState } from "@/lib/shipping";
@@ -23,13 +23,6 @@ export async function getAdminPendingCount(sb: SupabaseClient = admin()): Promis
     .select("id", { count: "exact", head: true })
     .eq("status", "acknowledged");
   return count ?? 0;
-}
-
-/** Motor stock needs for a quote's accessory lines (the reservable units). */
-function motorNeedsOf(items: { config: unknown; productId: string; qty: number }[]) {
-  return items
-    .filter((i) => isAccessoryConfig(i.config as never))
-    .map((i) => ({ modelId: i.productId, qty: i.qty }));
 }
 
 const PAYMENT_LABEL: Record<PaymentMethod, string> = {
@@ -69,7 +62,7 @@ export async function submitPreOrder(
     .maybeSingle();
   if (existing) return existing as unknown as OrderRow;
 
-  const motorNeeds = motorNeedsOf(quote.items);
+  const motorNeeds = await motorNeedsOf(quote.items);
   let reserved = false;
   try {
     // Reserve motor stock (throws naming short models). Released later on cancel.
@@ -176,25 +169,39 @@ export async function cancelOrder(
   actor: OrderEventRow["actor"] = "retailer",
   sb: SupabaseClient = admin()
 ): Promise<{ quoteId: number }> {
-  const { data: ord } = await sb.from("orders").select("status, quote_id").eq("id", orderId).maybeSingle();
-  if (!ord) throw new Error("Order not found");
-  const o = ord as { status: string; quote_id: number };
-  if (o.status !== "awaiting_payment") throw new Error("Only an unpaid order can be cancelled");
+  const now = new Date().toISOString();
+  // Atomically CLAIM the cancel: flip awaiting_payment → cancelled and only proceed if this call
+  // won the row. Without the `status` guard two concurrent cancels (e.g. a retailer click racing
+  // the stale-order cron `expireStaleAwaitingOrders`) would both read "awaiting_payment" and each
+  // restore the reserved stock → double restore (stock inflation). The conditional update makes
+  // the release happen exactly once.
+  const { data: claimed, error: claimErr } = await sb
+    .from("orders")
+    .update({ status: "cancelled", updated_at: now })
+    .eq("id", orderId)
+    .eq("status", "awaiting_payment")
+    .select("quote_id");
+  if (claimErr) throw claimErr;
+  const won = (claimed ?? [])[0] as { quote_id: number } | undefined;
+  if (!won) {
+    // Lost the race, already cancelled/paid, or never existed — distinguish only for the message.
+    const { data: ord } = await sb.from("orders").select("id").eq("id", orderId).maybeSingle();
+    throw new Error(ord ? "Only an unpaid order can be cancelled" : "Order not found");
+  }
+  const quoteId = won.quote_id;
 
-  const quote = await getQuote(o.quote_id, admin());
-  const motorNeeds = motorNeedsOf(quote?.items ?? []);
+  const quote = await getQuote(quoteId, admin());
+  const motorNeeds = await motorNeedsOf(quote?.items ?? []);
   if (motorNeeds.length > 0) await restoreMotorStock(motorNeeds, admin());
 
-  const now = new Date().toISOString();
-  await sb.from("orders").update({ status: "cancelled", updated_at: now }).eq("id", orderId);
-  await sb.from("quotes").update({ status: "draft", updated_at: now }).eq("id", o.quote_id);
+  await sb.from("quotes").update({ status: "draft", updated_at: now }).eq("id", quoteId);
   await sb.from("order_events").insert({
     order_id: orderId,
     status: "note",
     actor,
     note: "Order cancelled before payment — reserved stock released and the quote reopened for editing.",
   });
-  return { quoteId: o.quote_id };
+  return { quoteId };
 }
 
 /**
@@ -217,13 +224,12 @@ export async function refundOrder(
   }
   // Only return stock if the goods never shipped; a shipped/in-transit/delivered refund leaves it.
   const preShipment = (PRE_SHIPMENT_STATUSES as readonly string[]).includes(order.status);
-  if (preShipment) {
-    const motorNeeds = motorNeedsOf(order.quote.items);
-    if (motorNeeds.length > 0) await restoreMotorStock(motorNeeds, admin());
-  }
 
   const now = new Date().toISOString();
-  const { error } = await sb
+  // Atomically CLAIM the refund: only flip a row that is STILL `paid`. A second concurrent refund
+  // (e.g. an admin double-click) matches 0 rows and returns before touching stock — so the reserved
+  // stock is restored exactly once, never doubled. (After this the row is `payment_status=refunded`.)
+  const { data: claimed, error } = await sb
     .from("orders")
     .update({
       status: "refunded",
@@ -233,8 +239,16 @@ export async function refundOrder(
       refunded_at: now,
       updated_at: now,
     })
-    .eq("id", orderId);
+    .eq("id", orderId)
+    .eq("payment_status", "paid")
+    .select("id");
   if (error) throw error;
+  if (!(claimed ?? []).length) return; // lost the race / already refunded — idempotent no-op
+
+  if (preShipment) {
+    const motorNeeds = await motorNeedsOf(order.quote.items);
+    if (motorNeeds.length > 0) await restoreMotorStock(motorNeeds, admin());
+  }
   await sb.from("order_events").insert({
     order_id: orderId,
     status: "note",

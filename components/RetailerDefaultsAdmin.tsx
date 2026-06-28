@@ -1,11 +1,45 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { VariationType } from "@/lib/db";
 import { availableTypes, buildBlockedFromGroups, buildItemNames, disabledFor } from "@/lib/variation-logic";
 import { VariationPicker } from "./AccessoryActions";
-import { Button, cx } from "./ui";
+import { Button, Card, cx } from "./ui";
+
+/** Searchable customer picker for the "Customer kits" tab — filters by company + email. */
+export function RetailerKitPicker({ retailers }: { retailers: { id: string; email: string; company: string | null }[] }) {
+  const [q, setQ] = useState("");
+  const needle = q.trim().toLowerCase();
+  const shown = needle
+    ? retailers.filter((r) => `${r.company ?? ""} ${r.email}`.toLowerCase().includes(needle))
+    : retailers;
+  return (
+    <div className="space-y-3">
+      <input
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        placeholder="Search customers by company or email…"
+        className="w-full max-w-md rounded-lg border border-line bg-surface px-3 py-2 text-[13px] outline-none focus:border-ink"
+      />
+      <div className="space-y-2">
+        {shown.map((r) => (
+          <Link key={r.id} href={`/motors?tab=defaults&retailer=${r.id}`} className="block">
+            <Card className="flex items-center justify-between px-5 py-4 transition-colors hover:bg-[#faf9f5]">
+              <div>
+                <div className="text-[14px] font-semibold text-ink">{r.company ?? r.email}</div>
+                {r.company && <div className="text-[12px] text-muted">{r.email}</div>}
+              </div>
+              <span className="text-brass">→</span>
+            </Card>
+          </Link>
+        ))}
+        {shown.length === 0 && <div className="text-[12.5px] text-muted">{retailers.length === 0 ? "No customers yet." : "No matching customers."}</div>}
+      </div>
+    </div>
+  );
+}
 
 export type KitProduct = {
   id: string;

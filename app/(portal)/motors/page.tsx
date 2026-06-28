@@ -9,7 +9,7 @@ import { RetailerDiscountEditor } from "@/components/RetailerDiscountEditor";
 import { RetailerPricingList } from "@/components/RetailerPricingList";
 import { WaiveShippingEditor } from "@/components/WaiveShippingEditor";
 import { VariationsAdmin, type VariationProduct } from "@/components/VariationsAdmin";
-import { RetailerDefaultsAdmin, type KitProduct } from "@/components/RetailerDefaultsAdmin";
+import { RetailerDefaultsAdmin, RetailerKitPicker, type KitProduct } from "@/components/RetailerDefaultsAdmin";
 import { CatalogAdmin } from "@/components/CatalogAdmin";
 import { requireAdminPage } from "@/lib/auth/user";
 import {
@@ -195,20 +195,7 @@ async function DefaultsTab({ retailerParam }: { retailerParam?: string }) {
           Choose a customer to set up their default parts. When they shop the accessory catalog, the parts you pick
           here auto-select for them.
         </p>
-        <div className="space-y-2">
-          {retailers.map((r) => (
-            <Link key={r.id} href={`/motors?tab=defaults&retailer=${r.id}`} className="block">
-              <Card className="flex items-center justify-between px-5 py-4 transition-colors hover:bg-[#faf9f5]">
-                <div>
-                  <div className="text-[14px] font-semibold text-ink">{r.company ?? r.email}</div>
-                  {r.company && <div className="text-[12px] text-muted">{r.email}</div>}
-                </div>
-                <span className="text-brass">→</span>
-              </Card>
-            </Link>
-          ))}
-          {retailers.length === 0 && <div className="text-[12.5px] text-muted">No customers yet.</div>}
-        </div>
+        <RetailerKitPicker retailers={retailers} />
       </div>
     );
   }

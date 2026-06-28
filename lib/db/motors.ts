@@ -1,6 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { admin } from "@/lib/supabase/admin";
 import { loadCatalog } from "./accessory-catalog";
+import { getVariationItemModelMap } from "./variations";
+import { isAccessoryConfig, type AccessoryConfig } from "@/lib/types";
 
 // Motor inventory + per-retailer pricing (admin-managed; see 0004_motor_inventory_pricing.sql).
 // Reads are best-effort: if the tables aren't present yet (migration not run) they fall back
@@ -55,6 +57,36 @@ export async function setStockBatch(
 // Reserve/restore stock are concurrency-safe Postgres functions (migration 0036): the whole batch
 // runs inside one transaction with row locks, so it never oversells, never false-fails on a value
 // that merely changed, never loses a concurrent restore, and is all-or-nothing across models.
+
+/**
+ * Reservable stock needs for a quote's accessory lines, aggregated per model. Each accessory line
+ * reserves (a) its own motor model — qty = line qty — AND (b) every chosen variation sub-part's
+ * *source model* — qty = line qty × per-motor sub-part qty (THE-772). The variation sub-parts are
+ * the "配件" shown with their own stock in the catalog (a variation item's stock is its source
+ * model's inventory); they MUST be deducted too, not just the parent motor. Variation items with no
+ * source model, and any untracked model, aren't stock-backed and are skipped downstream by
+ * reserve/restore. Aggregating per model also collapses a model that appears as both a motor line
+ * and a sub-part into one need. Async because the variation item→model map is a DB read.
+ */
+export async function motorNeedsOf(
+  items: { config: unknown; productId: string; qty: number }[],
+  sb: SupabaseClient = admin()
+): Promise<{ modelId: string; qty: number }[]> {
+  const lines = items.filter((i) => isAccessoryConfig(i.config as never));
+  if (lines.length === 0) return [];
+  const itemModelMap = await getVariationItemModelMap(sb);
+  const byModel: Record<string, number> = {};
+  for (const line of lines) {
+    byModel[line.productId] = (byModel[line.productId] ?? 0) + line.qty;
+    const cfg = line.config as AccessoryConfig;
+    for (const v of cfg.variations ?? []) {
+      const src = itemModelMap[v.itemId];
+      if (!src) continue; // sub-part not synced from a stock-tracked catalog model
+      byModel[src] = (byModel[src] ?? 0) + line.qty * (v.qty ?? 1);
+    }
+  }
+  return Object.entries(byModel).map(([modelId, qty]) => ({ modelId, qty }));
+}
 
 /** Add reserved stock back (inverse of deductMotorStock) — used when an order is cancelled. */
 export async function restoreMotorStock(

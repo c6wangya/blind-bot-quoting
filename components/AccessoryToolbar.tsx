@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { Badge, Card, cx } from "./ui";
@@ -142,8 +142,11 @@ export function AccessoryToolbar({
 
         {/* Search + Filters */}
         <div className="ml-auto flex items-center gap-2">
-          {searchSlot}
-          {frequentSlot}
+          {/* These slots arrive as props from a Server Component; across the RSC boundary the
+              children array loses its "static" marking, so React key-validates it. Keyed wrappers
+              keep the dev warning quiet. */}
+          <Fragment key="search">{searchSlot}</Fragment>
+          {frequentSlot ? <Fragment key="frequent">{frequentSlot}</Fragment> : null}
           <button
             onClick={() => setFiltersOpen((o) => !o)}
             className={cx(
