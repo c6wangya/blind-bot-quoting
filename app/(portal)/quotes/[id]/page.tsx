@@ -32,6 +32,9 @@ import {
   getShippingWaivers,
   getUnreadCount,
   getVariationItemModelMap,
+  getVariationsForModel,
+  getExclusionGroupsMap,
+  type VariationType,
   loadCatalog,
 } from "@/lib/db";
 import { computeShipping, type MotorRate } from "@/lib/shipping";
@@ -112,6 +115,17 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
   for (const [itemId, modelId] of Object.entries(itemModelMap)) {
     variationStock[itemId] = modelId in inventory ? inventory[modelId] : null;
   }
+
+  // Every add-on part each accessory motor offers — powers the in-quote "+ Add accessory" picker so
+  // a retailer can add a part to a motor already on the line (deduped by model; usually 1–2 motors).
+  const accModelIds = [
+    ...new Set(quote.items.filter((i) => isAccessoryConfig(i.config)).map((i) => i.productId)),
+  ];
+  const [partsByModelEntries, exclusionMap] = await Promise.all([
+    Promise.all(accModelIds.map(async (mid) => [mid, await getVariationsForModel(mid)] as const)),
+    accModelIds.length ? getExclusionGroupsMap() : Promise.resolve({} as Record<string, string[][]>),
+  ]);
+  const partsByModel: Record<string, VariationType[]> = Object.fromEntries(partsByModelEntries);
   // variation item_id → its source model's shipping rate/mode (for sub-parts like brackets).
   const itemRates: Record<string, MotorRate> = {};
   for (const [itemId, modelId] of Object.entries(itemModelMap)) {
@@ -371,6 +385,9 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
                                 stock: variationStock[v.itemId] ?? null,
                               })
                             )}
+                            availableParts={partsByModel[item.productId] ?? []}
+                            partStock={variationStock}
+                            exclusionGroups={exclusionMap[item.productId] ?? []}
                           />
                         )}
                       </div>

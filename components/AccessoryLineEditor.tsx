@@ -1,8 +1,10 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import type { VariationType } from "@/lib/db";
 import { usd } from "@/lib/format";
+import { buildBlockedFromGroups, buildItemNames, disabledFor } from "@/lib/variation-logic";
 import { useShippingRecalc } from "./ShippingRecalcContext";
 import { useToast } from "./Toast";
 import { RemoveItemButton } from "./QuoteActions";
@@ -145,6 +147,11 @@ function Stepper({
  * In-quote editor for an accessory line: the motor qty and each per-motor sub-part qty, all with
  * live stock and limits. Every change re-prices the line server-side (config + computation snapshot)
  * and refreshes the totals; while in flight the pay button is held via the shared recalc flag.
+ *
+ * `availableParts` are ALL add-on parts the motor model offers (not just the ones already on the
+ * line), so the retailer can add a part to an existing motor here — the "+ Add accessory" picker
+ * lists every option not yet selected. Adding/removing just changes the per-part selection that the
+ * whole-line PATCH replaces, so the server re-prices + re-checks stock the same way as the catalog.
  */
 export function AccessoryLineEditor({
   itemId,
@@ -152,20 +159,31 @@ export function AccessoryLineEditor({
   motorStock,
   moq,
   variations: initialVariations,
+  availableParts,
+  partStock,
+  exclusionGroups,
 }: {
   itemId: number;
   qty: number;
   motorStock: number | null;
   moq: number;
   variations: EditorVariation[];
+  /** Every add-on part the motor offers (for the "+ Add accessory" picker). */
+  availableParts: VariationType[];
+  /** Sub-part item_id → its source model's stock (null = untracked). */
+  partStock: Record<string, number | null>;
+  /** This motor's mutual-exclusion groups (each an array of item ids; at most one per group). */
+  exclusionGroups: string[][];
 }) {
   const router = useRouter();
   const toast = useToast();
   const { setPending } = useShippingRecalc();
   const [qty, setQty] = useState(initialQty);
-  const [vqty, setVqty] = useState<Record<string, number>>(
+  // itemId → per-motor qty for every selected sub-part (qty 0 / absent = not on the line).
+  const [sel, setSel] = useState<Record<string, number>>(
     () => Object.fromEntries(initialVariations.map((v) => [v.itemId, v.qty]))
   );
+  const [adding, setAdding] = useState(false);
   // Busy spans the PATCH (`submitting`) AND the RSC re-render after it (`isPending`), so the shared
   // recalc flag (→ pay button) stays held continuously and the totals never go stale-but-payable.
   const [submitting, setSubmitting] = useState(false);
@@ -175,19 +193,57 @@ export function AccessoryLineEditor({
     setPending(busy);
   }, [busy, setPending]);
 
+  // Display metadata (name / price / stock) for any sub-part id — from the catalog's add-on parts,
+  // falling back to the line's own snapshot for a part that's since been removed from the catalog.
+  const partMeta = useMemo(() => {
+    const m: Record<string, { variationName: string; itemLabel: string; price: number; stock: number | null }> = {};
+    for (const v of initialVariations) {
+      m[v.itemId] = { variationName: v.variationName, itemLabel: v.itemLabel, price: v.price, stock: v.stock };
+    }
+    for (const t of availableParts) {
+      for (const it of t.items) {
+        m[it.id] = { variationName: t.name, itemLabel: it.name, price: it.price, stock: partStock[it.id] ?? null };
+      }
+    }
+    return m;
+  }, [initialVariations, availableParts, partStock]);
+
+  // Stable render order: parts already on the line first (snapshot order), then the rest of the
+  // catalog's options — so a newly-added part appears in a consistent place.
+  const orderedIds = useMemo(() => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const v of initialVariations) if (!seen.has(v.itemId)) (seen.add(v.itemId), out.push(v.itemId));
+    for (const t of availableParts) for (const it of t.items) if (!seen.has(it.id)) (seen.add(it.id), out.push(it.id));
+    return out;
+  }, [initialVariations, availableParts]);
+  const selectedIds = orderedIds.filter((id) => (sel[id] ?? 0) > 0);
+
+  // Mutual exclusion: within a group at most one part may be on the line, so an offered part that
+  // shares a group with something already selected is greyed out in the picker (with the conflicting
+  // option's name for the tooltip). Mirrors the catalog picker.
+  const blocked = useMemo(() => buildBlockedFromGroups(exclusionGroups), [exclusionGroups]);
+  const itemNames = useMemo(() => buildItemNames(availableParts), [availableParts]);
+  const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+
+  // Parts the motor offers that aren't on the line yet — grouped by variation type for the picker.
+  const addable = availableParts
+    .map((t) => ({ ...t, items: t.items.filter((it) => (sel[it.id] ?? 0) === 0) }))
+    .filter((t) => t.items.length > 0);
+
   const minQty = Math.max(1, moq);
   // The motor qty is capped by its own stock and by how many each sub-part can cover (per-motor qty).
-  const maxQty = initialVariations.reduce(
-    (cap, v) => (v.stock === null ? cap : Math.min(cap, Math.max(1, Math.floor(v.stock / (vqty[v.itemId] ?? 1))))),
-    motorStock === null ? Infinity : motorStock
-  );
+  const maxQty = selectedIds.reduce((cap, id) => {
+    const st = partMeta[id]?.stock ?? null;
+    return st === null ? cap : Math.min(cap, Math.max(1, Math.floor(st / (sel[id] ?? 1))));
+  }, motorStock === null ? Infinity : motorStock);
 
   // Persist the current selection; revert + toast on failure (e.g. server stock 409).
-  const commit = async (nextQty: number, nextVqty: Record<string, number>) => {
+  const commit = async (nextQty: number, nextSel: Record<string, number>) => {
     const prevQty = qty;
-    const prevVqty = vqty;
+    const prevSel = sel;
     setQty(nextQty);
-    setVqty(nextVqty);
+    setSel(nextSel);
     setSubmitting(true);
     try {
       const r = await fetch("/api/quote-items", {
@@ -197,9 +253,9 @@ export function AccessoryLineEditor({
           itemId,
           qty: nextQty,
           // qty 0 drops the sub-part from the line (server omits it from the selection).
-          variationItems: initialVariations
-            .filter((v) => (nextVqty[v.itemId] ?? 1) > 0)
-            .map((v) => ({ itemId: v.itemId, qty: nextVqty[v.itemId] ?? 1 })),
+          variationItems: Object.entries(nextSel)
+            .filter(([, q]) => q > 0)
+            .map(([id, q]) => ({ itemId: id, qty: q })),
         }),
       });
       if (!r.ok) {
@@ -210,7 +266,7 @@ export function AccessoryLineEditor({
       startTransition(() => router.refresh());
     } catch (e) {
       setQty(prevQty);
-      setVqty(prevVqty);
+      setSel(prevSel);
       toast((e as Error).message, "error");
     } finally {
       setSubmitting(false);
@@ -246,49 +302,123 @@ export function AccessoryLineEditor({
     }
     const next = Math.max(minQty, v);
     if (next === qty) return;
-    commit(next, vqty);
+    commit(next, sel);
   };
   const setPartQty = (itemId: string, v: number) => {
-    if (v === (vqty[itemId] ?? 1)) return;
-    commit(qty, { ...vqty, [itemId]: v });
+    if (v === (sel[itemId] ?? 0)) return;
+    commit(qty, { ...sel, [itemId]: v });
+  };
+  // Add an offered part to this motor (per-motor qty starts at 1) and persist.
+  const addPart = (id: string) => {
+    if ((sel[id] ?? 0) > 0) return;
+    // Guard: never add a part that's mutually exclusive with something already on the line.
+    for (const conflict of blocked.get(id) ?? []) if (selectedSet.has(conflict)) return;
+    setAdding(false);
+    commit(qty, { ...sel, [id]: 1 });
   };
 
   return (
     <div className="mt-3 border-t border-line pt-3">
-      {initialVariations.length > 0 && (
+      {selectedIds.length > 0 && (
         <div className="space-y-2.5">
-          {initialVariations.map((v) => {
-            const cur = vqty[v.itemId] ?? 1;
-            const vMax = v.stock === null ? Infinity : Math.max(1, Math.floor(v.stock / Math.max(1, qty)));
-            const hasCaption = v.price > 0 || v.stock !== null;
+          {selectedIds.map((id) => {
+            const meta = partMeta[id];
+            if (!meta) return null;
+            const cur = sel[id] ?? 1;
+            const vMax = meta.stock === null ? Infinity : Math.max(1, Math.floor(meta.stock / Math.max(1, qty)));
+            const hasCaption = meta.price > 0 || meta.stock !== null;
             return (
-              <div key={v.itemId} className="flex items-center gap-4">
+              <div key={id} className="flex items-center gap-4">
                 {/* Identity + a single muted caption line (unit price · stock) */}
                 <div className="min-w-0 flex-1">
                   <div className="break-words text-[12.5px] text-ink-soft">
-                    <span className="text-muted">{v.variationName}:</span>{" "}
-                    <span className="font-medium text-ink">{v.itemLabel}</span>
+                    <span className="text-muted">{meta.variationName}:</span>{" "}
+                    <span className="font-medium text-ink">{meta.itemLabel}</span>
                   </div>
                   {hasCaption && (
                     <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-[11px] text-muted">
-                      {v.price > 0 && <span>{usd(v.price)} each</span>}
-                      {v.price > 0 && v.stock !== null && <span aria-hidden>·</span>}
-                      <StockBadge stock={v.stock} />
+                      {meta.price > 0 && <span>{usd(meta.price)} each</span>}
+                      {meta.price > 0 && meta.stock !== null && <span aria-hidden>·</span>}
+                      <StockBadge stock={meta.stock} />
                     </div>
                   )}
                 </div>
                 {/* min 0 so decrementing/typing 0 removes this sub-part from the line. */}
-                <Stepper value={cur} min={0} max={vMax} disabled={busy} onChange={(n) => setPartQty(v.itemId, n)} />
+                <Stepper value={cur} min={0} max={vMax} disabled={busy} onChange={(n) => setPartQty(id, n)} />
                 {/* Extended price for this sub-part (per motor) */}
                 <div className="w-16 shrink-0 text-right text-[13px] font-semibold tabular-nums text-ink">
-                  {v.price > 0 ? usd(v.price * cur) : "—"}
+                  {meta.price > 0 ? usd(meta.price * cur) : "—"}
                 </div>
               </div>
             );
           })}
         </div>
       )}
-      <div className={cx("flex items-center gap-4", initialVariations.length > 0 && "mt-3 border-t border-line pt-3")}>
+
+      {/* Add another part to this motor — lists every offered option not already on the line. */}
+      {addable.length > 0 && (
+        <div className={cx(selectedIds.length > 0 && "mt-3")}>
+          {!adding ? (
+            <button
+              type="button"
+              onClick={() => setAdding(true)}
+              disabled={busy}
+              className="inline-flex items-center gap-1 text-[12.5px] font-semibold text-brass transition-colors hover:underline disabled:opacity-50"
+            >
+              <span className="text-[10px] leading-none" aria-hidden>+</span>
+              Add accessory
+            </button>
+          ) : (
+            <div className="rounded-xl border border-line bg-[#faf9f6] p-3">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-muted">Add a part · qty per motor</span>
+                <button
+                  type="button"
+                  onClick={() => setAdding(false)}
+                  className="rounded-full border border-line px-3 py-1 text-[11.5px] font-medium text-ink-soft transition-colors hover:border-ink hover:text-ink"
+                >
+                  Done
+                </button>
+              </div>
+              <div className="space-y-3">
+                {addable.map((t) => {
+                  const { ids: offIds, reason } = disabledFor(t, selectedSet, blocked, itemNames);
+                  return (
+                    <div key={t.id}>
+                      <div className="mb-1.5 text-[11.5px] font-medium text-ink-soft">{t.name}</div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {t.items.map((it) => {
+                          const off = offIds.has(it.id);
+                          return (
+                            <button
+                              key={it.id}
+                              type="button"
+                              disabled={busy || off}
+                              title={off ? `Not compatible with ${reason[it.id] ?? "your current selection"}` : undefined}
+                              onClick={() => addPart(it.id)}
+                              className={cx(
+                                "rounded-full border px-2.5 py-1 text-[12px] transition-colors",
+                                off
+                                  ? "cursor-not-allowed border-line text-ink-soft opacity-40"
+                                  : "border-line bg-surface text-ink-soft hover:border-ink disabled:opacity-50"
+                              )}
+                            >
+                              {it.name}
+                              {it.price ? ` (+${usd(it.price)})` : ""}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className={cx("flex items-center gap-4", (selectedIds.length > 0 || addable.length > 0) && "mt-3 border-t border-line pt-3")}>
         <div className="min-w-0 flex-1">
           <div className="text-[12.5px] font-medium text-ink">Quantity</div>
           {moq > 0 && <div className="mt-0.5 text-[11px] text-muted">Min order {moq}</div>}
