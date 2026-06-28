@@ -11,18 +11,27 @@ export function LineQtyEditor({ itemId, qty: initial }: { itemId: number; qty: n
   const [busy, setBusy] = useState(false);
 
   const update = async (next: number) => {
-    const v = Math.max(1, Math.min(500, next));
+    const v = Math.max(0, Math.min(500, next));
     if (v === qty || busy) return;
-    setQty(v);
     setBusy(true);
     try {
-      const r = await fetch("/api/quote-items", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ itemId, qty: v }),
-      });
-      if (r.ok) router.refresh();
-      else setQty(qty); // revert on failure
+      // qty 0 removes the line entirely; otherwise re-price at the new qty.
+      const r =
+        v === 0
+          ? await fetch("/api/quote-items", {
+              method: "DELETE",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ itemId }),
+            })
+          : await fetch("/api/quote-items", {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ itemId, qty: v }),
+            });
+      if (r.ok) {
+        if (v !== 0) setQty(v);
+        router.refresh();
+      } else setQty(qty); // revert on failure
     } catch {
       setQty(qty);
     } finally {

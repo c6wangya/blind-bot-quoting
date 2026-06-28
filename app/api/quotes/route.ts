@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { userClient } from "@/lib/auth/user";
 import { getActingContext } from "@/lib/auth/acting-as";
 import { admin } from "@/lib/supabase/admin";
-import { createQuote, getQuotes, sanitizeQuoteDetails } from "@/lib/db";
+import { createQuote, getDefaultAddressDetails, getQuotes, sanitizeQuoteDetails } from "@/lib/db";
 
 /**
  * The owner_id new/listed quotes belong to, plus the client to use. While an admin is acting on
@@ -27,6 +27,7 @@ export async function GET() {
     .map((q) => ({
       id: q.id,
       ref: q.ref,
+      quoteName: q.quoteName,
       customerName: q.customerName,
       sidemark: q.sidemark,
       projectName: q.projectName,
@@ -35,12 +36,19 @@ export async function GET() {
   return NextResponse.json({ drafts });
 }
 
-/** Create a new draft quote with header details. Body: QuoteDetails (all optional). */
+/** Create a new draft quote with header details. Body: QuoteDetails (all optional), plus an
+ *  optional `useDefaultAddress` flag (accessory flow) → pre-fill from the owner's default address. */
 export async function POST(req: Request) {
   const ctx = await ownerAndClient();
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
-    const details = sanitizeQuoteDetails(await req.json().catch(() => ({})));
+    const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+    let details = sanitizeQuoteDetails(body);
+    if (body.useDefaultAddress) {
+      const def = await getDefaultAddressDetails(ctx.ownerId, ctx.sb);
+      // Explicit body fields win over the default; the default fills the rest.
+      if (def) details = { ...def, ...details };
+    }
     const quote = await createQuote(ctx.ownerId, details, ctx.sb);
     return NextResponse.json({ quote });
   } catch (err) {

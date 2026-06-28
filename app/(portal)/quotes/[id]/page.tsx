@@ -1,6 +1,7 @@
 import Link from "next/link";
+import { MapPin } from "lucide-react";
 import { notFound } from "next/navigation";
-import { DeleteDraftButton, RemoveItemButton, SubmitPreOrderButton } from "@/components/QuoteActions";
+import { DeleteDraftButton, PendingPaymentCard, RemoveItemButton, SubmitPreOrderButton } from "@/components/QuoteActions";
 import { QuoteDetailsDrawer } from "@/components/QuoteDetailsDrawer";
 import { ShippingSummaryRow } from "@/components/ShippingSummaryRow";
 import { ShippingRecalcProvider } from "@/components/ShippingRecalcContext";
@@ -12,7 +13,7 @@ import { LineQtyEditor } from "@/components/LineQtyEditor";
 import { Swatch } from "@/components/renders";
 import { BackLink, Badge, Card, EmptyState, LinkButton } from "@/components/ui";
 import { QuoteChatLauncher } from "@/components/QuoteChatLauncher";
-import { canAccessOwned, isAdmin, requireUserId, userClient } from "@/lib/auth/user";
+import { isAdmin, requireUserId, userClient } from "@/lib/auth/user";
 import {
   getConversationForRetailer,
   getLine,
@@ -25,6 +26,7 @@ import {
   getQuoteExpediteState,
   expediteSignature,
   getInventoryMap,
+  listAddresses,
   getRetailerDiscount,
   getShippingWaivers,
   getUnreadCount,
@@ -56,30 +58,55 @@ function Ref({ label, value }: { label: string; value: string | null }) {
 
 export default async function QuoteDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const userId = await requireUserId(`/quotes/${id}`);
-  const sb = await userClient();
-  const quote = await getQuote(Number(id), sb);
-  if (!quote) notFound();
+  const numId = Number(id);
+  const [userId, sb] = await Promise.all([requireUserId(`/quotes/${id}`), userClient()]);
 
-  const ownerId = await getQuoteOwnerId(Number(id));
-  if (!(await canAccessOwned(userId, ownerId))) notFound();
+  // Quote + ownership + viewer role resolve together; the guards below 404 before we render.
+  const [quote, ownerId, viewerIsAdmin] = await Promise.all([
+    getQuote(numId, sb),
+    getQuoteOwnerId(numId),
+    isAdmin(userId),
+  ]);
+  if (!quote) notFound();
+  // Inline of canAccessOwned() so we reuse viewerIsAdmin instead of a second profile lookup.
+  const canAccess =
+    ownerId === undefined ? false : ownerId === null || ownerId === userId || viewerIsAdmin;
+  if (!canAccess) notFound();
+
+  // Everything below is independent of one another — fan out in a single batch instead of a
+  // sequential waterfall (each await was its own Supabase round-trip; this collapses them to one
+  // wave, so a qty change's router.refresh() pays the max latency, not the sum).
+  const [discountPct, order, catalog, expedite, waivers, itemModelMap, inventory, expediteState, conv] =
+    await Promise.all([
+      getRetailerDiscount(ownerId),
+      // Always look up the quote's live order: a draft can carry an unpaid pre-order
+      // (awaiting_payment) — the quote stays "draft" until payment lands, but the page locks
+      // editing and shows a "go to payment" card; a converted quote's order powers "View order".
+      getOrderRefByQuote(quote.id, sb),
+      loadCatalog(), // for accessory line images / names
+      // Shipping: each motor's mode (FOB/Ground) is set per-model by an admin; the customer only
+      // controls expedite. Priced per line, live against the net goods total (server is source of truth).
+      getQuoteExpedite(quote.id, sb),
+      getShippingWaivers(ownerId),
+      getVariationItemModelMap(),
+      // Live stock — for the in-quote qty editors (motors + their per-motor sub-parts).
+      getInventoryMap(),
+      getQuoteExpediteState(quote.id, sb),
+      // Retailer-only "message us about this quote" bubble; admins reply from the full inbox.
+      viewerIsAdmin ? Promise.resolve(null) : getConversationForRetailer(userId, sb),
+    ]);
+
+  // An unpaid pre-order leaves the quote on "draft" but locks it: stock is reserved + the amount is
+  // snapshotted, so the line items can't change until it's paid (→ converted) or cancelled (→ back
+  // to a plain editable draft). `editable` gates every in-quote edit; `pendingOrder` drives the
+  // "awaiting payment" card.
+  const pendingOrder = order?.status === "awaiting_payment" ? order : null;
+  const editable = quote.status === "draft" && !pendingOrder;
 
   // Order-level discount: the retailer's standing % off the subtotal (0 = none).
-  const discountPct = await getRetailerDiscount(ownerId);
   const netTotal = Math.round(quote.total * (1 - discountPct / 100) * 100) / 100;
   const discountAmt = Math.round((quote.total - netTotal) * 100) / 100;
 
-  const order =
-    quote.status === "converted" ? await getOrderRefByQuote(quote.id, sb) : undefined;
-  const catalog = await loadCatalog(); // for accessory line images / names
-
-  // Shipping: each motor's mode (FOB/Ground) is set per-model by an admin; the customer only controls
-  // expedite. Priced per line, live against the net goods total (server is the source of truth).
-  const expedite = await getQuoteExpedite(quote.id, sb);
-  const waivers = await getShippingWaivers(ownerId);
-  const itemModelMap = await getVariationItemModelMap();
-  // Live stock — for the in-quote qty editors (motors + their per-motor sub-parts).
-  const inventory = await getInventoryMap();
   const variationStock: Record<string, number | null> = {};
   for (const [itemId, modelId] of Object.entries(itemModelMap)) {
     variationStock[itemId] = modelId in inventory ? inventory[modelId] : null;
@@ -94,7 +121,6 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
   // Admin-priced expedite (migration 0026): the customer requests it, an admin sets one flat fee.
   // The system reference (old per-line accumulation, always-charged → rawAmount) is shown to the
   // admin as a suggestion; the quoted fee folds into the total once set.
-  const expediteState = await getQuoteExpediteState(quote.id, sb);
   const expediteRef = computeShipping(quote.items, catalog, itemRates, true, netTotal, {
     ground: false,
     expedite: false,
@@ -126,21 +152,30 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
       })
     : [];
 
-  // Retailer-facing "message us about this quote" bubble. Admins reply from the full inbox at
-  // /messages (where the quote chip carries the context), so the launcher is retailer-only.
-  const viewerIsAdmin = await isAdmin(userId);
-  const conv = viewerIsAdmin ? null : await getConversationForRetailer(userId, sb);
+  // Chat payload: conv was fetched above; its messages + unread count are the only remaining
+  // dependent reads, run in parallel (admins use the full inbox, so the launcher is retailer-only).
+  let chatMessages: Awaited<ReturnType<typeof getMessages>> = [];
+  let chatUnread = 0;
+  if (!viewerIsAdmin) {
+    [chatMessages, chatUnread] = await Promise.all([
+      conv ? getMessages(conv.id, sb) : Promise.resolve([]),
+      getUnreadCount(userId, false, sb),
+    ]);
+  }
   const chat = viewerIsAdmin
     ? null
     : {
         conversationId: conv?.id ?? null,
-        messages: conv ? await getMessages(conv.id, sb) : [],
+        messages: chatMessages,
         peerReadAt: conv?.adminLastReadAt ?? null,
-        unread: await getUnreadCount(userId, false, sb),
+        unread: chatUnread,
       };
 
+  // Accessory-only quotes get the checkout-form pay flow (details + address book); products don't.
+  const allAccessory = quote.items.length > 0 && quote.items.every((it) => isAccessoryConfig(it.config));
   const details = {
     quoteType: quote.quoteType,
+    quoteName: quote.quoteName,
     projectName: quote.projectName,
     customerName: quote.customerName,
     customerPhone: quote.customerPhone,
@@ -159,6 +194,22 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
     [quote.shipCity, quote.shipState, quote.shipZip].filter(Boolean).join(", ") || null,
   ].filter(Boolean) as string[];
 
+  // Mark which saved address this quote's details came from (match on the identifying fields) so the
+  // card can label it, e.g. "nanjing". Only when the quote actually carries customer/ship info.
+  const norm = (s: string | null | undefined) => (s ?? "").trim().toLowerCase();
+  const savedAddresses = ownerId ? await listAddresses(ownerId) : [];
+  const usedAddressLabel =
+    (quote.customerName || quote.shipAddress1)
+      ? savedAddresses.find(
+          (a) =>
+            norm(a.customerName) === norm(quote.customerName) &&
+            norm(a.shipAddress1) === norm(quote.shipAddress1) &&
+            norm(a.shipCity) === norm(quote.shipCity) &&
+            norm(a.shipState) === norm(quote.shipState) &&
+            norm(a.shipZip) === norm(quote.shipZip)
+        )?.label || null
+      : null;
+
   return (
     // Full-height shell: the line-item list scrolls on its own; the bill on the right stays put.
     <div className="flex h-[calc(100vh-2.5rem)] flex-col">
@@ -167,9 +218,19 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
         <BackLink href="/quotes">All quotes</BackLink>
         <div className="mt-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
           <div className="flex items-center gap-3">
-            <h1 className="text-[22px] font-semibold tracking-tight text-ink">{quote.ref}</h1>
+            <div>
+              {quote.quoteName && (
+                <div className="text-[11px] font-medium uppercase tracking-wide text-muted">{quote.ref}</div>
+              )}
+              <h1 className="text-[22px] font-semibold tracking-tight text-ink">{quote.quoteName || quote.ref}</h1>
+            </div>
             {quote.status === "draft" ? (
-              <Badge tone="amber" className="px-2.5 py-0.5 text-[12px]">Draft</Badge>
+              <div className="flex items-center gap-2">
+                <Badge tone="amber" className="px-2.5 py-0.5 text-[12px]">Draft</Badge>
+                {pendingOrder && (
+                  <Badge tone="slate" className="px-2.5 py-0.5 text-[12px]">Awaiting payment</Badge>
+                )}
+              </div>
             ) : (
               <Badge tone="green" className="px-2.5 py-0.5 text-[12px]">Converted</Badge>
             )}
@@ -191,39 +252,58 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
           <div className="flex min-h-0 flex-col gap-4">
             {/* Order-critical header details — customer, ship-to, references */}
             <div className="rounded-2xl border border-line bg-surface px-5 py-4">
-              <div className="flex items-start justify-between gap-4">
-                <div className="grid flex-1 gap-x-8 gap-y-4 sm:grid-cols-3">
-                  <DetailBlock label="Customer">
-                    {quote.customerName ? (
-                      <>
-                        <div className="text-[13.5px] font-medium text-ink">{quote.customerName}</div>
-                        {quote.customerPhone && <div className="text-[12px] text-muted">{quote.customerPhone}</div>}
-                        {quote.customerEmail && <div className="text-[12px] text-muted">{quote.customerEmail}</div>}
-                      </>
-                    ) : (
-                      <span className="text-[12.5px] text-muted">—</span>
-                    )}
-                  </DetailBlock>
-                  <DetailBlock label="Ship to">
-                    {shipLines.length ? (
-                      shipLines.map((l, i) => (
-                        <div key={i} className="text-[12.5px] text-ink-soft">{l}</div>
-                      ))
-                    ) : (
-                      <span className="text-[12.5px] text-muted">—</span>
-                    )}
-                  </DetailBlock>
-                  <DetailBlock label="References">
-                    <Ref label="Sidemark" value={quote.sidemark} />
-                    <Ref label="PO" value={quote.po} />
-                    <Ref label="Project" value={quote.projectName} />
-                  </DetailBlock>
-                </div>
-                {quote.status === "draft" && (
-                  <QuoteDetailsDrawer quoteId={quote.id} initial={details} />
+              <div className="mb-3 flex items-center justify-between gap-3 border-b border-line/70 pb-3">
+                {usedAddressLabel ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-brass/10 px-2.5 py-1 text-[12px] font-semibold text-brass">
+                    <MapPin className="size-3.5" strokeWidth={2} />
+                    {usedAddressLabel}
+                  </span>
+                ) : (
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
+                    Quote details
+                  </span>
+                )}
+                {editable && (
+                  <QuoteDetailsDrawer quoteId={quote.id} initial={details} accessory={allAccessory} />
                 )}
               </div>
+              <div className="grid gap-x-8 gap-y-4 sm:grid-cols-3">
+                <DetailBlock label="Customer">
+                  {quote.customerName ? (
+                    <>
+                      <div className="text-[13.5px] font-medium text-ink">{quote.customerName}</div>
+                      {quote.customerPhone && <div className="text-[12px] text-muted">{quote.customerPhone}</div>}
+                      {quote.customerEmail && <div className="text-[12px] text-muted">{quote.customerEmail}</div>}
+                    </>
+                  ) : (
+                    <span className="text-[12.5px] text-muted">—</span>
+                  )}
+                </DetailBlock>
+                <DetailBlock label="Ship to">
+                  {shipLines.length ? (
+                    shipLines.map((l, i) => (
+                      <div key={i} className="text-[12.5px] text-ink-soft">{l}</div>
+                    ))
+                  ) : (
+                    <span className="text-[12.5px] text-muted">—</span>
+                  )}
+                </DetailBlock>
+                <DetailBlock label="References">
+                  <Ref label="Sidemark" value={quote.sidemark} />
+                  <Ref label="PO" value={quote.po} />
+                  <Ref label="Project" value={quote.projectName} />
+                </DetailBlock>
+              </div>
             </div>
+
+            {editable && (
+              <div className="flex flex-wrap justify-end gap-2">
+                <LinkButton href={`/catalog?quote=${quote.id}`}>+ Add product</LinkButton>
+                <LinkButton href={`/catalog/accessories?quote=${quote.id}`} variant="secondary">
+                  + Add accessory
+                </LinkButton>
+              </div>
+            )}
 
             {/* One bordered list with hairline dividers — not a stack of floating cards.
                 Scrolls internally so the details + add buttons above stay fixed. */}
@@ -248,7 +328,7 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
                             <div className="mt-0.5 text-xs text-muted">
                               {cfg.brand} · {cfg.category} · {cfg.sku}
                             </div>
-                            {quote.status === "draft" &&
+                            {editable &&
                               (() => {
                                 const s = item.productId in inventory ? inventory[item.productId] : null;
                                 if (s === null) return null;
@@ -257,8 +337,8 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
                                   s <= 0 ? "Out of stock" : s <= 5 ? `Only ${s} left` : `${s} in stock`;
                                 return <div className={`mt-1 text-[11.5px] font-medium ${tone}`}>{label}</div>;
                               })()}
-                            {quote.status === "draft"
-                              ? // Draft: the editor below renders variations with qty steppers + stock;
+                            {editable
+                              ? // Editable draft: the editor below renders variations with qty steppers + stock;
                                 // only a legacy crown/driver line (no variations) needs a static row here.
                                 !cfg.variations?.length && (
                                   <AccessoryVariations cfg={cfg} motorQty={item.qty} />
@@ -274,7 +354,7 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
                             </div>
                           </div>
                         </div>
-                        {quote.status === "draft" && (
+                        {editable && (
                           <AccessoryLineEditor
                             itemId={item.id}
                             qty={item.qty}
@@ -324,7 +404,7 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
                         <div>
                           <Link
                             href={
-                              quote.status === "draft"
+                              editable
                                 ? `/configure/${product.id}?quote=${quote.id}&item=${item.id}`
                                 : `/configure/${product.id}`
                             }
@@ -359,7 +439,7 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
                           </span>
                         ))}
                       </div>
-                      {quote.status === "draft" && (
+                      {editable && (
                         <div className="mt-3 flex items-center justify-between">
                           <LineQtyEditor itemId={item.id} qty={item.qty} />
                           <div className="flex items-center gap-3">
@@ -419,7 +499,7 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
                   )}
                   <ShippingSummaryRow
                     quoteId={quote.id}
-                    editable={quote.status === "draft"}
+                    editable={editable}
                     amount={ship.amount}
                     waiver={ship.waiver}
                     hasGround={ship.hasGround}
@@ -438,7 +518,7 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
               </Card>
 
 
-              {viewerIsAdmin && quote.status === "draft" && ship.hasGround && expediteState.status !== "none" && (
+              {viewerIsAdmin && editable && ship.hasGround && expediteState.status !== "none" && (
                 <AdminExpediteBox
                   quoteId={quote.id}
                   status={expediteState.status}
@@ -447,7 +527,7 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
                 />
               )}
 
-              {quote.status === "draft" ? (
+              {editable ? (
                 <>
                   <SubmitPreOrderButton
                     quoteId={quote.id}
@@ -462,6 +542,9 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
                   />
                   <DeleteDraftButton quoteId={quote.id} />
                 </>
+              ) : pendingOrder ? (
+                // Unpaid pre-order: quote is still a draft, but locked. Pay or cancel back to draft.
+                <PendingPaymentCard orderId={pendingOrder.id} orderRef={pendingOrder.ref} />
               ) : (
                 order && (
                   <LinkButton href={`/orders/${order.id}`} className="w-full justify-center">

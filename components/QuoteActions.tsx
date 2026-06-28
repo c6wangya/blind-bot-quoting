@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useShippingRecalc } from "./ShippingRecalcContext";
-import { Button, cx, Spinner } from "./ui";
+import { Button, cx, LinkButton, Spinner } from "./ui";
 
 export function DeleteDraftButton({ quoteId }: { quoteId: number }) {
   const router = useRouter();
@@ -52,6 +52,92 @@ export function DeleteDraftButton({ quoteId }: { quoteId: number }) {
     >
       Delete draft
     </button>
+  );
+}
+
+/**
+ * Compact delete for the quotes list/card. Opens a confirmation dialog first. When the quote has
+ * been converted to an order, the dialog warns that the order + its status history go too (the API
+ * cascades the delete), so the user knows exactly what they're removing.
+ */
+export function DeleteQuoteListButton({
+  quoteId,
+  quoteRef,
+  converted,
+  className,
+}: {
+  quoteId: number;
+  quoteRef: string;
+  converted: boolean;
+  className?: string;
+}) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const del = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await fetch(`/api/quotes/${quoteId}`, { method: "DELETE" });
+      if (!r.ok) {
+        const data = await r.json().catch(() => ({}));
+        throw new Error(data.error ?? "Could not delete");
+      }
+      setOpen(false);
+      router.refresh();
+    } catch (e) {
+      setError((e as Error).message);
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <button
+        onClick={() => {
+          setError(null);
+          setOpen(true);
+        }}
+        className={cx("text-xs font-semibold text-muted transition-colors hover:text-red-600", className)}
+        title="Delete quote"
+      >
+        Delete
+      </button>
+
+      {open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6 text-left">
+          <div className="absolute inset-0 bg-black/30" onClick={() => !busy && setOpen(false)} aria-hidden />
+          <div role="dialog" aria-modal className="relative w-full max-w-md rounded-2xl bg-surface p-6 shadow-2xl">
+            <h2 className="text-base font-semibold tracking-tight text-ink">Delete quote {quoteRef}?</h2>
+            {converted ? (
+              <div className="mt-2 space-y-2 text-[13px] text-ink-soft">
+                <p>
+                  This quote has been <span className="font-semibold">converted to an order</span>. Deleting it will
+                  also <span className="font-semibold text-red-600">permanently delete that order and its full
+                  status history</span>.
+                </p>
+                <p>The order will no longer appear on the Orders page. This cannot be undone.</p>
+              </div>
+            ) : (
+              <p className="mt-2 text-[13px] text-ink-soft">
+                This permanently deletes the quote and all of its line items. This cannot be undone.
+              </p>
+            )}
+            {error && <p className="mt-3 text-xs text-red-500">{error}</p>}
+            <div className="mt-5 flex justify-end gap-2">
+              <Button variant="secondary" onClick={() => setOpen(false)} disabled={busy} className="py-2">
+                Cancel
+              </Button>
+              <Button variant="danger" onClick={del} busy={busy} className="py-2">
+                {busy ? "Deleting…" : converted ? "Delete quote & order" : "Delete quote"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -165,6 +251,70 @@ export function SubmitPreOrderButton({
         </Button>
       </div>
       {error && <p className="mt-2 text-xs text-red-500">{error}</p>}
+    </div>
+  );
+}
+
+/**
+ * Shown on a draft quote that already has an unpaid pre-order (awaiting_payment). The quote stays a
+ * draft until payment lands, so this card replaces "Confirm & pay": go pay the reserved order, or
+ * cancel it (releasing stock) to reopen the draft for editing.
+ */
+export function PendingPaymentCard({ orderId, orderRef }: { orderId: number; orderRef: string }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const cancel = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await fetch(`/api/orders/${orderId}/cancel`, { method: "POST" });
+      if (!r.ok) {
+        const data = await r.json().catch(() => ({}));
+        throw new Error(data.error ?? "Could not cancel");
+      }
+      router.refresh();
+    } catch (e) {
+      setError((e as Error).message);
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="rounded-xl border border-brass/40 bg-brass-soft/60 p-4">
+      <p className="text-[13px] font-semibold text-ink">Awaiting payment</p>
+      <p className="mt-1 text-[12px] leading-snug text-ink-soft">
+        Pre-order <span className="font-mono">{orderRef}</span> is reserved and waiting for payment.
+        It stays a draft until payment is received.
+      </p>
+      <LinkButton href={`/orders/${orderId}`} className="mt-3 w-full justify-center">
+        Go to payment →
+      </LinkButton>
+      {confirming ? (
+        <div className="mt-2 rounded-xl border border-red-200 bg-red-50/60 p-3">
+          <p className="text-[13px] font-medium text-ink">Cancel this pre-order and reopen the draft?</p>
+          <p className="mt-1 text-[12px] text-ink-soft">Reserved stock is released and you can edit the quote again.</p>
+          <div className="mt-3 flex gap-2">
+            <Button variant="danger" onClick={cancel} busy={busy} className="py-2">
+              {busy ? "Cancelling…" : "Cancel pre-order"}
+            </Button>
+            <Button variant="secondary" onClick={() => setConfirming(false)} disabled={busy} className="py-2">
+              Keep
+            </Button>
+          </div>
+          {error && <p className="mt-2 text-xs text-red-500">{error}</p>}
+        </div>
+      ) : (
+        <button
+          onClick={() => setConfirming(true)}
+          className="mt-2 w-full rounded-xl border border-line py-2.5 text-sm font-medium text-muted transition-colors hover:border-red-300 hover:text-red-600"
+        >
+          Cancel &amp; return to draft
+        </button>
+      )}
+      {error && !confirming && <p className="mt-2 text-xs text-red-500">{error}</p>}
     </div>
   );
 }

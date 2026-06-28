@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Badge, Card, EmptyState, LinkButton, PageHeader } from "@/components/ui";
 import { ListToolbar } from "@/components/ListToolbar";
+import { DeleteQuoteListButton } from "@/components/QuoteActions";
 import { redirect } from "next/navigation";
 import { userClient } from "@/lib/auth/user";
 import { getActingContext } from "@/lib/auth/acting-as";
@@ -32,7 +33,7 @@ export default async function QuotesPage({
   const filtered = all.filter(
     (x) =>
       (!status || x.status === status) &&
-      (!q || `${x.ref} ${x.projectName ?? ""} ${x.customerName ?? ""} ${x.sidemark ?? ""} ${x.po ?? ""}`.toLowerCase().includes(ql))
+      (!q || `${x.ref} ${x.quoteName ?? ""} ${x.projectName ?? ""} ${x.customerName ?? ""} ${x.sidemark ?? ""} ${x.po ?? ""}`.toLowerCase().includes(ql))
   );
   const quotes = pageSlice(filtered, page);
 
@@ -58,19 +59,27 @@ export default async function QuotesPage({
         {/* Mobile: cards */}
         <div className="space-y-3 md:hidden">
           {quotes.map((qt) => (
-            <Link key={qt.id} href={`/quotes/${qt.id}`} className="block rounded-2xl border border-line bg-surface p-4">
-              <div className="flex items-center justify-between gap-3">
-                <span className="font-semibold text-ink">{qt.ref}</span>
-                {qt.status === "draft" ? <Badge tone="amber">Draft</Badge> : <Badge tone="green">Converted</Badge>}
+            <div key={qt.id} className="rounded-2xl border border-line bg-surface p-4">
+              <Link href={`/quotes/${qt.id}`} className="block">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="truncate font-semibold text-ink">{qt.quoteName || qt.ref}</span>
+                  {qt.status === "draft" ? <Badge tone="amber">Draft</Badge> : <Badge tone="green">Converted</Badge>}
+                </div>
+                {qt.quoteName ? (
+                  <div className="mt-0.5 text-[12px] text-muted">{qt.ref}</div>
+                ) : null}
+                {(qt.projectName || qt.customerName) && (
+                  <div className="mt-1 truncate text-[13px] text-muted">{qt.projectName ?? qt.customerName}</div>
+                )}
+                <div className="mt-2 flex items-center justify-between text-[13px]">
+                  <span className="text-muted">{qt.itemCount} item{qt.itemCount === 1 ? "" : "s"} · {fmtDate(qt.updatedAt)}</span>
+                  <span className="font-semibold tabular-nums text-ink">{usd(qt.total)}</span>
+                </div>
+              </Link>
+              <div className="mt-3 flex justify-end border-t border-line/60 pt-3">
+                <DeleteQuoteListButton quoteId={qt.id} quoteRef={qt.ref} converted={qt.status !== "draft"} />
               </div>
-              {(qt.projectName || qt.customerName) && (
-                <div className="mt-1 truncate text-[13px] text-muted">{qt.projectName ?? qt.customerName}</div>
-              )}
-              <div className="mt-2 flex items-center justify-between text-[13px]">
-                <span className="text-muted">{qt.itemCount} item{qt.itemCount === 1 ? "" : "s"} · {fmtDate(qt.updatedAt)}</span>
-                <span className="font-semibold tabular-nums text-ink">{usd(qt.total)}</span>
-              </div>
-            </Link>
+            </div>
           ))}
           {quotes.length === 0 && <p className="py-8 text-center text-sm text-muted">No quotes match your search.</p>}
         </div>
@@ -97,8 +106,9 @@ export default async function QuotesPage({
                 <tr key={q.id} className="group border-b border-line/60 transition-colors last:border-0 hover:bg-[#fbfaf6]">
                   <td className="px-5 py-3.5">
                     <Link href={`/quotes/${q.id}`} className="font-semibold text-ink group-hover:text-brass">
-                      {q.ref}
+                      {q.quoteName || q.ref}
                     </Link>
+                    {q.quoteName && <div className="text-[11px] text-muted">{q.ref}</div>}
                   </td>
                   <td className="px-5 py-3.5 text-ink-soft">{q.projectName ?? "—"}</td>
                   <td className="px-5 py-3.5 text-ink-soft">{q.customerName ?? "—"}</td>
@@ -115,24 +125,27 @@ export default async function QuotesPage({
                   <td className="px-5 py-3.5 text-right font-semibold tabular-nums text-ink">{usd(q.total)}</td>
                   <td className="px-5 py-3.5 text-right text-xs text-muted">{fmtDate(q.updatedAt)}</td>
                   <td className="px-5 py-3.5 text-right">
-                    {canInvoiceQuote(q, ownerId) ? (
-                      <Link
-                        href={`/invoices/${q.id}`}
-                        prefetch={false}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs font-semibold text-brass hover:underline"
-                      >
-                        Invoice
-                      </Link>
-                    ) : (
-                      <span
-                        className="cursor-not-allowed text-xs font-semibold text-muted/40"
-                        title="Only your own quotes with complete customer & ship-to details can be invoiced"
-                      >
-                        Invoice
-                      </span>
-                    )}
+                    <div className="flex items-center justify-end gap-3">
+                      {canInvoiceQuote(q, ownerId) ? (
+                        <Link
+                          href={`/invoices/${q.id}`}
+                          prefetch={false}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs font-semibold text-brass hover:underline"
+                        >
+                          Invoice
+                        </Link>
+                      ) : (
+                        <span
+                          className="cursor-not-allowed text-xs font-semibold text-muted/40"
+                          title="Only your own quotes with complete customer & ship-to details can be invoiced"
+                        >
+                          Invoice
+                        </span>
+                      )}
+                      <DeleteQuoteListButton quoteId={q.id} quoteRef={q.ref} converted={q.status !== "draft"} />
+                    </div>
                   </td>
                 </tr>
               ))}

@@ -28,11 +28,11 @@ async function retailerNameFor(ownerId: string): Promise<string> {
 
 // Map camelCase QuoteDetails → snake_case columns; only keys actually present are written.
 const DETAIL_KEYS: (keyof QuoteDetails)[] = [
-  "quoteType", "projectName", "customerName", "customerPhone", "customerEmail",
+  "quoteType", "quoteName", "projectName", "customerName", "customerPhone", "customerEmail",
   "shipAddress1", "shipAddress2", "shipCity", "shipState", "shipZip", "po", "sidemark",
 ];
 const COLUMN: Record<keyof QuoteDetails, string> = {
-  quoteType: "quote_type", projectName: "project_name", customerName: "customer_name",
+  quoteType: "quote_type", quoteName: "quote_name", projectName: "project_name", customerName: "customer_name",
   customerPhone: "customer_phone", customerEmail: "customer_email", shipAddress1: "ship_address1",
   shipAddress2: "ship_address2", shipCity: "ship_city", shipState: "ship_state", shipZip: "ship_zip",
   po: "po", sidemark: "sidemark",
@@ -164,8 +164,25 @@ export async function updateQuoteItem(
     .eq("id", (data as { quote_id: number }).quote_id);
 }
 
-/** Delete a draft quote and all its items. Items first (in case the FK isn't cascade). */
+/**
+ * Delete a quote and everything that hangs off it. Children are removed before the parent because
+ * the FKs aren't cascade (see `scripts/delete-demo-data.mjs`):
+ *   order_events → orders → quote_items → quotes.
+ * When the quote has been converted, this PERMANENTLY deletes the resulting order + its status
+ * history too. The order rows are removed with `admin()` (service_role) regardless of `sb`, because
+ * RLS `orders_delete` only allows admins — ownership has already been verified by the API gate, so
+ * bypassing RLS for the cascade is safe. `messages.quote_id` is `on delete set null` (migration
+ * 0020), so chat history survives with a null link.
+ */
 export async function deleteQuote(quoteId: number, sb: SupabaseClient = admin()): Promise<void> {
+  const sbAdmin = admin();
+  const { data: orders } = await sbAdmin.from("orders").select("id").eq("quote_id", quoteId);
+  const orderIds = (orders ?? []).map((o) => (o as { id: number }).id);
+  if (orderIds.length) {
+    await sbAdmin.from("order_events").delete().in("order_id", orderIds);
+    const { error: oErr } = await sbAdmin.from("orders").delete().in("id", orderIds);
+    if (oErr) throw oErr;
+  }
   await sb.from("quote_items").delete().eq("quote_id", quoteId);
   const { error } = await sb.from("quotes").delete().eq("id", quoteId);
   if (error) throw error;
@@ -403,17 +420,18 @@ export async function getQuoteRef(id: number, sb: SupabaseClient = admin()): Pro
 export async function getOrderRefByQuote(
   quoteId: number,
   sb: SupabaseClient = admin()
-): Promise<{ id: number; ref: string } | undefined> {
+): Promise<{ id: number; ref: string; status: string } | undefined> {
   // A quote can have a prior cancelled order + a live one (cancel reopens the quote) — take the
-  // most recent non-cancelled order.
+  // most recent non-cancelled order. The status lets the caller tell an unpaid pre-order
+  // (awaiting_payment → quote still shows as draft + "awaiting payment") from a paid one.
   const { data, error } = await sb
     .from("orders")
-    .select("id, ref")
+    .select("id, ref, status")
     .eq("quote_id", quoteId)
     .neq("status", "cancelled")
     .order("id", { ascending: false })
     .limit(1)
     .maybeSingle();
   if (error) throw error;
-  return (data ?? undefined) as { id: number; ref: string } | undefined;
+  return (data ?? undefined) as { id: number; ref: string; status: string } | undefined;
 }

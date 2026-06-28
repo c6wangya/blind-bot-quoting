@@ -4,7 +4,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { VariationRestriction, VariationType } from "@/lib/db";
 import { usd } from "@/lib/format";
-import { stashPendingItem } from "@/lib/pending-item";
 import { availableTypes, buildBlocked, buildItemNames, disabledFor } from "@/lib/variation-logic";
 import { useToast } from "./Toast";
 import { Button, cx } from "./ui";
@@ -30,7 +29,7 @@ export type BrowserModel = {
 };
 
 /** An open (draft) quote offered in the in-page "Add to quote" picker. */
-export type QuoteOpt = { id: number; ref: string; projectName: string | null; itemCount: number };
+export type QuoteOpt = { id: number; ref: string; quoteName: string | null; projectName: string | null; itemCount: number };
 
 /** One unified, full-height panel: a summary list (left) glued to a detail + configure pane
  *  (right). The page constrains the height; both sides scroll internally. */
@@ -71,7 +70,7 @@ export function AccessoryBrowser({
   }, []);
 
   return (
-    <div className="flex h-full overflow-hidden rounded-2xl border border-line bg-surface">
+    <div className="flex h-full min-h-[650px] overflow-hidden rounded-2xl border border-line bg-surface">
       {/* Summary list */}
       <div className={cx("min-w-0 overflow-y-auto", selected ? "flex-1" : "flex-1")}>
         {models.length === 0 ? (
@@ -210,6 +209,9 @@ function VariationPanel({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  // Inline "Create new quote" form inside the picker: name is optional.
+  const [creating, setCreating] = useState(false);
+  const [newName, setNewName] = useState("");
   const [zoom, setZoom] = useState<string | null>(null);
   const [descOpen, setDescOpen] = useState(false);
   const [tagsOpen, setTagsOpen] = useState(false);
@@ -289,36 +291,72 @@ function VariationPanel({
   const unitPrice = base + addon;
   const lineTotal = unitPrice * motorQty;
 
-  const refOf = (id: number) => quotes.find((q) => q.id === id)?.ref ?? "quote";
+  const labelOf = (q: QuoteOpt) => q.quoteName || q.ref;
+  const refOf = (id: number) => {
+    const q = quotes.find((x) => x.id === id);
+    return q ? labelOf(q) : "quote";
+  };
 
-  // Add to a specific quote (stay on the page so the user can keep shopping), or create a new one
-  // (unchanged: stash + go to /quotes/new). targetId === null → create new.
-  const doAdd = async (targetId: number | null) => {
+  // POST the configured motor (+ add-on parts) to an existing quote id. Returns ok on success.
+  const postItemTo = async (quoteId: number): Promise<boolean> => {
+    const variationItems = selectedIds.map((id) => ({ itemId: id, qty: qtyOf(id) }));
+    const r = await fetch("/api/quote-items", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ productId: model.id, qty: motorQty, quoteId, variationItems }),
+    });
+    if (r.status === 401) {
+      window.location.assign(`/login?next=${encodeURIComponent(location.pathname + location.search)}`);
+      return false;
+    }
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error ?? "Could not add to quote");
+    return true;
+  };
+
+  // Add to an existing quote — stay on the page so the user can keep shopping.
+  const doAdd = async (targetId: number) => {
     if (oversold.size > 0) return;
     setMenuOpen(false);
-    const variationItems = selectedIds.map((id) => ({ itemId: id, qty: qtyOf(id) }));
-    if (targetId === null) {
-      stashPendingItem({ kind: "accessory", productId: model.id, qty: motorQty, variationItems });
-      router.push("/quotes/new");
-      return;
-    }
     setBusy(true);
     setError(null);
     try {
-      const r = await fetch("/api/quote-items", {
+      if (await postItemTo(targetId)) {
+        setBusy(false);
+        toast(`Added ${model.name} to ${refOf(targetId)}`);
+        router.refresh(); // refresh the draft list (item counts) without leaving the page
+      }
+    } catch (e) {
+      setError((e as Error).message);
+      setBusy(false);
+    }
+  };
+
+  // Create a new (optionally named) empty draft, then silently refresh so it appears at the top of
+  // the picker — the item is NOT added automatically; the user adds it from the list afterwards.
+  const createQuote = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const name = newName.trim();
+      const cr = await fetch("/api/quotes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productId: model.id, qty: motorQty, quoteId: targetId, variationItems }),
+        // Pre-fill the new quote with the retailer's default address (if any).
+        body: JSON.stringify({ quoteName: name || null, useDefaultAddress: true }),
       });
-      if (r.status === 401) {
+      if (cr.status === 401) {
         window.location.assign(`/login?next=${encodeURIComponent(location.pathname + location.search)}`);
         return;
       }
-      const data = await r.json();
-      if (!r.ok) throw new Error(data.error ?? "Could not add to quote");
+      const crData = await cr.json();
+      if (!cr.ok) throw new Error(crData.error ?? "Could not create quote");
       setBusy(false);
-      toast(`Added ${model.name} to ${refOf(targetId)}`);
-      router.refresh(); // refresh the draft list (item counts) without leaving the page
+      // Keep the picker open so the freshly-created quote appears at the top of the list.
+      setCreating(false);
+      setNewName("");
+      toast(`Created ${name || crData.quote.ref}`);
+      router.refresh();
     } catch (e) {
       setError((e as Error).message);
       setBusy(false);
@@ -473,7 +511,11 @@ function VariationPanel({
           <div className="relative mt-3">
             <Button
               variant="primary"
-              onClick={() => setMenuOpen((o) => !o)}
+              onClick={() => {
+                setCreating(false);
+                setNewName("");
+                setMenuOpen((o) => !o);
+              }}
               busy={busy}
               disabled={oversold.size > 0}
               className="w-full justify-center py-2.5"
@@ -483,7 +525,15 @@ function VariationPanel({
 
             {menuOpen && (
               <>
-                <div className="fixed inset-0 z-30" onClick={() => setMenuOpen(false)} aria-hidden />
+                <div
+                  className="fixed inset-0 z-30"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    setCreating(false);
+                    setNewName("");
+                  }}
+                  aria-hidden
+                />
                 <div className="absolute bottom-full right-0 z-40 mb-2 max-h-64 w-full overflow-auto rounded-xl border border-line bg-surface p-1 shadow-xl">
                   {quotes.length > 0 && (
                     <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">Add to existing</div>
@@ -495,21 +545,48 @@ function VariationPanel({
                       className="flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-[#faf9f5]"
                     >
                       <span className="min-w-0">
-                        <span className="block truncate text-[13px] font-medium text-ink">
-                          {qu.ref}
-                          {qu.projectName ? ` · ${qu.projectName}` : ""}
+                        <span className="block truncate text-[13px] font-medium text-ink">{labelOf(qu)}</span>
+                        <span className="block truncate text-[11px] text-muted">
+                          {qu.quoteName ? `${qu.ref} · ` : ""}
+                          {qu.itemCount} item{qu.itemCount === 1 ? "" : "s"}
                         </span>
-                        <span className="block text-[11px] text-muted">{qu.itemCount} item{qu.itemCount === 1 ? "" : "s"}</span>
                       </span>
                     </button>
                   ))}
                   {quotes.length > 0 && <div className="my-1 border-t border-line/70" />}
-                  <button
-                    onClick={() => doAdd(null)}
-                    className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[13px] font-medium text-ink transition-colors hover:bg-[#faf9f5]"
-                  >
-                    <span className="text-[15px] leading-none text-brass">＋</span> Create new quote
-                  </button>
+                  {creating ? (
+                    <div className="flex items-center gap-1.5 px-2.5 py-2">
+                      <input
+                        autoFocus
+                        value={newName}
+                        onChange={(e) => setNewName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") createQuote();
+                          if (e.key === "Escape") {
+                            setCreating(false);
+                            setNewName("");
+                          }
+                        }}
+                        placeholder="Quote name (optional)"
+                        className="min-w-0 flex-1 rounded-lg border border-line bg-surface px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-ink"
+                      />
+                      <Button
+                        variant="primary"
+                        busy={busy}
+                        onClick={createQuote}
+                        className="shrink-0 px-3 py-1.5 text-[13px]"
+                      >
+                        Create
+                      </Button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setCreating(true)}
+                      className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[13px] font-medium text-ink transition-colors hover:bg-[#faf9f5]"
+                    >
+                      <span className="text-[15px] leading-none text-brass">＋</span> Create new quote
+                    </button>
+                  )}
                 </div>
               </>
             )}

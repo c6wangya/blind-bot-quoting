@@ -195,6 +195,8 @@ export interface QuoteRow {
   /** Owning retailer (auth uid); NULL = public demo quote (not invoiceable). */
   ownerId: string | null;
   projectName: string | null;
+  /** Optional human-friendly name; when set, lists prefer it over `ref`. NULL = unnamed. */
+  quoteName: string | null;
   // Enriched header details (THE-772 — see supabase/migrations/0003_quote_details.sql).
   quoteType: string;
   customerName: string | null;
@@ -214,6 +216,7 @@ export interface QuoteRow {
 /** Editable quote header details — customer, ship-to, and references. All optional. */
 export interface QuoteDetails {
   quoteType?: string;
+  quoteName?: string | null;
   projectName?: string | null;
   customerName?: string | null;
   customerPhone?: string | null;
@@ -226,6 +229,13 @@ export interface QuoteDetails {
   po?: string | null;
   sidemark?: string | null;
 }
+
+/** A saved address-book entry — a reusable QuoteDetails preset owned by a retailer. */
+export type SavedAddress = QuoteDetails & {
+  id: string;
+  label: string | null;
+  isDefault: boolean;
+};
 
 // Full fulfilment pipeline — used by PRODUCT orders (6 steps).
 export const ORDER_STATUSES = [

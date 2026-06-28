@@ -3,7 +3,7 @@ import { AccessoryBrowser, type BrowserModel } from "@/components/AccessoryBrows
 import { AccessoryFilters } from "@/components/AccessoryFilters";
 import { AccessorySearchBox } from "@/components/AccessorySearchBox";
 import { AccessoryToolbar } from "@/components/AccessoryToolbar";
-import { FrequentParts, type FrequentPart } from "@/components/FrequentParts";
+import { FrequentParts, FrequentPartsToggle, type FrequentPart } from "@/components/FrequentParts";
 import { getEffectiveOwnerId } from "@/lib/auth/acting-as";
 import { getCurrentUserId } from "@/lib/auth/user";
 import {
@@ -34,12 +34,15 @@ export default async function AccessoriesPage({
     typeof sp.quote === "string" && Number.isInteger(Number(sp.quote)) ? Number(sp.quote) : undefined;
   const q = quoteId ? `&quote=${quoteId}` : "";
 
-  const userId = await getCurrentUserId();
+  // effectiveOwner = the retailer we're quoting for (the acting-as target when an admin is
+  // ordering on someone's behalf, else the logged-in user). Order history / frequent parts must
+  // key off this, not the real uid — otherwise an admin acting-as sees an empty card.
+  const [userId, effectiveOwner] = await Promise.all([getCurrentUserId(), getEffectiveOwnerId()]);
   const [catalog, attributes, tagMap, effectivePrices, inventory, variations, variationMap, filesMap, defaultsMap, restrictions, itemModelMap, frequentRaw] = await Promise.all([
     loadCatalog(),
     getAttributes(),
     getModelTagMap(),
-    getEffectivePrices(userId), // this retailer's price per motor (override → default → static)
+    getEffectivePrices(effectiveOwner), // this retailer's price per motor (override → default → static)
     getInventoryMap(), // model_id → stock; absent = untracked
     getVariations(),
     getProductVariationMap(), // model_id → available variation item ids
@@ -47,7 +50,7 @@ export default async function AccessoriesPage({
     getProductDefaultsMap(), // model_id → default variation item ids
     getRestrictions(), // item↔item incompatibility pairs (grey-out in the options modal)
     getVariationItemModelMap(), // variation item_id → its source model id (for stock)
-    userId ? getFrequentPartIds(userId, 12) : Promise.resolve([]), // over-fetch; stale ids filtered below
+    effectiveOwner ? getFrequentPartIds(effectiveOwner, 12) : Promise.resolve([]), // over-fetch; stale ids filtered below
   ]);
 
   // Each add-on part inherits its source model's stock (absent = untracked / unlimited).
@@ -58,11 +61,10 @@ export default async function AccessoriesPage({
 
   // The current user's open (draft) quotes — offered in the in-page "Add to quote" picker so a
   // motor can be dropped into a quote without leaving the catalog.
-  const effectiveOwner = await getEffectiveOwnerId();
   const draftQuotes = effectiveOwner
     ? (await getQuotes(effectiveOwner))
         .filter((qu) => qu.status === "draft" && qu.ownerId === effectiveOwner)
-        .map((qu) => ({ id: qu.id, ref: qu.ref, projectName: qu.projectName, itemCount: qu.itemCount }))
+        .map((qu) => ({ id: qu.id, ref: qu.ref, quoteName: qu.quoteName, projectName: qu.projectName, itemCount: qu.itemCount }))
     : [];
 
   // Enrich the frequently-ordered ids with the live catalog; drop any that are gone /
@@ -256,6 +258,7 @@ export default async function AccessoriesPage({
         filterCount={filterCount}
         searchSlot={<AccessorySearchBox q={searchRaw} baseParams={baseParams} />}
         filtersSlot={<AccessoryFilters attributes={attributes} selected={selected} moq={moq} q={searchRaw} cat={cat} quote={quoteId} />}
+        frequentSlot={<FrequentPartsToggle />}
       />
 
       <div className="min-h-0 flex-1">

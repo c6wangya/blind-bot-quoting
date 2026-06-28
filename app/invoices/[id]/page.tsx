@@ -84,7 +84,10 @@ export default async function InvoicePage({
   const ownerId = quote.ownerId as string;
 
   const invoiceRef = await getOrAssignInvoiceRef(quoteId);
-  const orderRef = quote.status === "converted" ? await getOrderRefByQuote(quoteId, sb) : undefined;
+  // The quote stays "draft" until payment lands, so a placed-but-unpaid pre-order (awaiting_payment)
+  // is found here too — that's what flips the invoice from "Confirm & pay" to the pay/bank-details
+  // view (and shows the awaiting status), rather than gating on quote.status === "converted".
+  const orderRef = await getOrderRefByQuote(quoteId, sb);
   const order = orderRef ? await getOrder(orderRef.id, sb) : undefined;
   const bank = await getBankInfo();
 
@@ -131,7 +134,7 @@ export default async function InvoicePage({
           <PrintInvoiceButton fileName={`${SELLER.name} ${invoiceRef}`} />
           {paid ? (
             <Badge tone="green">Paid {order?.paidAt ? `· ${fmtDate(order.paidAt)}` : ""}</Badge>
-          ) : quote.status === "converted" && order ? (
+          ) : order ? (
             publicMode ? (
               <InvoicePayPicker
                 orderId={order.id}

@@ -10,6 +10,7 @@ import { Button, Card } from "./ui";
 type Draft = {
   id: number;
   ref: string;
+  quoteName: string | null;
   customerName: string | null;
   sidemark: string | null;
   projectName: string | null;
@@ -124,9 +125,9 @@ export function NewQuoteFlow() {
                     className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-[#faf9f5] disabled:opacity-50"
                   >
                     <div className="min-w-0">
-                      <div className="text-[13.5px] font-semibold text-ink">{q.ref}</div>
+                      <div className="text-[13.5px] font-semibold text-ink">{q.quoteName || q.ref}</div>
                       <div className="truncate text-[11.5px] text-muted">
-                        {[q.customerName, q.sidemark, q.projectName].filter(Boolean).join(" · ") || "No details yet"}
+                        {[q.quoteName ? q.ref : null, q.customerName, q.sidemark, q.projectName].filter(Boolean).join(" · ") || "No details yet"}
                       </div>
                     </div>
                     <span className="shrink-0 text-[11.5px] text-muted">

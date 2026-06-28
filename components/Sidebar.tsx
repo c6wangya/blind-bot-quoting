@@ -254,7 +254,7 @@ export default function Sidebar({
               className="flex items-center gap-3 px-4 py-3 text-[13.5px] font-medium text-ink transition-colors hover:bg-black/[0.04]"
             >
               <KeyRound className="size-[18px] text-muted" strokeWidth={1.75} />
-              Change password
+              Account &amp; address book
             </Link>
             <div className="h-px bg-black/[0.06]" />
             <button

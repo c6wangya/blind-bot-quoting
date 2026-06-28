@@ -13,16 +13,15 @@ import { computeShipping, DEFAULT_SHIPPING, type MotorRate, type ShippingMode, t
 import { isAccessoryConfig } from "@/lib/types";
 
 /**
- * Orders needing admin action: product orders awaiting acknowledgement, accessory orders awaiting
- * shipment (they auto-acknowledge on payment), and bank transfers to confirm.
+ * Orders needing admin action — only `acknowledged` ones: that's the state an admin has to push
+ * forward (ship an accessory order, or move a product order into production). Other states are
+ * either waiting on the retailer (awaiting_payment) or already past the admin's hand.
  */
 export async function getAdminPendingCount(sb: SupabaseClient = admin()): Promise<number> {
   const { count } = await sb
     .from("orders")
     .select("id", { count: "exact", head: true })
-    .or(
-      "status.eq.submitted,and(status.eq.acknowledged,accessory_only.eq.true),and(status.eq.awaiting_payment,payment_method.eq.bank_transfer)"
-    );
+    .eq("status", "acknowledged");
   return count ?? 0;
 }
 
@@ -55,15 +54,20 @@ export async function submitPreOrder(
   if (quote.status !== "draft") throw new Error("Quote already converted");
   if (quote.items.length === 0) throw new Error("Quote has no items");
 
-  // Atomic double-submit gate: flip draft→converted; only the request that actually changed a
-  // row proceeds, so a double-click / two tabs can't both create an order + double-reserve stock.
-  const { data: won } = await sb
-    .from("quotes")
-    .update({ status: "converted", updated_at: new Date().toISOString() })
-    .eq("id", quoteId)
-    .eq("status", "draft")
-    .select("id");
-  if (!won || won.length === 0) throw new Error("This quote has already been submitted");
+  // The quote stays "draft" until payment actually succeeds (markOrderPaid flips it to converted),
+  // so a half-finished checkout never looks like a placed order. If an unpaid pre-order already
+  // exists for this quote (e.g. the retailer came back to pay), reuse it instead of creating a
+  // second one and double-reserving stock. A DB partial-unique index on
+  // orders(quote_id) WHERE status='awaiting_payment' is the concurrency backstop (see migration).
+  const { data: existing } = await sb
+    .from("orders")
+    .select(ORDER_COLS)
+    .eq("quote_id", quoteId)
+    .eq("status", "awaiting_payment")
+    .order("id", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (existing) return existing as unknown as OrderRow;
 
   const motorNeeds = motorNeedsOf(quote.items);
   let reserved = false;
@@ -136,9 +140,10 @@ export async function submitPreOrder(
     });
     return order;
   } catch (e) {
-    // Roll back the gate (+ any reserved stock) so the retailer can retry.
+    // Roll back any reserved stock so the retailer can retry. The quote was never moved off "draft",
+    // so there's nothing to revert there (a concurrent insert that lost the unique-index race lands
+    // here too, and only releases the stock it reserved).
     if (reserved) await restoreMotorStock(motorNeeds, admin()).catch(() => {});
-    await sb.from("quotes").update({ status: "draft", updated_at: new Date().toISOString() }).eq("id", quoteId);
     throw e;
   }
 }
@@ -243,11 +248,11 @@ export async function markOrderPaid(
 ): Promise<void> {
   const { data: cur } = await sb
     .from("orders")
-    .select("status, payment_method, accessory_only")
+    .select("status, payment_method, accessory_only, quote_id")
     .eq("id", orderId)
     .maybeSingle();
   if (!cur) throw new Error("Order not found");
-  const row = cur as { status: string; payment_method: PaymentMethod | null; accessory_only: boolean | null };
+  const row = cur as { status: string; payment_method: PaymentMethod | null; accessory_only: boolean | null; quote_id: number };
   if (row.status !== "awaiting_payment") return; // already paid / in pipeline
   const now = new Date().toISOString();
   const accessoryOnly = row.accessory_only === true;
@@ -285,6 +290,9 @@ export async function markOrderPaid(
   const { error } = await sb.from("orders").update(patch).eq("id", orderId);
   if (error) throw error;
   await sb.from("order_events").insert(events);
+  // Payment succeeded → the quote is now truly an order. (It was kept on "draft" until this point so
+  // an unpaid checkout never showed as converted.)
+  await sb.from("quotes").update({ status: "converted", updated_at: now }).eq("id", row.quote_id);
 }
 
 /** Flag a failed gateway payment; the order stays `awaiting_payment` so the retailer can retry. */

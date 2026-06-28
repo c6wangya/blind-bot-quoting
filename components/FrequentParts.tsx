@@ -2,21 +2,49 @@
 
 import { useSyncExternalStore } from "react";
 import { AddAccessoryButton } from "./AccessoryActions";
-import { Card } from "./ui";
+import { Card, cx } from "./ui";
 import type { VariationRestriction, VariationType } from "@/lib/db";
 import { usd } from "@/lib/format";
 
-// Dismissal persists across navigation (localStorage) and re-renders via a custom event.
-const DISMISS_KEY = "frequent-parts-dismissed";
+// Open/closed is toggled from the toolbar button; default closed. The choice persists across
+// navigation (localStorage) and re-renders both the button + card via a custom event.
+const OPEN_KEY = "frequent-parts-open";
 const EVENT = "frequent-parts-change";
 
 function subscribe(cb: () => void) {
   window.addEventListener(EVENT, cb);
   return () => window.removeEventListener(EVENT, cb);
 }
-function dismissFrequentParts() {
-  localStorage.setItem(DISMISS_KEY, "1");
+function setOpen(open: boolean) {
+  localStorage.setItem(OPEN_KEY, open ? "1" : "0");
   window.dispatchEvent(new Event(EVENT));
+}
+function useFrequentPartsOpen() {
+  // SSR snapshot = false so the card never flashes in before hydration.
+  return useSyncExternalStore(
+    subscribe,
+    () => localStorage.getItem(OPEN_KEY) === "1",
+    () => false,
+  );
+}
+
+/** Toolbar toggle that shows/hides the "Frequently ordered" card. Always visible. */
+export function FrequentPartsToggle() {
+  const open = useFrequentPartsOpen();
+  return (
+    <button
+      type="button"
+      onClick={() => setOpen(!open)}
+      aria-pressed={open}
+      className={cx(
+        "flex items-center gap-1.5 rounded-lg border px-3 py-2 text-[13px] font-medium transition-colors",
+        open ? "border-ink text-ink" : "border-line text-ink-soft hover:border-ink"
+      )}
+    >
+      <span className="text-[13px] leading-none">★</span>
+      Frequently ordered
+    </button>
+  );
 }
 
 export type FrequentPart = {
@@ -47,19 +75,14 @@ export function FrequentParts({
   variations: VariationType[];
   restrictions: VariationRestriction[];
 }) {
-  // Hidden during SSR (server snapshot = true) so a previously-dismissed card never flashes in.
-  const hidden = useSyncExternalStore(
-    subscribe,
-    () => localStorage.getItem(DISMISS_KEY) === "1",
-    () => true,
-  );
+  const open = useFrequentPartsOpen();
 
-  if (parts.length === 0 || hidden) return null;
+  if (!open) return null;
   return (
     <Card className="rise relative mb-5 px-4 py-4 sm:px-5">
       <button
         type="button"
-        onClick={dismissFrequentParts}
+        onClick={() => setOpen(false)}
         aria-label="Dismiss"
         className="absolute right-3 top-3 text-muted transition-colors hover:text-ink"
       >
@@ -69,6 +92,11 @@ export function FrequentParts({
         <span className="text-[13px] font-semibold text-ink">★ Frequently ordered</span>
         <span className="text-[11.5px] text-muted">Your most-ordered parts — add again in one tap</span>
       </div>
+      {parts.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-line bg-[#fbfaf6] px-4 py-6 text-center text-[12.5px] text-muted">
+          No frequently ordered parts yet — your most-ordered parts will appear here once you have order history.
+        </div>
+      ) : (
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {parts.map((p) => (
           <div key={p.modelId} className="flex gap-3 rounded-xl border border-line bg-[#fbfaf6] p-3">
@@ -111,6 +139,7 @@ export function FrequentParts({
           </div>
         ))}
       </div>
+      )}
     </Card>
   );
 }

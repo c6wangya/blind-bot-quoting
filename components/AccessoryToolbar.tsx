@@ -16,6 +16,7 @@ export function AccessoryToolbar({
   filterCount,
   searchSlot,
   filtersSlot,
+  frequentSlot,
 }: {
   brands: { id: string; name: string; href: string; active: boolean }[];
   categories: { id: string; name: string; count: number; orderable: boolean; href: string; active: boolean }[];
@@ -25,6 +26,7 @@ export function AccessoryToolbar({
   filterCount: number;
   searchSlot: ReactNode;
   filtersSlot: ReactNode;
+  frequentSlot?: ReactNode;
 }) {
   const [brandOpen, setBrandOpen] = useState(false);
   const [catOpen, setCatOpen] = useState(false);
@@ -141,6 +143,7 @@ export function AccessoryToolbar({
         {/* Search + Filters */}
         <div className="ml-auto flex items-center gap-2">
           {searchSlot}
+          {frequentSlot}
           <button
             onClick={() => setFiltersOpen((o) => !o)}
             className={cx(

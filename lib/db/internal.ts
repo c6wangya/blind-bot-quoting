@@ -8,7 +8,7 @@ export const round2 = (n: number) => Math.round(n * 100) / 100;
 // into the camelCase domain types (TS types + components stay unchanged).
 export const PRICING_COLS = "id, lineId:line_id, version, active, note, config, createdAt:created_at";
 export const QUOTE_COLS =
-  "id, ref, retailer, status, ownerId:owner_id, projectName:project_name, quoteType:quote_type, " +
+  "id, ref, retailer, status, ownerId:owner_id, projectName:project_name, quoteName:quote_name, quoteType:quote_type, " +
   "customerName:customer_name, customerPhone:customer_phone, customerEmail:customer_email, " +
   "shipAddress1:ship_address1, shipAddress2:ship_address2, shipCity:ship_city, shipState:ship_state, shipZip:ship_zip, " +
   "po, sidemark, createdAt:created_at, updatedAt:updated_at";

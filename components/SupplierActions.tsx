@@ -27,6 +27,26 @@ function fmtSize(bytes: number) {
   return bytes < 1024 * 1024 ? `${Math.round(bytes / 1024)} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
+/**
+ * Pull UPS "1Z" tracking numbers out of arbitrary pasted text. A 1Z number is fixed-length:
+ * `1Z` + 6-char shipper + 2-digit service + 8-digit package id + 1 check digit = 18 chars total.
+ * We tolerate spaces/tabs between groups (UPS prints them as `1Z 999 AA1 01 2345 6784`), uppercase,
+ * and dedupe so pasting a whole shipment email yields a clean list.
+ */
+function extractUpsTracking(text: string): string[] {
+  const re = /1Z(?:[ \t]*[0-9A-Z]){16}/gi;
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const m of text.matchAll(re)) {
+    const n = m[0].replace(/[ \t]+/g, "").toUpperCase();
+    if (!seen.has(n)) {
+      seen.add(n);
+      out.push(n);
+    }
+  }
+  return out;
+}
+
 export default function SupplierAdvanceButton({
   orderId,
   status,
@@ -47,10 +67,12 @@ export default function SupplierAdvanceButton({
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [confirmClose, setConfirmClose] = useState(false);
-  // Ship modal: one carrier + one-or-more tracking numbers.
+  // Ship modal: one carrier + one-or-more tracking numbers. UPS is the default carrier and gets a
+  // paste box that auto-detects 1Z numbers.
   const [shipOpen, setShipOpen] = useState(false);
-  const [carrier, setCarrier] = useState("SF Express Intl");
+  const [carrier, setCarrier] = useState("UPS");
   const [tracks, setTracks] = useState<string[]>([""]);
+  const [pasteText, setPasteText] = useState("");
 
   const post = async (url: string, init?: RequestInit, successMsg?: string) => {
     setBusy(true);
@@ -94,6 +116,19 @@ export default function SupplierAdvanceButton({
   const addTrack = () => setTracks((t) => [...t, ""]);
   const removeTrack = (i: number) => setTracks((t) => (t.length > 1 ? t.filter((_, j) => j !== i) : t));
 
+  // Paste box (UPS): detect 1Z numbers in the pasted blob and fill the rows with them.
+  const applyPaste = (text: string) => {
+    setPasteText(text);
+    const found = extractUpsTracking(text);
+    if (found.length) setTracks(found);
+  };
+  const openShip = () => {
+    setError(null);
+    setTracks([""]);
+    setPasteText("");
+    setShipOpen(true);
+  };
+
   const submitShip = async () => {
     const nums = tracks.map((t) => t.trim()).filter(Boolean);
     if (nums.length === 0) {
@@ -108,6 +143,7 @@ export default function SupplierAdvanceButton({
     if (ok) {
       setShipOpen(false);
       setTracks([""]);
+      setPasteText("");
     }
   };
 
@@ -200,13 +236,15 @@ export default function SupplierAdvanceButton({
   // Accessory orders collect tracking numbers via a modal on ship; everything else advances directly.
   const isShip = next.action === "ship" && accessoryOnly;
   const filledTracks = tracks.filter((t) => t.trim()).length;
+  const isUps = carrier.trim().toUpperCase() === "UPS";
+  const detected = isUps && pasteText.trim() ? extractUpsTracking(pasteText).length : 0;
 
   return (
     <div className="flex items-center justify-end gap-2">
       <button
         onClick={() =>
           isShip
-            ? (setError(null), setShipOpen(true))
+            ? openShip()
             : post(`/api/orders/${orderId}/advance`, { headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: next.action }) }, "Order updated")
         }
         disabled={busy}
@@ -247,6 +285,24 @@ export default function SupplierAdvanceButton({
                 <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-muted">
                   Tracking number{tracks.length > 1 ? "s" : ""}
                 </label>
+                {isUps && (
+                  <div className="mb-2.5">
+                    <textarea
+                      value={pasteText}
+                      onChange={(e) => applyPaste(e.target.value)}
+                      rows={3}
+                      placeholder="Paste anything containing UPS 1Z numbers — they're detected automatically (e.g. 1Z999AA10123456784)"
+                      className="w-full resize-y rounded-lg border border-line bg-surface px-3 py-2 font-mono text-[12px] text-ink outline-none focus:border-ink"
+                    />
+                    <p className="mt-1 text-[11px] text-muted">
+                      {pasteText.trim()
+                        ? detected > 0
+                          ? `Detected ${detected} UPS number${detected === 1 ? "" : "s"} → filled below (edit or remove as needed).`
+                          : "No 1Z… numbers found in the pasted text yet."
+                        : "UPS numbers start with 1Z and are 18 characters."}
+                    </p>
+                  </div>
+                )}
                 <div className="space-y-2">
                   {tracks.map((t, i) => (
                     <div key={i} className="flex items-center gap-2">
@@ -294,7 +350,7 @@ export default function SupplierAdvanceButton({
             {error && <p className="mt-3 text-xs text-red-500">{error}</p>}
             <div className="mt-5 flex items-center justify-between">
               <span className="text-[11.5px] text-muted">
-                {filledTracks} number{filledTracks === 1 ? "" : "s"} · {carrier.trim() || "SF Express Intl"}
+                {filledTracks} number{filledTracks === 1 ? "" : "s"} · {carrier.trim() || "UPS"}
               </span>
               <div className="flex gap-2">
                 <Button variant="secondary" onClick={() => setShipOpen(false)} disabled={busy} className="py-2">

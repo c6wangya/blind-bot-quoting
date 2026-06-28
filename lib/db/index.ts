@@ -13,6 +13,7 @@
 // are intentionally NOT re-exported here.
 export * from "./catalog";
 export * from "./profile";
+export * from "./address-book";
 export * from "./ownership";
 export * from "./pricing";
 export * from "./quotes";
