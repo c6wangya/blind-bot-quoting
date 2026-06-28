@@ -13,6 +13,7 @@ import { LineQtyEditor } from "@/components/LineQtyEditor";
 import { Swatch } from "@/components/renders";
 import { BackLink, Badge, Card, EmptyState, LinkButton } from "@/components/ui";
 import { QuoteChatLauncher } from "@/components/QuoteChatLauncher";
+import { quoteItemsToRefs } from "@/lib/message-items";
 import { isAdmin, requireUserId, userClient } from "@/lib/auth/user";
 import {
   getConversationForRetailer,
@@ -573,6 +574,7 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
       {chat && (
         <QuoteChatLauncher
           quote={{ id: quote.id, ref: quote.ref }}
+          referenceItems={quoteItemsToRefs(quote.items, catalog)}
           conversationId={chat.conversationId}
           initialMessages={chat.messages}
           initialPeerReadAt={chat.peerReadAt}

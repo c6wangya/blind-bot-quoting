@@ -251,12 +251,22 @@ export const ORDER_STATUSES = [
 // the supplier ships (terminal). The `accessory_only` flag on the order selects which list applies.
 export const ORDER_STATUSES_ACCESSORY = ["submitted", "acknowledged", "shipped"] as const;
 
-// 'awaiting_payment' is the pre-pipeline state, 'cancelled' a terminal one; the manual advance
-// machine covers only ORDER_STATUSES.
-export type OrderStatus = (typeof ORDER_STATUSES)[number] | "awaiting_payment" | "cancelled";
+// 'awaiting_payment' is the pre-pipeline state; 'cancelled' (unpaid) and 'refunded' (paid, then
+// returned before shipment) are terminal. The manual advance machine covers only ORDER_STATUSES.
+export type OrderStatus =
+  | (typeof ORDER_STATUSES)[number]
+  | "awaiting_payment"
+  | "cancelled"
+  | "refunded";
 
 export type PaymentMethod = "stripe" | "paypal" | "bank_transfer";
-export type PaymentStatus = "pending" | "paid" | "failed";
+export type PaymentStatus = "pending" | "paid" | "failed" | "refunded";
+
+// A paid order can be refunded at any fulfilment stage (full amount).
+export const REFUNDABLE_STATUSES = ORDER_STATUSES;
+// Pre-shipment stages: refunding here releases the reserved motor stock back (goods never left).
+// Refunding a shipped/in-transit/delivered order does NOT touch stock — the goods are already out.
+export const PRE_SHIPMENT_STATUSES = ["submitted", "acknowledged", "in_production"] as const;
 
 export interface OrderRow {
   id: number;
@@ -279,6 +289,11 @@ export interface OrderRow {
   discountPct: number;
   paidAt: string | null;
   paymentProofPath: string | null;
+  /** Admin's reason for the refund (set when status === "refunded"). */
+  refundReason: string | null;
+  /** Optional supporting documents for the refund (private bucket paths). */
+  refundDocPaths: string[] | null;
+  refundedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }

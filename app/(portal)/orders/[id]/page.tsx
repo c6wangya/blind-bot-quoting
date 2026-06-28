@@ -3,9 +3,13 @@ import { notFound } from "next/navigation";
 import { Swatch } from "@/components/renders";
 import { BackLink, Badge, Card, cx, PageHeader, StatusBadge } from "@/components/ui";
 import { OrderPayment } from "@/components/OrderPayment";
+import { RefundButton } from "@/components/RefundButton";
+import { CancelOrderButton } from "@/components/CancelOrderButton";
 import { canAccessOwned, isAdmin, requireUserId, userClient } from "@/lib/auth/user";
 import { admin } from "@/lib/supabase/admin";
-import { getBankInfo, getLine, getOrder, getOrderOwnerId, getOrderShipping, getProduct, getVariationItemModelMap, loadCatalog } from "@/lib/db";
+import { getBankInfo, getConversationForRetailer, getLine, getMessages, getOrder, getOrderOwnerId, getOrderShipping, getProduct, getUnreadCount, getVariationItemModelMap, loadCatalog } from "@/lib/db";
+import { QuoteChatLauncher } from "@/components/QuoteChatLauncher";
+import { quoteItemsToRefs } from "@/lib/message-items";
 import type { MotorRate } from "@/lib/shipping";
 import { describeConfig } from "@/lib/describe";
 import { isAccessoryConfig } from "@/lib/types";
@@ -13,7 +17,7 @@ import { AccessoryVariations } from "@/components/AccessoryVariations";
 import { OrderShippingRow } from "@/components/OrderShippingRow";
 import { BRAND } from "@/lib/brand";
 import { ACTOR_LABEL, fmtDate, fmtDateTime, ORDER_STATUS_META, usd } from "@/lib/format";
-import { ORDER_STATUSES, ORDER_STATUSES_ACCESSORY, type OrderStatus } from "@/lib/types";
+import { ORDER_STATUSES, ORDER_STATUSES_ACCESSORY, REFUNDABLE_STATUSES, type OrderStatus } from "@/lib/types";
 
 export default async function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -45,6 +49,39 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   }
   const transferReported = order.events?.some((e) => e.note.includes("reported the bank transfer")) ?? false;
   const adminUser = await isAdmin(userId);
+
+  // Refund: admin-only, full amount, pre-shipment (REFUNDABLE_STATUSES) on a paid order. A signed
+  // URL exposes the supporting document on the refunded card.
+  const canRefund =
+    adminUser && order.paymentStatus === "paid" && (REFUNDABLE_STATUSES as readonly string[]).includes(order.status);
+  // Cancel: unpaid orders only (retailer or admin) — releases stock + reopens the quote.
+  const canCancel = order.status === "awaiting_payment";
+  let refundDocUrls: string[] = [];
+  if (order.refundDocPaths?.length) {
+    const signed = await Promise.all(
+      order.refundDocPaths.map((p) => admin().storage.from("payment-proofs").createSignedUrl(p, 3600))
+    );
+    refundDocUrls = signed.map((s) => s.data?.signedUrl).filter((u): u is string => !!u);
+  }
+
+  // Retailer-only "message us about this order" bubble — same widget as the quote page; admins
+  // reply from the full inbox. Messages tag the order's source quote (so the admin sees a "Re: Q-…"
+  // chip and the link works), while the bubble header reads "About PO-…".
+  let chat: {
+    conversationId: string | null;
+    messages: Awaited<ReturnType<typeof getMessages>>;
+    peerReadAt: string | null;
+    unread: number;
+  } | null = null;
+  if (!adminUser) {
+    const sb = await userClient();
+    const conv = await getConversationForRetailer(userId, sb);
+    const [messages, unread] = await Promise.all([
+      conv ? getMessages(conv.id, sb) : Promise.resolve([]),
+      getUnreadCount(userId, false, sb),
+    ]);
+    chat = { conversationId: conv?.id ?? null, messages, peerReadAt: conv?.adminLastReadAt ?? null, unread };
+  }
 
   // --- Split the order by brand. Each brand is presented as its own purchase order with its own
   // total: goods + discount are split per line; the snapshot shipping is allocated across brands by
@@ -222,12 +259,16 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         title={order.ref}
         description={order.quote.projectName ?? undefined}
         actions={
-          <a
-            href={`/api/orders/${order.id}/excel`}
-            className="inline-flex items-center gap-2 rounded-xl bg-ink px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:bg-[#2a3756] hover:shadow"
-          >
-            ⬇ Purchase order file (.xlsx)
-          </a>
+          <div className="flex items-center gap-2">
+            {canCancel && <CancelOrderButton orderId={order.id} />}
+            {canRefund && <RefundButton orderId={order.id} amountLabel={usd(order.amount ?? order.quote.total)} />}
+            <a
+              href={`/api/orders/${order.id}/excel`}
+              className="inline-flex items-center gap-2 rounded-xl bg-ink px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:bg-[#2a3756] hover:shadow"
+            >
+              ⬇ Purchase order file (.xlsx)
+            </a>
+          </div>
         }
       />
 
@@ -244,6 +285,38 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                 edit quote {order.quote.ref} →
               </Link>
             </p>
+          </Card>
+        ) : order.status === "refunded" ? (
+          <Card className="border-line bg-[#faf9f5] px-5 py-5">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-ink">Order refunded</h3>
+              <StatusBadge status="refunded" />
+            </div>
+            <p className="mt-2 text-[13px] text-ink-soft">
+              A full refund of <span className="font-semibold text-ink">{usd(order.amount ?? order.quote.total)}</span>
+              {" "}was issued{order.refundedAt ? ` on ${fmtDate(order.refundedAt)}` : ""}. The order is now closed.
+            </p>
+            {order.refundReason && (
+              <p className="mt-2 rounded-lg bg-surface px-3 py-2 text-[12.5px] text-ink-soft">
+                <span className="font-semibold text-ink">Reason: </span>
+                {order.refundReason}
+              </p>
+            )}
+            {refundDocUrls.length > 0 && (
+              <div className="mt-2 flex flex-col gap-1">
+                {refundDocUrls.map((u, i) => (
+                  <a
+                    key={u}
+                    href={u}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-brass hover:underline"
+                  >
+                    📎 View supporting document{refundDocUrls.length > 1 ? ` ${i + 1}` : ""}
+                  </a>
+                ))}
+              </div>
+            )}
           </Card>
         ) : (
           <OrderPayment
@@ -476,6 +549,18 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
           </div>
         </div>
       </div>
+
+      {chat && (
+        <QuoteChatLauncher
+          quote={{ id: order.quoteId, ref: order.quote.ref }}
+          aboutLabel={order.ref}
+          referenceItems={quoteItemsToRefs(order.quote.items, catalog)}
+          conversationId={chat.conversationId}
+          initialMessages={chat.messages}
+          initialPeerReadAt={chat.peerReadAt}
+          initialUnread={chat.unread}
+        />
+      )}
     </div>
   );
 }

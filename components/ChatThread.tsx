@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { ChatMessage, ChatRole, QuoteTag } from "@/lib/db";
+import type { ChatMessage, ChatRole, MessageItemRef, QuoteTag } from "@/lib/db";
 import { BRAND } from "@/lib/brand";
 import { ExpediteRequestCard } from "./ExpediteRequestCard";
+import { MessageItemCards } from "./MessageItems";
+import { MessageItemPicker } from "./MessageItemPicker";
 import { Button, cx } from "./ui";
 
 type UiMessage = ChatMessage & { pending?: boolean };
@@ -92,6 +94,7 @@ export function ChatThread({
   header,
   onActivity,
   quoteContext = null,
+  referenceItems = null,
   fill = false,
 }: {
   role: ChatRole;
@@ -105,6 +108,9 @@ export function ChatThread({
   // When set, messages sent from this thread are tagged with the quote, and a "Re: …" hint
   // shows above the composer. (Used by the per-quote chat bubble.)
   quoteContext?: QuoteTag | null;
+  // The quote/order's line items the customer can attach to a message ("ask about these"). When
+  // present, a "Reference items" button appears in the composer. (Used by the quote/order bubbles.)
+  referenceItems?: MessageItemRef[] | null;
   // Fill the parent container's height instead of the standalone fixed/viewport sizing —
   // for embedding inside a popup/panel that supplies its own frame.
   fill?: boolean;
@@ -117,6 +123,8 @@ export function ChatThread({
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [showEmoji, setShowEmoji] = useState(false);
+  const [picking, setPicking] = useState(false);
+  const [selectedItems, setSelectedItems] = useState<MessageItemRef[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -241,16 +249,18 @@ export function ChatThread({
 
   const send = async () => {
     const body = text.trim();
-    if (!body || busy) return;
+    const items = selectedItems;
+    if ((!body && items.length === 0) || busy) return;
     const tmpId = `tmp-${tmpSeq.current++}`;
     setBusy(true);
     setErr(null);
     setText("");
+    setSelectedItems([]);
     setShowEmoji(false);
     bottomPinned.current = true;
     setPending((p) => [
       ...p,
-      { id: tmpId, conversationId: convId ?? "", senderId: "", senderRole: role, body, createdAt: new Date().toISOString(), pending: true },
+      { id: tmpId, conversationId: convId ?? "", senderId: "", senderRole: role, body, itemRefs: items.length ? items : null, createdAt: new Date().toISOString(), pending: true },
     ]);
     try {
       const r = await fetch("/api/messages", {
@@ -260,6 +270,7 @@ export function ChatThread({
           ...(role === "admin" ? { conversationId: convId } : {}),
           body,
           ...(quoteContext ? { quoteId: quoteContext.id } : {}),
+          ...(items.length ? { itemRefs: items } : {}),
         }),
       });
       const data = await r.json().catch(() => ({}));
@@ -274,6 +285,7 @@ export function ChatThread({
     } catch (e) {
       setPending((p) => p.filter((x) => x.id !== tmpId));
       setText(body);
+      setSelectedItems(items);
       setErr((e as Error).message);
     } finally {
       setBusy(false);
@@ -291,7 +303,7 @@ export function ChatThread({
   return (
     <div
       className={cx(
-        "flex flex-col overflow-hidden bg-surface",
+        "relative flex flex-col overflow-hidden bg-surface",
         fill
           ? "h-full min-h-0"
           : "h-[calc(100dvh-12rem)] min-h-[24rem] rounded-2xl border border-line md:h-[68vh]"
@@ -368,6 +380,7 @@ export function ChatThread({
                     ) : (
                       <>
                     {showChip && <QuoteChip quoteId={m.quoteId ?? null} quoteRef={m.quoteRef!} mine={mine} />}
+                    {m.itemRefs && m.itemRefs.length > 0 && <MessageItemCards items={m.itemRefs} />}
                     {m.body && (
                       <div
                         className={cx(
@@ -424,6 +437,18 @@ export function ChatThread({
           })
         )}
       </div>
+
+      {picking && referenceItems && (
+        <MessageItemPicker
+          items={referenceItems}
+          initialSelected={selectedItems}
+          onConfirm={(sel) => {
+            setSelectedItems(sel);
+            setPicking(false);
+          }}
+          onCancel={() => setPicking(false)}
+        />
+      )}
 
       <div className="relative shrink-0 border-t border-line bg-surface px-3 py-3">
         {quoteContext && (
@@ -484,21 +509,53 @@ export function ChatThread({
           >
             😊
           </button>
-          <textarea
-            ref={taRef}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                send();
-              }
-            }}
-            rows={1}
-            placeholder="Type a message…"
-            className="max-h-32 min-h-[44px] flex-1 resize-none rounded-xl border border-line bg-surface px-3.5 py-2.5 text-sm text-ink outline-none focus:border-ink"
-          />
-          <Button variant="primary" busy={busy} disabled={!text.trim()} className="h-[44px] px-5" onClick={send}>
+          <div className="relative flex-1">
+            <textarea
+              ref={taRef}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  send();
+                }
+              }}
+              rows={1}
+              placeholder="Type a message…"
+              className={cx(
+                "block max-h-32 min-h-[44px] w-full resize-none rounded-xl border border-line bg-surface py-2.5 pl-3.5 text-sm text-ink outline-none focus:border-ink",
+                referenceItems && referenceItems.length > 0 ? "pr-10" : "pr-3.5"
+              )}
+            />
+            {/* Expand control: pops the product/accessory picker so referenced items don't take
+                up composer space. Badge shows how many are attached to the next message. */}
+            {referenceItems && referenceItems.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setPicking(true)}
+                aria-label="Reference products from this order"
+                title="Reference a product or accessory from this order"
+                className={cx(
+                  "absolute right-2.5 top-1/2 flex size-6 -translate-y-1/2 items-center justify-center transition-opacity",
+                  selectedItems.length > 0 ? "opacity-100" : "opacity-70 hover:opacity-100"
+                )}
+              >
+                <span aria-hidden className="text-[16px] leading-none">📦</span>
+                {selectedItems.length > 0 && (
+                  <span className="absolute -right-1.5 -top-1.5 flex min-w-4 items-center justify-center rounded-full bg-ink px-1 text-[10px] font-bold text-white ring-2 ring-surface">
+                    {selectedItems.length}
+                  </span>
+                )}
+              </button>
+            )}
+          </div>
+          <Button
+            variant="primary"
+            busy={busy}
+            disabled={!text.trim() && selectedItems.length === 0}
+            className="h-[44px] px-5"
+            onClick={send}
+          >
             Send
           </Button>
         </div>

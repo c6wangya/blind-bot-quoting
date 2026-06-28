@@ -63,7 +63,11 @@ export default async function QuotesPage({
               <Link href={`/quotes/${qt.id}`} className="block">
                 <div className="flex items-center justify-between gap-3">
                   <span className="truncate font-semibold text-ink">{qt.quoteName || qt.ref}</span>
-                  {qt.status === "draft" ? <Badge tone="amber">Draft</Badge> : <Badge tone="green">Converted</Badge>}
+                  {qt.status === "draft" ? (
+                    <Badge tone="amber">Draft</Badge>
+                  ) : (
+                    <Badge tone="green">Converted</Badge>
+                  )}
                 </div>
                 {qt.quoteName ? (
                   <div className="mt-0.5 text-[12px] text-muted">{qt.ref}</div>

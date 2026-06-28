@@ -10,7 +10,7 @@ import { deductMotorStock, restoreMotorStock } from "./motors";
 import { loadCatalog } from "./accessory-catalog";
 import { getVariationItemModelMap } from "./variations";
 import { computeShipping, DEFAULT_SHIPPING, type MotorRate, type ShippingMode, type ShippingState } from "@/lib/shipping";
-import { isAccessoryConfig } from "@/lib/types";
+import { isAccessoryConfig, PRE_SHIPMENT_STATUSES, REFUNDABLE_STATUSES } from "@/lib/types";
 
 /**
  * Orders needing admin action — only `acknowledged` ones: that's the state an admin has to push
@@ -195,6 +195,52 @@ export async function cancelOrder(
     note: "Order cancelled before payment — reserved stock released and the quote reopened for editing.",
   });
   return { quoteId: o.quote_id };
+}
+
+/**
+ * Refund a PAID order in full, at any fulfilment stage. Admin-initiated: snapshots the admin's
+ * reason + an optional supporting document and moves the order to the terminal `refunded` status.
+ * Reserved motor stock is returned ONLY when refunding pre-shipment (PRE_SHIPMENT_STATUSES) — once
+ * shipped the goods have already left, so stock is left untouched. The quote is left as-is (still
+ * "converted") — it's shown as Refunded via the order's status, not reopened.
+ */
+export async function refundOrder(
+  orderId: number,
+  opts: { reason: string; docPaths?: string[] },
+  sb: SupabaseClient = admin()
+): Promise<void> {
+  const order = await getOrder(orderId, admin()); // need the line items (stock) + amount
+  if (!order) throw new Error("Order not found");
+  if (order.paymentStatus !== "paid") throw new Error("Only a paid order can be refunded");
+  if (!(REFUNDABLE_STATUSES as readonly string[]).includes(order.status)) {
+    throw new Error("This order can no longer be refunded — it is already closed.");
+  }
+  // Only return stock if the goods never shipped; a shipped/in-transit/delivered refund leaves it.
+  const preShipment = (PRE_SHIPMENT_STATUSES as readonly string[]).includes(order.status);
+  if (preShipment) {
+    const motorNeeds = motorNeedsOf(order.quote.items);
+    if (motorNeeds.length > 0) await restoreMotorStock(motorNeeds, admin());
+  }
+
+  const now = new Date().toISOString();
+  const { error } = await sb
+    .from("orders")
+    .update({
+      status: "refunded",
+      payment_status: "refunded",
+      refund_reason: opts.reason,
+      refund_doc_paths: opts.docPaths && opts.docPaths.length ? opts.docPaths : null,
+      refunded_at: now,
+      updated_at: now,
+    })
+    .eq("id", orderId);
+  if (error) throw error;
+  await sb.from("order_events").insert({
+    order_id: orderId,
+    status: "note",
+    actor: "system",
+    note: `Order refunded in full (${order.amount != null ? `$${order.amount.toFixed(2)}` : "amount on file"})${preShipment ? " — reserved stock released" : ""}. Reason: ${opts.reason}`,
+  });
 }
 
 /** Hours an unpaid order may sit before it's auto-cancelled and its stock released. */

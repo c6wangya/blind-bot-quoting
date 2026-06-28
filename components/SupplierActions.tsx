@@ -226,8 +226,9 @@ export default function SupplierAdvanceButton({
     );
   }
 
-  // ---- Cancelled: terminal ----
+  // ---- Cancelled / refunded: terminal ----
   if (status === "cancelled") return <span className="text-xs text-muted">Cancelled</span>;
+  if (status === "refunded") return <span className="text-xs text-muted">Refunded</span>;
 
   // ---- Fulfilment advance ----
   const next = (accessoryOnly ? NEXT_ACTION_ACCESSORY : NEXT_ACTION_PRODUCT)[status];

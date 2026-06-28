@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { ChatMessage, QuoteTag } from "@/lib/db";
+import type { ChatMessage, MessageItemRef, QuoteTag } from "@/lib/db";
 import { BRAND } from "@/lib/brand";
 import { ChatThread } from "./ChatThread";
 import { cx } from "./ui";
@@ -34,17 +34,25 @@ function CloseIcon({ className }: { className?: string }) {
  */
 export function QuoteChatLauncher({
   quote,
+  aboutLabel,
+  referenceItems,
   conversationId,
   initialMessages,
   initialPeerReadAt,
   initialUnread,
 }: {
   quote: QuoteTag;
+  // Header subtitle + aria reference; defaults to the quote ref. The order page passes the order
+  // ref (PO-…) so the bubble reads "About PO-…" while messages still tag the source quote.
+  aboutLabel?: string;
+  // Line items the customer can attach to a message (enables the "Reference items" picker).
+  referenceItems?: MessageItemRef[];
   conversationId: string | null;
   initialMessages: ChatMessage[];
   initialPeerReadAt: string | null;
   initialUnread: number;
 }) {
+  const about = aboutLabel ?? quote.ref;
   const [open, setOpen] = useState(false);
   const [unread, setUnread] = useState(initialUnread);
 
@@ -88,6 +96,7 @@ export function QuoteChatLauncher({
               peerSupport
               fill
               quoteContext={quote}
+              referenceItems={referenceItems ?? null}
               onActivity={refreshUnread}
               header={
                 <div className="flex items-center gap-2.5">
@@ -96,7 +105,7 @@ export function QuoteChatLauncher({
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-semibold text-ink">{BRAND.name} Support</div>
-                    <div className="truncate text-[11px] text-muted">About {quote.ref}</div>
+                    <div className="truncate text-[11px] text-muted">About {about}</div>
                   </div>
                   <button
                     onClick={() => setOpen(false)}
@@ -114,7 +123,7 @@ export function QuoteChatLauncher({
 
       <button
         onClick={toggle}
-        aria-label={open ? "Close chat" : `Message us about ${quote.ref}`}
+        aria-label={open ? "Close chat" : `Message us about ${about}`}
         className={cx(
           "fixed bottom-6 right-6 z-50 flex size-14 items-center justify-center rounded-full text-white shadow-xl",
           "transition-transform hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-brass focus-visible:ring-offset-2",

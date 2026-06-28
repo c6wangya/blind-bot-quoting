@@ -24,8 +24,8 @@ const PAYMENT_OPTIONS: { id: PaymentMethod; icon: string; label: string; desc: s
 ];
 
 function StatusPill({ status }: { status: PaymentStatus }) {
-  const map = { paid: "green", failed: "amber", pending: "slate" } as const;
-  const label = { paid: "Paid", failed: "Payment failed", pending: "Awaiting payment" }[status];
+  const map = { paid: "green", failed: "amber", pending: "slate", refunded: "slate" } as const;
+  const label = { paid: "Paid", failed: "Payment failed", pending: "Awaiting payment", refunded: "Refunded" }[status];
   return <Badge tone={map[status]}>{label}</Badge>;
 }
 
@@ -133,22 +133,6 @@ export function OrderPayment({
     } catch (e) {
       setErr((e as Error).message);
     } finally {
-      setBusy(false);
-    }
-  };
-
-  const [confirmCancel, setConfirmCancel] = useState(false);
-  const cancelOrder = async () => {
-    setBusy(true);
-    setErr(null);
-    try {
-      const r = await fetch(`/api/orders/${orderId}/cancel`, { method: "POST" });
-      const data = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(data.error ?? "Could not cancel order");
-      if (data.quoteId) router.push(`/quotes/${data.quoteId}`);
-      router.refresh();
-    } catch (e) {
-      setErr((e as Error).message);
       setBusy(false);
     }
   };
@@ -286,25 +270,7 @@ export function OrderPayment({
         </a>
       )}
 
-      {/* Cancel an unpaid order — releases reserved stock and reopens the quote for editing. */}
-      {awaiting &&
-        (confirmCancel ? (
-          <div className="mt-4 rounded-lg border border-line bg-[#faf9f5] px-3 py-2 text-[12px]">
-            <p className="text-ink-soft">Cancel this order? Your quote reopens for editing and any reserved stock is released.</p>
-            <div className="mt-1.5 flex items-center gap-3">
-              <button onClick={cancelOrder} disabled={busy} className="font-semibold text-red-600 hover:underline">
-                Cancel order
-              </button>
-              <button onClick={() => setConfirmCancel(false)} disabled={busy} className="text-muted hover:underline">
-                Keep it
-              </button>
-            </div>
-          </div>
-        ) : (
-          <button onClick={() => setConfirmCancel(true)} className="mt-4 text-[11.5px] font-medium text-muted hover:text-red-500">
-            Cancel order
-          </button>
-        ))}
+      {/* Cancel (unpaid) now lives in the order header next to Refund — see CancelOrderButton. */}
 
       {err && <p className="mt-2 text-[12px] text-red-500">{err}</p>}
     </Card>

@@ -52,73 +52,42 @@ export async function setStockBatch(
   }
 }
 
-/**
- * Deduct stock for the motor lines of a submitted pre-order. Untracked models are skipped.
- * If any tracked model is short (or lost a race), nothing stays deducted — already-applied
- * decrements are rolled back — and it throws a message naming the short models.
- */
+// Reserve/restore stock are concurrency-safe Postgres functions (migration 0036): the whole batch
+// runs inside one transaction with row locks, so it never oversells, never false-fails on a value
+// that merely changed, never loses a concurrent restore, and is all-or-nothing across models.
+
 /** Add reserved stock back (inverse of deductMotorStock) — used when an order is cancelled. */
 export async function restoreMotorStock(
   needs: { modelId: string; qty: number }[],
   sb: SupabaseClient = admin()
 ): Promise<void> {
-  const byModel = new Map<string, number>();
-  for (const n of needs) byModel.set(n.modelId, (byModel.get(n.modelId) ?? 0) + n.qty);
-  for (const [modelId, qty] of byModel) {
-    const { data: row } = await sb.from("accessory_inventory").select("stock").eq("model_id", modelId).maybeSingle();
-    if (!row) continue; // untracked → nothing to restore
-    await sb
-      .from("accessory_inventory")
-      .update({ stock: (row as { stock: number }).stock + qty, updated_at: new Date().toISOString() })
-      .eq("model_id", modelId);
-  }
+  if (needs.length === 0) return;
+  const { error } = await sb.rpc("restore_motor_stock", {
+    p_needs: needs.map((n) => ({ model_id: n.modelId, qty: n.qty })),
+  });
+  if (error) throw error;
 }
 
+/**
+ * Deduct stock for the motor lines of a submitted pre-order. Untracked models are skipped.
+ * If any tracked model is short, nothing is deducted (atomic in the DB function) and it throws a
+ * message naming the short models.
+ */
 export async function deductMotorStock(
   needs: { modelId: string; qty: number }[],
   sb: SupabaseClient = admin()
 ): Promise<void> {
-  const byModel = new Map<string, number>();
-  for (const n of needs) byModel.set(n.modelId, (byModel.get(n.modelId) ?? 0) + n.qty);
-
-  const done: { modelId: string; qty: number }[] = [];
-  const short: { modelId: string; left: number; need: number }[] = [];
-
-  for (const [modelId, qty] of byModel) {
-    const { data: row } = await sb.from("accessory_inventory").select("stock").eq("model_id", modelId).maybeSingle();
-    if (!row) continue; // untracked → unlimited
-    const stock = (row as { stock: number }).stock;
-    if (stock < qty) {
-      short.push({ modelId, left: stock, need: qty });
-      continue;
-    }
-    // optimistic decrement: only succeeds if stock hasn't changed since the read
-    const { data: updated, error } = await sb
-      .from("accessory_inventory")
-      .update({ stock: stock - qty, updated_at: new Date().toISOString() })
-      .eq("model_id", modelId)
-      .eq("stock", stock)
-      .select("model_id");
-    if (error || !updated || updated.length === 0) {
-      short.push({ modelId, left: stock, need: qty });
-      continue;
-    }
-    done.push({ modelId, qty });
-  }
-
+  if (needs.length === 0) return;
+  const { data, error } = await sb.rpc("reserve_motor_stock", {
+    p_needs: needs.map((n) => ({ model_id: n.modelId, qty: n.qty })),
+  });
+  if (error) throw error;
+  // [] on success; otherwise the short models (nothing was deducted).
+  const short = (data ?? []) as { model_id: string; left: number; need: number }[];
   if (short.length > 0) {
-    for (const d of done) {
-      const { data: row } = await sb.from("accessory_inventory").select("stock").eq("model_id", d.modelId).maybeSingle();
-      if (row) {
-        await sb
-          .from("accessory_inventory")
-          .update({ stock: (row as { stock: number }).stock + d.qty })
-          .eq("model_id", d.modelId);
-      }
-    }
     const cat = await loadCatalog();
     const names = short
-      .map((s) => `${cat.model(s.modelId)?.name ?? s.modelId} (only ${s.left} left, need ${s.need})`)
+      .map((s) => `${cat.model(s.model_id)?.name ?? s.model_id} (only ${s.left} left, need ${s.need})`)
       .join("; ");
     throw new Error(`Insufficient motor stock: ${names}`);
   }

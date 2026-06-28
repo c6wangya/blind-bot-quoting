@@ -24,6 +24,7 @@ export const ORDER_STATUS_META: Record<
 > = {
   awaiting_payment: { label: "Awaiting Payment", description: "Order placed — payment pending", tone: "amber" },
   cancelled: { label: "Cancelled", description: "Order cancelled before payment", tone: "slate" },
+  refunded: { label: "Refunded", description: "Order refunded — payment returned", tone: "slate" },
   submitted: { label: "Submitted", description: "Order file sent to supplier", tone: "slate" },
   acknowledged: { label: "Acknowledged", description: "Supplier confirmed, order no. issued", tone: "blue" },
   in_production: { label: "In Production", description: "Cutting & assembly underway", tone: "amber" },

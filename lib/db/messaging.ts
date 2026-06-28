@@ -29,6 +29,18 @@ export type ExpediteLine = {
 };
 export type ExpediteMeta = { items: ExpediteLine[]; subtotal: number; units: number };
 
+// A line item the customer attached to a support message ("I have a question about these"). A
+// snapshot (name/sku/image/spec) so it still renders after the quote is later edited.
+export type MessageItemRef = {
+  name: string;
+  sku?: string | null;
+  image?: string | null;
+  summary?: string | null; // short spec line (variations / colour · opacity)
+  qty: number;
+  // True = a sub-part (Crown / Drive …) of the preceding main item; renders nested under it.
+  sub?: boolean;
+};
+
 export type ChatMessage = {
   id: string;
   conversationId: string;
@@ -47,6 +59,8 @@ export type ChatMessage = {
   expediteRefFee?: number | null;
   expediteQuotedFee?: number | null;
   meta?: ExpediteMeta | null;
+  // Quote/order line items the sender attached to this message (kind='chat').
+  itemRefs?: MessageItemRef[] | null;
 };
 
 /** The quote a message is tagged with — passed to the send helpers from a quote's chat. */
@@ -74,7 +88,7 @@ const CONV_COLS =
   "lastSenderRole:last_sender_role, retailerLastReadAt:retailer_last_read_at, adminLastReadAt:admin_last_read_at";
 const MSG_COLS =
   "id, conversationId:conversation_id, senderId:sender_id, senderRole:sender_role, body, createdAt:created_at, " +
-  "quoteId:quote_id, quoteRef:quote_ref, kind, expediteRefFee:expedite_ref_fee, expediteQuotedFee:expedite_quoted_fee, meta, " +
+  "quoteId:quote_id, quoteRef:quote_ref, kind, expediteRefFee:expedite_ref_fee, expediteQuotedFee:expedite_quoted_fee, meta, itemRefs:item_refs, " +
   "attachmentPath:attachment_path, attachmentName:attachment_name, attachmentType:attachment_type, attachmentSize:attachment_size";
 
 type RawMessage = Omit<ChatMessage, "attachment"> & {
@@ -183,10 +197,12 @@ export async function sendMessage(
   senderRole: ChatRole,
   body: string,
   sb: SupabaseClient = admin(),
-  quote: QuoteTag | null = null
+  quote: QuoteTag | null = null,
+  itemRefs: MessageItemRef[] | null = null
 ): Promise<ChatMessage> {
   const text = body.trim();
-  if (!text) throw new Error("Message is empty");
+  const items = itemRefs?.length ? itemRefs : null;
+  if (!text && !items) throw new Error("Message is empty");
   const { data, error } = await sb
     .from("messages")
     .insert({
@@ -196,12 +212,15 @@ export async function sendMessage(
       body: text,
       quote_id: quote?.id ?? null,
       quote_ref: quote?.ref ?? null,
+      item_refs: items,
     })
     .select(MSG_COLS)
     .single();
   if (error) throw error;
   const raw = data as unknown as RawMessage;
-  await bumpConversation(conversationId, senderRole, raw.createdAt, text.slice(0, 140), sb);
+  // Preview falls back to an item summary when the message is items-only (no caption).
+  const preview = (text || `📦 ${items!.map((i) => i.name).join(", ")}`).slice(0, 140);
+  await bumpConversation(conversationId, senderRole, raw.createdAt, preview, sb);
   return toChatMessage(raw, null);
 }
 
