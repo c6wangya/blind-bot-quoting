@@ -25,7 +25,7 @@ import {
   INVOICE_CONDITIONS,
   INVOICE_NOTES,
   INVOICE_TERMS_LABEL,
-  SELLER,
+  getSeller,
 } from "@/lib/invoice";
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -90,6 +90,7 @@ export default async function InvoicePage({
   const orderRef = await getOrderRefByQuote(quoteId, sb);
   const order = orderRef ? await getOrder(orderRef.id, sb) : undefined;
   const bank = await getBankInfo();
+  const seller = await getSeller();
 
   const lines = buildInvoiceLines(quote.items);
   const discountPct = await getRetailerDiscount(ownerId);
@@ -131,7 +132,7 @@ export default async function InvoicePage({
           </Link>
         )}
         <div className="flex items-center gap-2">
-          <PrintInvoiceButton fileName={`${SELLER.name} ${invoiceRef}`} />
+          <PrintInvoiceButton fileName={`${seller.name} ${invoiceRef}`} />
           {paid ? (
             <Badge tone="green">Paid {order?.paidAt ? `· ${fmtDate(order.paidAt)}` : ""}</Badge>
           ) : order ? (
@@ -163,13 +164,13 @@ export default async function InvoicePage({
             <div className="flex size-12 items-center justify-center rounded-xl bg-gradient-to-br from-brass to-[#8a6a39] text-lg font-bold text-white">
               {BRAND.monogram}
             </div>
-            <div className="mt-3 text-base font-bold text-ink">{SELLER.name}</div>
-            {SELLER.addressLines.map((l, i) => (
+            <div className="mt-3 text-base font-bold text-ink">{seller.name}</div>
+            {seller.addressLines.map((l, i) => (
               <div key={i} className="text-[12px] text-muted">
                 {l}
               </div>
             ))}
-            <div className="mt-1 text-[12px] text-muted">Tax ID: {SELLER.taxId}</div>
+            <div className="mt-1 text-[12px] text-muted">Tax ID: {seller.taxId}</div>
           </div>
           <div className="text-right">
             <div className="text-3xl font-light uppercase tracking-wide text-ink">Invoice</div>

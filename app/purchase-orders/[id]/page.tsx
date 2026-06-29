@@ -7,7 +7,7 @@ import { admin } from "@/lib/supabase/admin";
 import { BRAND } from "@/lib/brand";
 import { getOrder, getOrderOwnerId } from "@/lib/db";
 import { fmtDate } from "@/lib/format";
-import { SELLER } from "@/lib/invoice";
+import { getSeller } from "@/lib/invoice";
 import { buildPurchaseOrderRows } from "@/lib/purchase-order";
 import { isAccessoryConfig } from "@/lib/types";
 
@@ -42,6 +42,7 @@ export default async function PurchaseOrderPage({
 
   const order = await getOrder(orderId, sb);
   if (!order) notFound();
+  const seller = await getSeller();
 
   const brandOf = (it: (typeof order.quote.items)[number]) =>
     isAccessoryConfig(it.config) ? it.config.brand : BRAND.name;
@@ -78,13 +79,13 @@ export default async function PurchaseOrderPage({
             <div className="flex size-12 items-center justify-center rounded-xl bg-gradient-to-br from-brass to-[#8a6a39] text-lg font-bold text-white">
               {BRAND.monogram}
             </div>
-            <div className="mt-3 text-base font-bold text-ink">{SELLER.name}</div>
-            {SELLER.addressLines.map((l, i) => (
+            <div className="mt-3 text-base font-bold text-ink">{seller.name}</div>
+            {seller.addressLines.map((l, i) => (
               <div key={i} className="text-[12px] text-muted">
                 {l}
               </div>
             ))}
-            <div className="mt-1 text-[12px] text-muted">Tax ID: {SELLER.taxId}</div>
+            <div className="mt-1 text-[12px] text-muted">Tax ID: {seller.taxId}</div>
           </div>
           <div className="text-right">
             <div className="text-3xl font-light uppercase tracking-wide text-ink">Purchase Order</div>

@@ -5,7 +5,7 @@
 // Seller / terms / notes are placeholders overridable per-deploy via env (bank details come from
 // the admin-managed app_settings, see lib/db/settings.ts). Fill the real values before issuing.
 import { BRAND } from "./brand";
-import { getLine, getProduct } from "./db";
+import { getLine, getProduct, getSellerInfo } from "./db";
 import { describeConfig } from "./describe";
 import { isAccessoryConfig, type QuoteItemRow, type QuoteRow } from "./types";
 
@@ -40,6 +40,20 @@ export const SELLER = {
     .filter(Boolean),
   taxId: process.env.NEXT_PUBLIC_INVOICE_TAX_ID ?? "00-0000000",
 };
+
+/**
+ * The seller block to actually print: admin-edited values (Settings → Invoice / company info,
+ * stored in app_settings) take precedence; any field left blank falls back to the env/brand
+ * default in `SELLER`. Call from server components rendering the invoice / purchase order.
+ */
+export async function getSeller(): Promise<typeof SELLER> {
+  const o = await getSellerInfo();
+  return {
+    name: o.name.trim() || SELLER.name,
+    addressLines: o.addressLines.length ? o.addressLines : SELLER.addressLines,
+    taxId: o.taxId.trim() || SELLER.taxId,
+  };
+}
 
 export const INVOICE_TERMS_LABEL = process.env.NEXT_PUBLIC_INVOICE_TERMS ?? "Due on Receipt";
 
