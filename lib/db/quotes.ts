@@ -13,10 +13,12 @@ import type {
   VariationSnapshot,
 } from "@/lib/types";
 import { isAccessoryConfig } from "@/lib/types";
-import { ITEM_COLS, QUOTE_COLS, round2, type ItemAgg, insertWithRef } from "./internal";
+import { ITEM_COLS, QUOTE_COLS, round2, insertWithRef } from "./internal";
 import { DEMO_RETAILER, ensureSeeded } from "./seed";
-import { getProfile } from "./profile";
+import { getProfile, getRetailerDiscount, getShippingWaivers } from "./profile";
 import { restoreMotorStock, motorNeedsOf } from "./motors";
+import { getVariationItemModelMap } from "./variations";
+import { computeShipping, type MotorRate } from "@/lib/shipping";
 
 /**
  * The retailer display name snapshotted onto a quote (and inherited by its order): the owner's
@@ -322,12 +324,73 @@ export async function getQuotes(
     .eq("owner_id", ownerId)
     .order("id", { ascending: false });
   if (error) throw error;
-  const { data: items, error: e2 } = await sb.from("quote_items").select("quoteId:quote_id, qty, computation");
+  // Full line snapshot (config + product) so each row's Total can be computed exactly like the quote
+  // detail page — discounted net + shipping + admin-priced expedite — not just the raw subtotal.
+  const { data: items, error: e2 } = await sb
+    .from("quote_items")
+    .select("quoteId:quote_id, productId:product_id, qty, config, computation");
   if (e2) throw e2;
-  const aggs = (items ?? []) as unknown as ItemAgg[];
+  type Agg = {
+    quoteId: number;
+    productId: string;
+    qty: number;
+    config: ItemConfig | AccessoryConfig;
+    computation: QuoteComputation;
+  };
+  const aggs = (items ?? []) as unknown as Agg[];
+
+  // Owner-level inputs for the grand total (every row shares the same owner, so fetch once). All
+  // best-effort: if any is unavailable the row falls back to the pre-discount subtotal.
+  const [discountPct, catalog, waivers, itemModelMap] = await Promise.all([
+    getRetailerDiscount(ownerId).catch(() => 0),
+    loadCatalog().catch(() => null),
+    getShippingWaivers(ownerId).catch(() => ({ ground: false, expedite: false })),
+    getVariationItemModelMap().catch(() => ({} as Record<string, string>)),
+  ]);
+  // Expedite lives on the quotes table (columns, migration 0026); one batch read, best-effort so a
+  // pre-migration DB just treats every quote as having no expedite.
+  const expediteById: Record<number, { expedite: boolean; status: string | null; fee: number | null; sig: string | null }> = {};
+  try {
+    const { data: exp } = await sb
+      .from("quotes")
+      .select("id, expedite, expedite_status, expedite_fee, expedite_quoted_sig")
+      .eq("owner_id", ownerId);
+    for (const r of (exp ?? []) as Record<string, unknown>[]) {
+      expediteById[r.id as number] = {
+        expedite: r.expedite === true,
+        status: (r.expedite_status as string) ?? null,
+        fee: r.expedite_fee == null ? null : Number(r.expedite_fee),
+        sig: (r.expedite_quoted_sig as string) ?? null,
+      };
+    }
+  } catch {
+    /* pre-migration — no expedite */
+  }
+
+  // variation item_id → its source model's shipping rate/mode (shared across all rows).
+  const itemRates: Record<string, MotorRate> = {};
+  if (catalog) {
+    for (const [itemId, modelId] of Object.entries(itemModelMap)) {
+      const m = catalog.model(modelId);
+      if (m) itemRates[itemId] = { shipGround: m.shipGround, shipExpedite: m.shipExpedite, shipMode: m.shipMode };
+    }
+  }
+
   return ((quotes ?? []) as unknown as QuoteRow[]).map((q) => {
     const its = aggs.filter((i) => i.quoteId === q.id);
-    const total = round2(its.reduce((s, i) => s + (i.computation?.unitPrice ?? 0) * i.qty, 0));
+    const subtotal = round2(its.reduce((s, i) => s + (i.computation?.unitPrice ?? 0) * i.qty, 0));
+    let total = subtotal;
+    if (catalog) {
+      // Mirror app/(portal)/quotes/[id]/page.tsx: net = subtotal − discount, + shipping, + a valid
+      // (non-stale) admin-quoted expedite fee.
+      const netTotal = round2(subtotal * (1 - discountPct / 100));
+      const e = expediteById[q.id];
+      const lineItems = its as unknown as QuoteItemRow[];
+      const ship = computeShipping(lineItems, catalog, itemRates, e?.expedite === true, netTotal, waivers);
+      const stale = e?.status === "quoted" && (e.sig ?? null) !== expediteSignature(its);
+      const expediteFee = e?.status === "quoted" && !stale ? e.fee ?? 0 : 0;
+      total = round2(netTotal + ship.amount + expediteFee);
+    }
     return { ...q, itemCount: its.length, total };
   });
 }
