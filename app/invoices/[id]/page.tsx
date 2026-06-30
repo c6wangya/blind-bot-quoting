@@ -9,6 +9,7 @@ import { canAccessOwned, userClient } from "@/lib/auth/user";
 import { getActingContext } from "@/lib/auth/acting-as";
 import { admin } from "@/lib/supabase/admin";
 import { BRAND } from "@/lib/brand";
+import { isAccessoryConfig } from "@/lib/types";
 import {
   getBankInfo,
   getOrAssignInvoiceRef,
@@ -111,8 +112,17 @@ export default async function InvoicePage({
   const invoiceUrl = `${host ? `${proto}://${host}` : ""}/invoices/${quote.id}${tokenQuery}`;
 
   const issuedAt = issueDateFromRef(invoiceRef) ?? order?.createdAt ?? quote.createdAt;
-  // Top line = the owning retailer's name (white-label face).
-  const brandName = quote.retailer?.trim() || BRAND.name;
+  // Top header = the product brand(s) on this invoice (e.g. A-OK, B-OK), deduped — one line each
+  // when the invoice spans multiple brands. Only accessory lines carry a brand; fall back to our
+  // own brand when none are present.
+  const productBrands = Array.from(
+    new Set(
+      quote.items
+        .map((it) => (isAccessoryConfig(it.config) ? it.config.brand?.trim() : null))
+        .filter((b): b is string => Boolean(b)),
+    ),
+  );
+  const brandLines = productBrands.length ? productBrands : [BRAND.name];
   const billToName = quote.customerName ?? quote.retailer;
   const billToLines = [
     quote.shipAddress1,
@@ -167,7 +177,13 @@ export default async function InvoicePage({
             <div className="flex size-12 items-center justify-center rounded-xl bg-gradient-to-br from-brass to-[#8a6a39] text-lg font-bold text-white">
               {BRAND.monogram}
             </div>
-            <div className="mt-3 text-base font-bold text-ink">{brandName}</div>
+            <div className="mt-3">
+              {brandLines.map((b, i) => (
+                <div key={i} className="text-base font-bold text-ink">
+                  {b}
+                </div>
+              ))}
+            </div>
             {/* Seller disclosure — our brand is the selling/billing entity. */}
             <div className="mt-2 text-[12px] text-muted">Sold By {BRAND.name} portal</div>
             {seller.addressLines.map((l, i) => (

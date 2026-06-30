@@ -1,6 +1,7 @@
 import { PageHeader } from "@/components/ui";
 import { BankSettingsForm } from "@/components/BankSettingsForm";
 import { SellerSettingsForm } from "@/components/SellerSettingsForm";
+import { SyncClientsButton } from "@/components/SyncClientsButton";
 import { requireAdminPage } from "@/lib/auth/user";
 import { getBankInfo, getSellerInfo } from "@/lib/db";
 
@@ -22,12 +23,22 @@ export default async function SettingsPage() {
         <SellerSettingsForm initial={seller} />
       </section>
 
-      <section>
+      <section className="mb-10">
         <h2 className="mb-3 text-lg font-semibold tracking-tight text-ink">Bank transfer details</h2>
         <p className="mb-4 max-w-xl text-sm text-muted">
           Shown to a retailer who chooses bank transfer at checkout. Leave blank to hide.
         </p>
         <BankSettingsForm initial={bank} />
+      </section>
+
+      <section>
+        <h2 className="mb-3 text-lg font-semibold tracking-tight text-ink">Sync blind-bot clients</h2>
+        <p className="mb-4 max-w-xl text-sm text-muted">
+          Pull retailers from blind-bot into quoting. Creates a login (default password{" "}
+          <code className="rounded bg-line/60 px-1">123456Abcde</code>, change-on-first-login prompt) and a profile
+          for any client not already here. Safe to run repeatedly — existing accounts are skipped.
+        </p>
+        <SyncClientsButton />
       </section>
     </>
   );
