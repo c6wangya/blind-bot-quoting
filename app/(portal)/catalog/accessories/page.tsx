@@ -124,6 +124,18 @@ export default async function AccessoriesPage({
     const v = sp[`t_${a.id}`];
     if (typeof v === "string" && v) selected[a.id] = v;
   }
+  // Cross-site deep-link from blind-bot's "Parts store" jump: ?compat=<label> preselects the
+  // "Compatible products" facet by LABEL (blind-bot can't know our attribute/value UUIDs).
+  // Resolved case-insensitively; an unknown label (no such value) is silently ignored → no filter.
+  const compatLabel = typeof sp.compat === "string" ? sp.compat.trim().toLowerCase() : "";
+  if (compatLabel) {
+    const compatAttr = attributes.find((a) => a.name.trim().toLowerCase() === "compatible products");
+    // An explicit t_<attr> for the same facet wins; otherwise resolve the label to its value id.
+    if (compatAttr && !selected[compatAttr.id]) {
+      const match = compatAttr.values.find((v) => v.label.trim().toLowerCase() === compatLabel);
+      if (match) selected[compatAttr.id] = match.id;
+    }
+  }
   // minimum-order-quantity facet: "1" = only products with a minimum, "0" = only products without
   const moq = sp.moq === "1" ? "1" : sp.moq === "0" ? "0" : "";
   // free-text name/SKU search (raw for the input; lowercased for matching)
