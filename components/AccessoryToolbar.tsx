@@ -30,7 +30,9 @@ export function AccessoryToolbar({
 }) {
   const [brandOpen, setBrandOpen] = useState(false);
   const [catOpen, setCatOpen] = useState(false);
-  const [filtersOpen, setFiltersOpen] = useState(false);
+  // Start expanded when a filter is already active (e.g. arriving via a ?compat= deep link) so
+  // the applied facet is visible; otherwise stay collapsed.
+  const [filtersOpen, setFiltersOpen] = useState(filterCount > 0);
   const activeBrand = brands.find((b) => b.active) ?? brands[0];
 
   return (
