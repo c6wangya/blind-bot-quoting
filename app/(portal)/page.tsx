@@ -3,7 +3,7 @@ import { Badge, Card, LinkButton, PageHeader, Stat, StatusBadge } from "@/compon
 import { requireUserId, userClient } from "@/lib/auth/user";
 import { getOrders, getProduct, getQuotes, getRecentEvents } from "@/lib/db";
 import { ACTOR_LABEL, fmtDateTime, ORDER_STATUS_META, usd } from "@/lib/format";
-import { ORDER_STATUSES } from "@/lib/types";
+import { ORDER_STATUSES, ORDER_STATUSES_ACCESSORY } from "@/lib/types";
 
 export default async function Dashboard() {
   const ownerId = await requireUserId("/");
@@ -14,7 +14,12 @@ export default async function Dashboard() {
 
   const draftQuotes = quotes.filter((q) => q.status === "draft");
   const draftValue = draftQuotes.reduce((s, q) => s + q.total, 0);
-  const active = orders.filter((o) => o.status !== "delivered");
+  // "Active" = orders still in the fulfilment pipeline, by flow: a product order runs until
+  // `delivered`, an accessory-only order until `shipped` (its terminal step). Both exclude the
+  // terminal state and the non-pipeline states (awaiting_payment / cancelled / refunded).
+  const activeProduct = new Set<string>(ORDER_STATUSES.filter((s) => s !== "delivered"));
+  const activeAccessory = new Set<string>(ORDER_STATUSES_ACCESSORY.filter((s) => s !== "shipped"));
+  const active = orders.filter((o) => (o.accessoryOnly ? activeAccessory : activeProduct).has(o.status));
   const activeValue = active.reduce((s, o) => s + o.total, 0);
   const delivered = orders.filter((o) => o.status === "delivered");
 
