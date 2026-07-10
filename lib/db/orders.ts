@@ -355,6 +355,15 @@ export async function markOrderPaid(
   // Payment succeeded → the quote is now truly an order. (It was kept on "draft" until this point so
   // an unpaid checkout never showed as converted.)
   await sb.from("quotes").update({ status: "converted", updated_at: now }).eq("id", row.quote_id);
+
+  // Fire the paid-order emails (internal ops + customer). Best-effort and non-blocking: a mail
+  // failure must never fail the payment. Dynamic import avoids a load-time cycle (email → lib/db).
+  try {
+    const { sendOrderPaidEmails } = await import("@/lib/email");
+    await sendOrderPaidEmails(orderId);
+  } catch (err) {
+    console.error("❌ Order paid-email dispatch failed:", (err as Error).message);
+  }
 }
 
 /** Flag a failed gateway payment; the order stays `awaiting_payment` so the retailer can retry. */

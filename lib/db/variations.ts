@@ -56,6 +56,21 @@ export async function getVariations(sb: SupabaseClient = admin()): Promise<Varia
   }));
 }
 
+/** variation item_id → its catalog thumbnail + default (list) price. Best-effort: {} if table
+ *  absent. Used by the invoice: add-on parts aren't image/price-snapshotted beyond what was charged,
+ *  so their thumbnail and List (default catalog) price are looked up live by itemId. */
+export async function getVariationItemDetails(
+  sb: SupabaseClient = admin(),
+): Promise<Record<string, { image: string | null; price: number }>> {
+  const { data, error } = await sb.from("variation_items").select("id, price, image_url");
+  if (error) return {};
+  const map: Record<string, { image: string | null; price: number }> = {};
+  for (const row of (data ?? []) as { id: string; price: number | null; image_url: string | null }[]) {
+    map[row.id] = { image: row.image_url ?? null, price: Number(row.price ?? 0) };
+  }
+  return map;
+}
+
 /** model_id → the item_ids available for it. Best-effort: {} if the table isn't present yet. */
 export async function getProductVariationMap(sb: SupabaseClient = admin()): Promise<Record<string, string[]>> {
   const { data, error } = await sb.from("variation_product_items").select("model_id, item_id");

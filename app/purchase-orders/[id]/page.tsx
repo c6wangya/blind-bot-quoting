@@ -5,9 +5,9 @@ import { canAccessOwned, userClient } from "@/lib/auth/user";
 import { getActingContext } from "@/lib/auth/acting-as";
 import { admin } from "@/lib/supabase/admin";
 import { BRAND } from "@/lib/brand";
-import { getOrder, getOrderOwnerId } from "@/lib/db";
+import { getBuyerInfo, getOrder, getOrderOwnerId, getSupplierInfo } from "@/lib/db";
+import { loadCatalog } from "@/lib/db/accessory-catalog";
 import { fmtDate } from "@/lib/format";
-import { getSeller } from "@/lib/invoice";
 import { buildPurchaseOrderRows } from "@/lib/purchase-order";
 import { isAccessoryConfig } from "@/lib/types";
 
@@ -42,12 +42,30 @@ export default async function PurchaseOrderPage({
 
   const order = await getOrder(orderId, sb);
   if (!order) notFound();
-  const seller = await getSeller();
 
   const brandOf = (it: (typeof order.quote.items)[number]) =>
     isAccessoryConfig(it.config) ? it.config.brand : BRAND.name;
   const items = order.quote.items.filter((it) => brandOf(it) === brand);
   if (items.length === 0) notFound();
+
+  // The two parties on the PO: buyer = our real purchasing company (Settings → PO buyer); vendor =
+  // this brand's supplier profile (Settings → Suppliers), matched by brand name → id.
+  const catalog = await loadCatalog();
+  const brandId = catalog.brands.find((b) => b.name === brand)?.id ?? "";
+  const [buyer, supplier] = await Promise.all([
+    getBuyerInfo(),
+    brandId ? getSupplierInfo(brandId) : Promise.resolve(null),
+  ]);
+  const hasSupplier = !!supplier && !!supplier.name;
+  const bank = supplier
+    ? ([
+        ["Beneficiary's Bank Name", supplier.bankName],
+        ["Swift code", supplier.swift],
+        ["Beneficiary's Name", supplier.beneficiary],
+        ["Beneficiary's A/C No.", supplier.accountNumber],
+        ["Bank Address", supplier.bankAddress],
+      ].filter(([, v]) => v) as [string, string][])
+    : [];
 
   const rows = buildPurchaseOrderRows(items);
   const total = round2(rows.reduce((s, r) => s + r.amount, 0));
@@ -73,19 +91,26 @@ export default async function PurchaseOrderPage({
 
       {/* PO sheet */}
       <div className="mx-auto max-w-3xl bg-white px-10 py-10 text-[13px] text-ink shadow-sm ring-1 ring-line [-webkit-print-color-adjust:exact] [print-color-adjust:exact] print:max-w-none print:shadow-none print:ring-0">
-        {/* Header */}
+        {/* Header — supplier (vendor) company on the left, PO title on the right */}
         <div className="flex items-start justify-between gap-6">
           <div>
-            <div className="flex size-12 items-center justify-center rounded-xl bg-gradient-to-br from-brass to-[#8a6a39] text-lg font-bold text-white">
-              {BRAND.monogram}
-            </div>
-            <div className="mt-3 text-base font-bold text-ink">{seller.name}</div>
-            {seller.addressLines.map((l, i) => (
+            <div className="text-base font-bold text-ink">{hasSupplier ? supplier!.name : brand}</div>
+            {supplier?.addressLines.map((l, i) => (
               <div key={i} className="text-[12px] text-muted">
                 {l}
               </div>
             ))}
-            <div className="mt-1 text-[12px] text-muted">Tax ID: {seller.taxId}</div>
+            {supplier && (supplier.tel || supplier.fax || supplier.website) && (
+              <div className="mt-1 text-[12px] text-muted">
+                {[
+                  supplier.tel && `Tel: ${supplier.tel}`,
+                  supplier.fax && `Fax: ${supplier.fax}`,
+                  supplier.website,
+                ]
+                  .filter(Boolean)
+                  .join("   ")}
+              </div>
+            )}
           </div>
           <div className="text-right">
             <div className="text-3xl font-light uppercase tracking-wide text-ink">Purchase Order</div>
@@ -93,12 +118,20 @@ export default async function PurchaseOrderPage({
           </div>
         </div>
 
-        {/* Vendor + meta */}
+        {/* Buyer (our purchasing company) + meta */}
         <div className="mt-8 flex justify-between gap-8">
           <div>
-            <div className="text-[10.5px] font-semibold uppercase tracking-wider text-muted">Vendor</div>
-            <div className="mt-1 text-[15px] font-semibold text-ink">{brand}</div>
-            <div className="text-[12px] text-muted">Supplier · goods reconciliation</div>
+            <div className="text-[10.5px] font-semibold uppercase tracking-wider text-muted">Buyer</div>
+            <div className="mt-1 text-[15px] font-semibold text-ink">{buyer.name || BRAND.name}</div>
+            {buyer.attn && <div className="text-[12px] text-muted">Attn: {buyer.attn}</div>}
+            {buyer.addressLines.map((l, i) => (
+              <div key={i} className="text-[12px] text-muted">
+                {l}
+              </div>
+            ))}
+            {(buyer.tel || buyer.email) && (
+              <div className="text-[12px] text-muted">{[buyer.tel, buyer.email].filter(Boolean).join("   ")}</div>
+            )}
           </div>
           <table className="text-[12.5px]">
             <tbody>
@@ -161,9 +194,27 @@ export default async function PurchaseOrderPage({
           </table>
         </div>
 
+        {/* Supplier bank details — where the buyer remits payment for these goods */}
+        {bank.length > 0 && (
+          <div className="mt-8 border-t border-line pt-6">
+            <div className="text-[10.5px] font-semibold uppercase tracking-wider text-muted">Bank Information</div>
+            <table className="mt-2 text-[12.5px]">
+              <tbody>
+                {bank.map(([k, v]) => (
+                  <tr key={k}>
+                    <td className="py-0.5 pr-6 align-top text-muted">{k}</td>
+                    <td className="py-0.5 text-ink">{v}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
         <div className="mt-10 border-t border-line pt-6 text-[12px] text-muted">
-          This purchase order lists the goods for vendor <span className="font-medium text-ink">{brand}</span> on
-          order {order.ref}. For goods reconciliation only — pricing excludes shipping.
+          This purchase order lists the goods for vendor{" "}
+          <span className="font-medium text-ink">{hasSupplier ? supplier!.name : brand}</span> on order {order.ref}.
+          For goods reconciliation only — pricing excludes shipping.
         </div>
       </div>
     </div>

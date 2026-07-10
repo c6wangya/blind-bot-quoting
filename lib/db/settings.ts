@@ -65,3 +65,106 @@ export async function setSellerInfo(info: SellerInfo, sb: SupabaseClient = admin
     .upsert({ key: SELLER_KEY, value: info, updated_at: new Date().toISOString() });
   if (error) throw error;
 }
+
+// ---------------- purchase-order parties ----------------
+// A purchase order is issued to a supplier (a brand: A-OK / B-OK …); the parties printed on it are
+// NOT the customer-facing invoice seller. The BUYER is our real purchasing entity (e.g. Quarvia
+// Trade) — distinct from the white-label brand shown to retailers. The SELLER/VENDOR is the
+// supplier, whose full company header + bank details differ per brand. Both stored in app_settings.
+
+/** The buyer block printed on every purchase order — our real purchasing company (not the brand). */
+export type BuyerInfo = {
+  name: string;
+  /** contact person ("Attn:" on the reference PO) */
+  attn: string;
+  addressLines: string[];
+  tel: string;
+  email: string;
+};
+
+const EMPTY_BUYER: BuyerInfo = { name: "", attn: "", addressLines: [], tel: "", email: "" };
+const BUYER_KEY = "po_buyer";
+
+export async function getBuyerInfo(sb: SupabaseClient = admin()): Promise<BuyerInfo> {
+  const { data, error } = await sb.from("app_settings").select("value").eq("key", BUYER_KEY).maybeSingle();
+  if (error) return EMPTY_BUYER; // table not present yet → no details
+  const v = (data?.value as Partial<BuyerInfo>) ?? {};
+  return {
+    name: v.name ?? "",
+    attn: v.attn ?? "",
+    addressLines: Array.isArray(v.addressLines) ? v.addressLines.filter((l): l is string => typeof l === "string") : [],
+    tel: v.tel ?? "",
+    email: v.email ?? "",
+  };
+}
+
+export async function setBuyerInfo(info: BuyerInfo, sb: SupabaseClient = admin()): Promise<void> {
+  const { error } = await sb
+    .from("app_settings")
+    .upsert({ key: BUYER_KEY, value: info, updated_at: new Date().toISOString() });
+  if (error) throw error;
+}
+
+/** One supplier's full company header + bank details, keyed by brand id. Printed on that brand's PO. */
+export type SupplierInfo = {
+  name: string;
+  addressLines: string[];
+  tel: string;
+  fax: string;
+  website: string;
+  /** bank block (Beneficiary's Bank Name / Swift / Beneficiary's Name / A/C No. / bank address). */
+  bankName: string;
+  swift: string;
+  beneficiary: string;
+  accountNumber: string;
+  bankAddress: string;
+};
+
+const EMPTY_SUPPLIER: SupplierInfo = {
+  name: "",
+  addressLines: [],
+  tel: "",
+  fax: "",
+  website: "",
+  bankName: "",
+  swift: "",
+  beneficiary: "",
+  accountNumber: "",
+  bankAddress: "",
+};
+const SUPPLIERS_KEY = "po_suppliers";
+
+function normSupplier(v: Partial<SupplierInfo> | undefined): SupplierInfo {
+  const s = v ?? {};
+  return {
+    ...EMPTY_SUPPLIER,
+    ...s,
+    addressLines: Array.isArray(s.addressLines) ? s.addressLines.filter((l): l is string => typeof l === "string") : [],
+  };
+}
+
+/** All supplier profiles, keyed by brand id. Missing brands simply have no entry. */
+export async function getSuppliers(sb: SupabaseClient = admin()): Promise<Record<string, SupplierInfo>> {
+  const { data, error } = await sb.from("app_settings").select("value").eq("key", SUPPLIERS_KEY).maybeSingle();
+  if (error) return {};
+  const raw = (data?.value as Record<string, Partial<SupplierInfo>>) ?? {};
+  const out: Record<string, SupplierInfo> = {};
+  for (const [brandId, v] of Object.entries(raw)) out[brandId] = normSupplier(v);
+  return out;
+}
+
+/** One supplier profile by brand id (all-blank if unset). */
+export async function getSupplierInfo(brandId: string, sb: SupabaseClient = admin()): Promise<SupplierInfo> {
+  const all = await getSuppliers(sb);
+  return all[brandId] ?? { ...EMPTY_SUPPLIER };
+}
+
+/** Upsert one brand's supplier profile, preserving the others. */
+export async function setSupplierInfo(brandId: string, info: SupplierInfo, sb: SupabaseClient = admin()): Promise<void> {
+  const all = await getSuppliers(sb);
+  all[brandId] = normSupplier(info);
+  const { error } = await sb
+    .from("app_settings")
+    .upsert({ key: SUPPLIERS_KEY, value: all, updated_at: new Date().toISOString() });
+  if (error) throw error;
+}

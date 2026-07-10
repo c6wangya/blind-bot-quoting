@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import Link from "next/link";
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
@@ -12,6 +13,7 @@ import { BRAND } from "@/lib/brand";
 import { isAccessoryConfig } from "@/lib/types";
 import {
   getAccessoryDefaultPriceBySku,
+  getVariationItemDetails,
   getBankInfo,
   getOrAssignInvoiceRef,
   getOrder,
@@ -51,7 +53,7 @@ export default async function InvoicePage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ t?: string; pay?: string }>;
+  searchParams: Promise<{ t?: string; pay?: string; openpay?: string }>;
 }) {
   const { id } = await params;
   const quoteId = Number(id);
@@ -62,7 +64,7 @@ export default async function InvoicePage({
   // /quotes: an admin acting on behalf of a retailer (代下单) reads as that retailer (service_role),
   // a plain retailer reads their own (RLS). Using the same identity as the list keeps the Invoice
   // link and this page in agreement (else acting-as 404s here).
-  const { t, pay } = await searchParams;
+  const { t, pay, openpay } = await searchParams;
   const publicMode = verifyInvoiceToken(quoteId, t);
   // Payment Options deep link (?pay=…) — auto-start that method on load (see InvoiceAutoPay).
   const payMethod = pay === "paypal" || pay === "stripe" || pay === "bank_transfer" ? pay : null;
@@ -96,8 +98,11 @@ export default async function InvoicePage({
   const bank = await getBankInfo();
   const seller = await getSeller();
 
-  const defaultPriceBySku = await getAccessoryDefaultPriceBySku();
-  const lines = buildInvoiceLines(quote.items, defaultPriceBySku);
+  const [defaultPriceBySku, variationDetails] = await Promise.all([
+    getAccessoryDefaultPriceBySku(),
+    getVariationItemDetails(),
+  ]);
+  const lines = buildInvoiceLines(quote.items, defaultPriceBySku, variationDetails);
   // Show the struck-through "List" column only if at least one line actually has a Default-tier price.
   const hasListPrice = lines.some((l) => l.listRate != null);
   const discountPct = await getRetailerDiscount(ownerId);
@@ -143,6 +148,8 @@ export default async function InvoicePage({
       <InvoiceAutoPay
         method={payMethod}
         orderId={order?.status === "awaiting_payment" ? order.id : null}
+        quoteId={quote.id}
+        canSubmit={!paid && !order}
         token={shareToken}
       />
       {/* Action bar — hidden when printing */}
@@ -165,6 +172,7 @@ export default async function InvoicePage({
                 token={shareToken}
                 currentMethod={order.paymentMethod}
                 amountLabel={usd(total)}
+                autoOpen={openpay === "1"}
               />
             ) : (
               <Link href={`/orders/${order.id}`}>
@@ -253,7 +261,8 @@ export default async function InvoicePage({
           </table>
         </div>
 
-        {/* Line items — styled to match the reference invoice */}
+        {/* Line items — reference-invoice table; the per-line breakdown rows are styled like the
+            quote receipt (aligned "label … count × price") instead of a cramped nested list. */}
         <table className="mt-8 w-full border-collapse text-[13px]">
           <colgroup>
             <col className="w-10" />
@@ -274,26 +283,81 @@ export default async function InvoicePage({
             </tr>
           </thead>
           <tbody>
-            {lines.map((l) => (
-              <tr key={l.n} className="border-b border-[#e6e3db] align-top">
-                <td className="px-4 py-4 text-center text-ink">{l.n}</td>
-                <td className="px-4 py-4">
-                  <div className="text-ink">{l.sku ? `${l.name} ${l.sku}` : l.name}</div>
-                  {l.description && <div className="mt-0.5 text-[12px] text-[#8a8a8a]">{l.description}</div>}
-                </td>
-                <td className="px-4 py-4 text-right tabular-nums text-ink">
-                  {l.qty}
-                  <div className="text-[12px] text-[#8a8a8a]">Each</div>
-                </td>
-                {hasListPrice && (
-                  <td className="px-4 py-4 text-right tabular-nums text-[#8a8a8a]">
-                    {l.listRate != null ? <span className="line-through">{num2(l.listRate)}</span> : ""}
-                  </td>
-                )}
-                <td className="px-4 py-4 text-right tabular-nums text-ink">{num2(l.rate)}</td>
-                <td className="px-4 py-4 text-right tabular-nums text-ink">{num2(l.amount)}</td>
-              </tr>
-            ))}
+            {lines.map((l) => {
+              // Accessory lines expand to one row per component (motor + each add-on part), each with
+              // its OWN Qty/List/Rate/Amount. Everything else is a single row from the line itself.
+              const rows =
+                l.breakdown ??
+                [{ label: l.name, unit: l.rate, qty: l.qty, amount: l.amount, listUnit: l.listRate, image: l.image }];
+              return (
+                <Fragment key={l.n}>
+                  {rows.map((r, i) => {
+                    const isHead = i === 0;
+                    const isLast = i === rows.length - 1;
+                    const pad = `px-4 ${isHead ? "pt-4" : "pt-1"} ${isLast ? "pb-4" : "pb-0"}`;
+                    return (
+                      <tr key={i} className={`align-top ${isLast ? "border-b border-[#e6e3db]" : ""}`}>
+                        <td className={`${pad} text-center text-ink`}>{isHead ? l.n : ""}</td>
+                        <td className={pad}>
+                          {isHead ? (
+                            <div className="flex items-start gap-3">
+                              {l.image ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={l.image}
+                                  alt=""
+                                  className="size-12 shrink-0 rounded-md bg-[#0e0e10] object-contain p-1 [-webkit-print-color-adjust:exact] [print-color-adjust:exact]"
+                                />
+                              ) : null}
+                              <div className="min-w-0 flex-1">
+                                <div className="font-medium text-ink">
+                                  {l.name}
+                                  {l.sku && <span className="text-[#8a8a8a]"> · {l.sku}</span>}
+                                </div>
+                                {l.description && (
+                                  <div className="mt-0.5 text-[12px] text-[#8a8a8a]">{l.description}</div>
+                                )}
+                              </div>
+                            </div>
+                          ) : (
+                            // Add-on part: indented, with its own thumbnail (empty spacer keeps
+                            // labels aligned when a part has no photo).
+                            <div className="flex items-center gap-3 pl-6">
+                              {r.image ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={r.image}
+                                  alt=""
+                                  className="size-9 shrink-0 rounded-md bg-[#0e0e10] object-contain p-1 [-webkit-print-color-adjust:exact] [print-color-adjust:exact]"
+                                />
+                              ) : (
+                                <div className="size-9 shrink-0" />
+                              )}
+                              <span className="min-w-0 text-[12px] text-[#6a6a6a]">{r.label}</span>
+                            </div>
+                          )}
+                        </td>
+                        <td className={`${pad} text-right tabular-nums ${isHead ? "text-ink" : "text-[#6a6a6a]"}`}>
+                          {r.qty}
+                          {isHead && <div className="text-[12px] text-[#8a8a8a]">Each</div>}
+                        </td>
+                        {hasListPrice && (
+                          <td className={`${pad} text-right tabular-nums text-[#8a8a8a]`}>
+                            {r.listUnit != null ? <span className="line-through">{num2(r.listUnit)}</span> : ""}
+                          </td>
+                        )}
+                        <td className={`${pad} text-right tabular-nums ${isHead ? "text-ink" : "text-[#6a6a6a]"}`}>
+                          {num2(r.unit)}
+                        </td>
+                        <td className={`${pad} text-right tabular-nums ${isHead ? "text-ink" : "text-[#6a6a6a]"}`}>
+                          {num2(r.amount)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </Fragment>
+              );
+            })}
           </tbody>
         </table>
 
@@ -367,7 +431,7 @@ export default async function InvoicePage({
             </div>
           )}
           {bank.bankName && (
-            <div>
+            <div id="bank-transfer" className="scroll-mt-6">
               <div className="font-semibold text-ink">Bank Transfer</div>
               <div className="mt-1 grid grid-cols-2 gap-x-8 gap-y-0.5 text-muted sm:max-w-md">
                 {bank.accountName && <Field label="Account holder" value={bank.accountName} />}

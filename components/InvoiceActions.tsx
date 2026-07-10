@@ -40,65 +40,101 @@ const METHOD_LABEL: Record<PaymentMethod, string> = {
 };
 
 /**
- * Auto-start a payment when the invoice is opened from a "Payment Options" deep link
+ * Auto-run the "Confirm & pay" flow when the invoice is opened from a "Payment Options" deep link
  * (`/invoices/[id]?pay=paypal|stripe|bank_transfer`). Those links live in the invoice sheet, so they
- * work from a downloaded PDF: the link opens this page and this component runs the same flow as the
- * picker — switch the order's method, then forward to the gateway (or, for bank transfer, reveal the
- * wire details). No payable order (quote not yet submitted) → renders nothing and the page loads as
- * usual so the visitor can submit first.
+ * work from a downloaded PDF — clicking one is exactly like scrolling up, opening the picker,
+ * choosing that method, and pressing the primary button:
+ *   • Draft quote (not yet ordered) → submit it with the chosen method (place the order), which
+ *     forwards to the gateway — same as SubmitPreOrderButton's "Place order".
+ *   • Already has an awaiting-payment order → switch its method and forward to the gateway — same as
+ *     InvoicePayPicker's "Confirm".
+ * Bank transfer has no gateway: it reloads the invoice (now converted) to reveal the wire details.
+ * Nothing payable (already paid, or no submittable quote) → renders nothing and the page loads as usual.
  */
 export function InvoiceAutoPay({
   method,
   orderId,
+  quoteId,
+  canSubmit,
   token,
 }: {
   method: PaymentMethod | null;
-  /** the awaiting-payment order to pay, or null when there's nothing payable yet */
+  /** an existing awaiting-payment order to pay, or null when the quote hasn't been ordered yet */
   orderId: number | null;
+  /** the draft quote to place + pay when there's no order yet */
+  quoteId: number;
+  /** the "Confirm & pay" (submit) flow is available: draft, unpaid, no order yet */
+  canSubmit: boolean;
   token: string;
 }) {
+  const active = !!method && (!!orderId || canSubmit);
   const started = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [redirecting, setRedirecting] = useState(false);
 
   useEffect(() => {
-    if (started.current || !method || !orderId) return;
+    if (started.current || !active) return;
     started.current = true; // guard against Strict Mode's double-invoke (avoids a double POST)
     setRedirecting(true);
 
     const authHeaders: Record<string, string> = { "Content-Type": "application/json" };
     if (token) authHeaders["x-invoice-token"] = token;
 
+    // Bank transfer has no gateway hop: drop the ?pay flag and reload to the TOP with the "Pay this
+    // invoice" picker open (?openpay=1) so the next step is right there (confirm bank transfer, or
+    // switch method). The wire details stay listed at the bottom of the invoice for reference.
+    const stripPayAndReload = () => {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("pay");
+      url.hash = "";
+      url.searchParams.set("openpay", "1");
+      window.location.assign(url.toString());
+    };
+
     (async () => {
       try {
-        const rs = await fetch(`/api/orders/${orderId}/payment-method`, {
+        if (orderId) {
+          // Existing awaiting-payment order — switch its method, then pay (InvoicePayPicker flow).
+          const rs = await fetch(`/api/orders/${orderId}/payment-method`, {
+            method: "POST",
+            headers: authHeaders,
+            body: JSON.stringify({ method }),
+          });
+          if (!rs.ok) {
+            const ds = await rs.json().catch(() => ({}));
+            throw new Error(ds.error ?? "Could not select this payment method");
+          }
+          if (method === "bank_transfer") {
+            stripPayAndReload();
+            return;
+          }
+          const r = await fetch(`/api/orders/${orderId}/pay`, { method: "POST", headers: authHeaders });
+          const data = await r.json().catch(() => ({}));
+          if (!r.ok) throw new Error(data.error ?? "Could not start payment");
+          window.location.assign(data.url); // gateway hand-off (PayPal / Stripe)
+          return;
+        }
+        // Draft quote — place the order with the chosen method (SubmitPreOrderButton's flow).
+        const r = await fetch(`/api/quotes/${quoteId}/submit`, {
           method: "POST",
           headers: authHeaders,
           body: JSON.stringify({ method }),
         });
-        if (!rs.ok) {
-          const ds = await rs.json().catch(() => ({}));
-          throw new Error(ds.error ?? "Could not select this payment method");
-        }
-        if (method === "bank_transfer") {
-          // Drop the ?pay flag and reload so the invoice shows the awaiting status + wire details.
-          const url = new URL(window.location.href);
-          url.searchParams.delete("pay");
-          window.location.assign(url.toString());
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(data.error ?? "Could not place the order");
+        if (data.redirect) {
+          window.location.href = data.redirect; // gateway hand-off (PayPal / Stripe)
           return;
         }
-        const r = await fetch(`/api/orders/${orderId}/pay`, { method: "POST", headers: authHeaders });
-        const data = await r.json().catch(() => ({}));
-        if (!r.ok) throw new Error(data.error ?? "Could not start payment");
-        window.location.assign(data.url); // gateway hand-off (PayPal / Stripe)
+        stripPayAndReload(); // bank transfer: converted, no gateway
       } catch (e) {
         setError((e as Error).message);
         setRedirecting(false);
       }
     })();
-  }, [method, orderId, token]);
+  }, [active, method, orderId, quoteId, token]);
 
-  if (!method || !orderId) return null;
+  if (!active || !method) return null;
   if (!error && !redirecting) return null;
 
   return (
@@ -140,13 +176,16 @@ export function InvoicePayPicker({
   token,
   currentMethod,
   amountLabel,
+  autoOpen = false,
 }: {
   orderId: number;
   token: string;
   currentMethod: PaymentMethod | null;
   amountLabel: string;
+  /** Start expanded — used when bank transfer couldn't complete on-page (?openpay=1). */
+  autoOpen?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(autoOpen);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Highlighted method — committed only when the payer presses Confirm.

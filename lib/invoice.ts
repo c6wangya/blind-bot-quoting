@@ -67,6 +67,23 @@ export const INVOICE_CONDITIONS: string[] = (
   .map((s) => s.trim())
   .filter(Boolean);
 
+/** One priced component of a line, rendered as its OWN table row — the base product itself,
+ *  then each add-on part — each with its own Qty / List / Rate / Amount columns. */
+export type InvoiceLinePart = {
+  label: string;
+  /** unit price (Rate) of this component */
+  unit: number;
+  /** total count of this component on the order (base = line qty; add-on = per-motor qty × line qty) */
+  qty: number;
+  /** unit × qty (this component's Amount) */
+  amount: number;
+  /** struck-through Default-tier unit (base = default motor price); null when there's no list tier
+   *  (add-on parts have a single price for everyone). */
+  listUnit: number | null;
+  /** thumbnail for this component's row; null when it has no photo. */
+  image: string | null;
+};
+
 /** One row of the invoice's "Item & Description" table. */
 export type InvoiceLine = {
   n: number;
@@ -76,6 +93,11 @@ export type InvoiceLine = {
   qty: number;
   rate: number;
   amount: number;
+  /** Thumbnail (snapshotted accessory image / product photo); null for adjustments & custom lines. */
+  image: string | null;
+  /** Per-unit price split into base product + add-on parts. Only set when the line has add-on parts
+   *  (so the customer sees the motor and each accessory priced separately); null otherwise. */
+  breakdown: InvoiceLinePart[] | null;
   /** Shared Default-tier "list" unit price, shown struck-through so the customer sees the deal.
    *  null when the line has no Default-tier price (full products, ad-hoc adjustments). */
   listRate: number | null;
@@ -94,28 +116,55 @@ export type InvoiceLine = {
 export function buildInvoiceLines(
   items: QuoteItemRow[],
   defaultPriceBySku: Record<string, number> = {},
+  itemDetailsById: Record<string, { image: string | null; price: number }> = {},
 ): InvoiceLine[] {
   return items.map((item, i) => {
     const rate = item.computation.unitPrice;
     const qty = item.qty;
-    const base = { n: i + 1, qty, rate, amount: round2(rate * qty), listRate: null, listAmount: null };
+    const base = { n: i + 1, qty, rate, amount: round2(rate * qty), image: null, breakdown: null, listRate: null, listAmount: null };
 
     const cfg = item.config;
     if (isAdjustmentConfig(cfg)) {
       return { ...base, name: cfg.label, description: cfg.note ?? "", sku: null };
     }
     if (isAccessoryConfig(cfg)) {
-      const variations = (cfg.variations ?? []).map((v) => v.itemLabel).join(", ");
-      const description = [cfg.brand, cfg.category, variations].filter(Boolean).join(" · ");
+      // Variation labels are omitted here — each is rendered as its own priced breakdown row.
+      const description = [cfg.brand, cfg.category].filter(Boolean).join(" · ");
       const defBase = defaultPriceBySku[cfg.sku];
-      let listRate: number | null = null;
-      let listAmount: number | null = null;
-      if (defBase != null) {
-        const varSum = (cfg.variations ?? []).reduce((s, v) => s + v.price * (v.qty ?? 1), 0);
-        listRate = round2(defBase + varSum);
-        listAmount = round2(listRate * qty);
-      }
-      return { ...base, name: cfg.name, description, sku: cfg.sku, listRate, listAmount };
+      // Each add-on part becomes its own row: total count = per-motor qty × line qty.
+      const parts: InvoiceLinePart[] = (cfg.variations ?? []).map((v) => {
+        const partQty = (v.qty ?? 1) * qty;
+        const det = itemDetailsById[v.itemId];
+        return {
+          label: [v.variationName, v.itemLabel].filter(Boolean).join(": "),
+          unit: v.price,
+          qty: partQty,
+          amount: round2(v.price * partQty),
+          // Part's catalog default price (List) — shown like the motor row, even if it equals Rate.
+          listUnit: det?.price ?? null,
+          image: det?.image ?? null,
+        };
+      });
+      // Motor's own unit price = line unit price minus its per-motor sub-parts.
+      const varSumPerMotor = (cfg.variations ?? []).reduce((s, v) => s + v.price * (v.qty ?? 1), 0);
+      const baseUnit = round2(rate - varSumPerMotor);
+      const breakdown: InvoiceLinePart[] | null = parts.length
+        ? [
+            {
+              label: cfg.name,
+              unit: baseUnit,
+              qty,
+              amount: round2(baseUnit * qty),
+              listUnit: defBase ?? null,
+              image: cfg.image ?? null,
+            },
+            ...parts,
+          ]
+        : null;
+      // Single-row fallback (accessory with no add-on parts): List = the motor's default-tier price.
+      const listRate = defBase != null ? round2(defBase + varSumPerMotor) : null;
+      const listAmount = listRate != null ? round2(listRate * qty) : null;
+      return { ...base, name: cfg.name, description, sku: cfg.sku, image: cfg.image ?? null, breakdown, listRate, listAmount };
     }
 
     const product = getProduct(item.productId);
@@ -127,6 +176,6 @@ export function buildInvoiceLines(
     const description = [line.name, d.colorName, d.opacityLabel, ...d.options, d.dims, d.location]
       .filter(Boolean)
       .join(" · ");
-    return { ...base, name: product.name, description, sku: product.sku };
+    return { ...base, name: product.name, description, sku: product.sku, image: product.imageUrl ?? null };
   });
 }

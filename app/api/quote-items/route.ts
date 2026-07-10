@@ -224,8 +224,24 @@ export async function POST(req: Request) {
       // Snapshot this retailer's effective price (override → default → static).
       const unitPrice = await resolveMotorPrice(accessory.id, userId);
       const newUnit = round2(unitPrice + variations.reduce((s, v) => s + v.price * (v.qty ?? 1), 0));
+      const existingLines = await loadQuoteLines(quote.id, sb);
+      // One-brand-per-quote guard: a quote may only contain accessories from a single brand. Resolve
+      // this model's brand (via its category, same as buildAccessoryLine) and block the add if the
+      // quote already holds another brand — the retailer removes them or starts a new quote.
+      const newBrand = catalog.brands.find((b) => b.id === category?.brandId)?.name ?? catalog.brand.name;
+      const otherBrand = existingLines
+        .map((l) => (isAccessoryConfig(l.config) ? (l.config as AccessoryConfig).brand : null))
+        .find((b): b is string => !!b && b !== newBrand);
+      if (otherBrand) {
+        return NextResponse.json(
+          {
+            error: `This quote already contains ${otherBrand} items — a quote can only include one brand. Remove them or start a new quote to add ${newBrand}.`,
+          },
+          { status: 409 },
+        );
+      }
       // Merge into an identical existing line (same model + variations + price, no per-quote override).
-      const dup = (await loadQuoteLines(quote.id, sb)).find(
+      const dup = existingLines.find(
         (l) =>
           l.product_id === accessory.id &&
           isAccessoryConfig(l.config) &&
