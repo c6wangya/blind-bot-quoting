@@ -5,6 +5,7 @@ import { BackLink, Badge, Card, cx, PageHeader, StatusBadge } from "@/components
 import { OrderPayment } from "@/components/OrderPayment";
 import { RefundButton } from "@/components/RefundButton";
 import { CancelOrderButton } from "@/components/CancelOrderButton";
+import { PurchaseOrderMenu } from "@/components/PurchaseOrderMenu";
 import { canAccessOwned, isAdmin, requireUserId, userClient } from "@/lib/auth/user";
 import { admin } from "@/lib/supabase/admin";
 import { getBankInfo, getConversationForRetailer, getLine, getMessages, getOrder, getOrderOwnerId, getOrderShipping, getProduct, getUnreadCount, getVariationItemModelMap, loadCatalog } from "@/lib/db";
@@ -278,12 +279,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
           <div className="flex items-center gap-2">
             {canCancel && <CancelOrderButton orderId={order.id} />}
             {canRefund && <RefundButton orderId={order.id} amountLabel={usd(order.amount ?? order.quote.total)} />}
-            <a
-              href={`/api/orders/${order.id}/excel`}
-              className="inline-flex items-center gap-2 rounded-xl bg-ink px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:bg-[#2a3756] hover:shadow"
-            >
-              ⬇ Purchase order file (.xlsx)
-            </a>
+            <PurchaseOrderMenu orderId={order.id} brands={brandGroups.map((g) => g.brand)} />
           </div>
         }
       />
@@ -405,14 +401,6 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                         · {g.items.length} {g.items.length === 1 ? "item" : "items"}
                       </span>
                     </div>
-                    <a
-                      href={`/purchase-orders/${order.id}?brand=${encodeURIComponent(g.brand)}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-[12px] font-medium text-ink-soft transition-colors hover:border-ink hover:text-ink"
-                    >
-                      ⬇ Generate purchase order
-                    </a>
                   </div>
                   <ul className="divide-y divide-line/70">{g.items.map(renderItem)}</ul>
                   {brandFooter(brandFooters[gi], brandShipDetail[gi])}
@@ -428,16 +416,6 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                     {order.quote.ref}
                   </Link>
                 </div>
-                {brandGroups[0] && (
-                  <a
-                    href={`/purchase-orders/${order.id}?brand=${encodeURIComponent(brandGroups[0].brand)}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-[12px] font-medium text-ink-soft transition-colors hover:border-ink hover:text-ink"
-                  >
-                    ⬇ Generate purchase order
-                  </a>
-                )}
               </div>
               <ul className="divide-y divide-line/70">{order.quote.items.map(renderItem)}</ul>
               {showBreakdown ? (

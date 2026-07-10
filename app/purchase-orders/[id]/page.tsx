@@ -5,20 +5,17 @@ import { canAccessOwned, userClient } from "@/lib/auth/user";
 import { getActingContext } from "@/lib/auth/acting-as";
 import { admin } from "@/lib/supabase/admin";
 import { BRAND } from "@/lib/brand";
-import { getBuyerInfo, getOrder, getOrderOwnerId, getSupplierInfo } from "@/lib/db";
-import { loadCatalog } from "@/lib/db/accessory-catalog";
-import { fmtDate } from "@/lib/format";
-import { buildPurchaseOrderRows } from "@/lib/purchase-order";
-import { isAccessoryConfig } from "@/lib/types";
+import { getOrder, getOrderOwnerId } from "@/lib/db";
+import { buildPurchaseOrderDoc } from "@/lib/purchase-order";
 
 const num2 = (n: number) => n.toFixed(2);
-const round2 = (n: number) => Math.round(n * 100) / 100;
 
 /**
  * Standalone, printable Purchase Order for one brand of an order — the document sent to that
  * supplier to reconcile goods. No portal chrome (prints clean; the browser print dialog is the
- * PDF export), no payment, no shipping: just the parts (main motor + each accessory sub-part) with
- * counts and unit prices. Buyer = our white-label brand; vendor = the brand string.
+ * PDF export). Laid out after the supplier's own Commercial Invoice (core sections only): supplier
+ * banner on top, our buyer block + invoice meta, the parts table, the goods total, and the
+ * supplier's bank details. Content is built by buildPurchaseOrderDoc so the .xlsx export matches.
  */
 export default async function PurchaseOrderPage({
   params,
@@ -43,41 +40,10 @@ export default async function PurchaseOrderPage({
   const order = await getOrder(orderId, sb);
   if (!order) notFound();
 
-  const brandOf = (it: (typeof order.quote.items)[number]) =>
-    isAccessoryConfig(it.config) ? it.config.brand : BRAND.name;
-  const items = order.quote.items.filter((it) => brandOf(it) === brand);
-  if (items.length === 0) notFound();
+  const doc = await buildPurchaseOrderDoc(order, brand);
+  if (!doc) notFound();
 
-  // The two parties on the PO: buyer = our real purchasing company (Settings → PO buyer); vendor =
-  // this brand's supplier profile (Settings → Suppliers), matched by brand name → id.
-  const catalog = await loadCatalog();
-  const brandId = catalog.brands.find((b) => b.name === brand)?.id ?? "";
-  const [buyer, supplier] = await Promise.all([
-    getBuyerInfo(),
-    brandId ? getSupplierInfo(brandId) : Promise.resolve(null),
-  ]);
-  const hasSupplier = !!supplier && !!supplier.name;
-  const bank = supplier
-    ? ([
-        ["Beneficiary's Bank Name", supplier.bankName],
-        ["Swift code", supplier.swift],
-        ["Beneficiary's Name", supplier.beneficiary],
-        ["Beneficiary's A/C No.", supplier.accountNumber],
-        ["Bank Address", supplier.bankAddress],
-      ].filter(([, v]) => v) as [string, string][])
-    : [];
-
-  const rows = buildPurchaseOrderRows(items);
-  const total = round2(rows.reduce((s, r) => s + r.amount, 0));
-  const q = order.quote;
-  const meta: [string, string][] = [
-    ["Order №", order.ref],
-    ["Quote Ref", q.ref],
-    ["Date", fmtDate(order.createdAt)],
-    ...(q.projectName ? ([["Project", q.projectName]] as [string, string][]) : []),
-    ...(q.po ? ([["PO #", q.po]] as [string, string][]) : []),
-    ...(q.sidemark ? ([["Sidemark", q.sidemark]] as [string, string][]) : []),
-  ];
+  const sup = doc.supplier;
 
   return (
     <div className="min-h-screen bg-[#f4f2ec] py-6 print:bg-white print:py-0">
@@ -91,51 +57,53 @@ export default async function PurchaseOrderPage({
 
       {/* PO sheet */}
       <div className="mx-auto max-w-3xl bg-white px-10 py-10 text-[13px] text-ink shadow-sm ring-1 ring-line [-webkit-print-color-adjust:exact] [print-color-adjust:exact] print:max-w-none print:shadow-none print:ring-0">
-        {/* Header — supplier (vendor) company on the left, PO title on the right */}
-        <div className="flex items-start justify-between gap-6">
-          <div>
-            <div className="text-base font-bold text-ink">{hasSupplier ? supplier!.name : brand}</div>
-            {supplier?.addressLines.map((l, i) => (
-              <div key={i} className="text-[12px] text-muted">
-                {l}
-              </div>
-            ))}
-            {supplier && (supplier.tel || supplier.fax || supplier.website) && (
-              <div className="mt-1 text-[12px] text-muted">
-                {[
-                  supplier.tel && `Tel: ${supplier.tel}`,
-                  supplier.fax && `Fax: ${supplier.fax}`,
-                  supplier.website,
-                ]
-                  .filter(Boolean)
-                  .join("   ")}
-              </div>
-            )}
-          </div>
-          <div className="text-right">
-            <div className="text-3xl font-light uppercase tracking-wide text-ink">Purchase Order</div>
-            <div className="mt-1 text-[13px] font-semibold text-ink"># {order.ref}</div>
-          </div>
+        {/* Supplier banner — centered, like the reference commercial invoice */}
+        <div className="border-b border-line pb-4 text-center">
+          <div className="text-lg font-bold uppercase tracking-wide text-ink">{doc.supplierName}</div>
+          {sup?.addressLines.map((l, i) => (
+            <div key={i} className="text-[12px] text-muted">
+              {l}
+            </div>
+          ))}
+          {sup && (sup.tel || sup.fax || sup.website) && (
+            <div className="mt-0.5 text-[12px] text-muted">
+              {[sup.tel && `Tel: ${sup.tel}`, sup.fax && `Fax: ${sup.fax}`, sup.website].filter(Boolean).join("      ")}
+            </div>
+          )}
         </div>
 
-        {/* Buyer (our purchasing company) + meta */}
-        <div className="mt-8 flex justify-between gap-8">
-          <div>
-            <div className="text-[10.5px] font-semibold uppercase tracking-wider text-muted">Buyer</div>
-            <div className="mt-1 text-[15px] font-semibold text-ink">{buyer.name || BRAND.name}</div>
-            {buyer.attn && <div className="text-[12px] text-muted">Attn: {buyer.attn}</div>}
-            {buyer.addressLines.map((l, i) => (
-              <div key={i} className="text-[12px] text-muted">
-                {l}
+        {/* Document title */}
+        <div className="mt-5 text-center text-2xl font-light uppercase tracking-[0.2em] text-ink">Purchase Order</div>
+
+        {/* Buyer (our purchasing company) on the left, invoice meta on the right */}
+        <div className="mt-6 flex justify-between gap-8">
+          <div className="space-y-0.5 text-[12.5px]">
+            <div className="flex gap-2">
+              <span className="w-16 shrink-0 font-semibold text-muted">Buyer:</span>
+              <span className="font-semibold text-ink">{doc.buyerName}</span>
+            </div>
+            {doc.buyer.attn && (
+              <div className="flex gap-2">
+                <span className="w-16 shrink-0 text-muted">Attn:</span>
+                <span className="text-ink">{doc.buyer.attn}</span>
               </div>
-            ))}
-            {(buyer.tel || buyer.email) && (
-              <div className="text-[12px] text-muted">{[buyer.tel, buyer.email].filter(Boolean).join("   ")}</div>
+            )}
+            {doc.buyer.addressLines.length > 0 && (
+              <div className="flex gap-2">
+                <span className="w-16 shrink-0 text-muted">Address:</span>
+                <span className="text-ink">{doc.buyer.addressLines.join(", ")}</span>
+              </div>
+            )}
+            {(doc.buyer.tel || doc.buyer.email) && (
+              <div className="flex gap-2">
+                <span className="w-16 shrink-0 text-muted">Tel:</span>
+                <span className="text-ink">{[doc.buyer.tel, doc.buyer.email].filter(Boolean).join("   ")}</span>
+              </div>
             )}
           </div>
           <table className="text-[12.5px]">
             <tbody>
-              {meta.map(([k, v]) => (
+              {doc.meta.map(([k, v]) => (
                 <tr key={k}>
                   <td className="py-0.5 pr-6 text-muted">{k}</td>
                   <td className="py-0.5 text-right text-ink">{v}</td>
@@ -145,38 +113,43 @@ export default async function PurchaseOrderPage({
           </table>
         </div>
 
-        {/* Parts table — main motor + each accessory sub-part, with counts + unit price */}
-        <table className="mt-8 w-full border-collapse text-[13px]">
+        {/* Parts table — Item · Part No. · Description · Qty · Unit Price · Amount */}
+        <table className="mt-6 w-full border-collapse text-[13px]">
           <colgroup>
             <col className="w-10" />
+            <col className="w-28" />
             <col />
-            <col className="w-20" />
+            <col className="w-16" />
             <col className="w-24" />
             <col className="w-28" />
           </colgroup>
           <thead>
             <tr className="bg-[#3a3a3a] text-left font-normal text-white">
-              <th className="px-4 py-2.5 text-center font-normal">#</th>
-              <th className="px-4 py-2.5 font-normal">Item &amp; Description</th>
-              <th className="px-4 py-2.5 text-right font-normal">Qty</th>
-              <th className="px-4 py-2.5 text-right font-normal">Unit Price</th>
-              <th className="px-4 py-2.5 text-right font-normal">Amount</th>
+              <th className="px-3 py-2.5 text-center font-normal">Item</th>
+              <th className="px-3 py-2.5 font-normal">Part No.</th>
+              <th className="px-3 py-2.5 font-normal">Description</th>
+              <th className="px-3 py-2.5 text-right font-normal">Qty</th>
+              <th className="px-3 py-2.5 text-right font-normal">Unit Price</th>
+              <th className="px-3 py-2.5 text-right font-normal">Amount</th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((r, i) => (
+            {doc.rows.map((r, i) => (
               <tr key={i} className="border-b border-[#e6e3db] align-top">
-                <td className="px-4 py-3.5 text-center text-ink">{r.sub ? "" : rows.slice(0, i + 1).filter((x) => !x.sub).length}</td>
-                <td className="px-4 py-3.5">
+                <td className="px-3 py-3 text-center text-ink">
+                  {r.sub ? "" : doc.rows.slice(0, i + 1).filter((x) => !x.sub).length}
+                </td>
+                <td className="px-3 py-3 text-[12px] text-ink-soft">{r.sku ?? ""}</td>
+                <td className="px-3 py-3">
                   <div className={r.sub ? "pl-4 text-[12.5px] text-ink-soft" : "text-ink"}>
                     {r.sub ? "↳ " : ""}
-                    {r.sku ? `${r.name} ${r.sku}` : r.name}
+                    {r.name}
                   </div>
                   {r.detail && <div className={`mt-0.5 text-[12px] text-[#8a8a8a] ${r.sub ? "pl-4" : ""}`}>{r.detail}</div>}
                 </td>
-                <td className="px-4 py-3.5 text-right tabular-nums text-ink">{r.qty}</td>
-                <td className="px-4 py-3.5 text-right tabular-nums text-ink">{num2(r.rate)}</td>
-                <td className="px-4 py-3.5 text-right tabular-nums text-ink">{num2(r.amount)}</td>
+                <td className="px-3 py-3 text-right tabular-nums text-ink">{r.qty}</td>
+                <td className="px-3 py-3 text-right tabular-nums text-ink">{num2(r.rate)}</td>
+                <td className="px-3 py-3 text-right tabular-nums text-ink">{num2(r.amount)}</td>
               </tr>
             ))}
           </tbody>
@@ -187,20 +160,20 @@ export default async function PurchaseOrderPage({
           <table className="w-[300px] text-[13px]">
             <tbody>
               <tr className="bg-[#f3f1ec]">
-                <td className="py-3 pl-4 text-right font-bold text-ink">Total</td>
-                <td className="py-3 pl-8 pr-4 text-right font-bold tabular-nums text-ink">${num2(total)}</td>
+                <td className="py-3 pl-4 text-right font-bold text-ink">Total Amount</td>
+                <td className="py-3 pl-8 pr-4 text-right font-bold tabular-nums text-ink">${num2(doc.total)}</td>
               </tr>
             </tbody>
           </table>
         </div>
 
         {/* Supplier bank details — where the buyer remits payment for these goods */}
-        {bank.length > 0 && (
+        {doc.bank.length > 0 && (
           <div className="mt-8 border-t border-line pt-6">
             <div className="text-[10.5px] font-semibold uppercase tracking-wider text-muted">Bank Information</div>
             <table className="mt-2 text-[12.5px]">
               <tbody>
-                {bank.map(([k, v]) => (
+                {doc.bank.map(([k, v]) => (
                   <tr key={k}>
                     <td className="py-0.5 pr-6 align-top text-muted">{k}</td>
                     <td className="py-0.5 text-ink">{v}</td>
@@ -212,9 +185,9 @@ export default async function PurchaseOrderPage({
         )}
 
         <div className="mt-10 border-t border-line pt-6 text-[12px] text-muted">
-          This purchase order lists the goods for vendor{" "}
-          <span className="font-medium text-ink">{hasSupplier ? supplier!.name : brand}</span> on order {order.ref}.
-          For goods reconciliation only — pricing excludes shipping.
+          This purchase order lists the goods for supplier{" "}
+          <span className="font-medium text-ink">{doc.supplierName}</span> on order {order.ref}. For goods
+          reconciliation only — pricing excludes shipping.
         </div>
       </div>
     </div>

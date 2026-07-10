@@ -1,13 +1,12 @@
 import ExcelJS from "exceljs";
 import { BRAND } from "./brand";
-import { OPACITY_LABELS } from "./catalog-data";
-import { getLine, getOrder, getProduct } from "./db";
-import { isAccessoryConfig, isAdjustmentConfig } from "./types";
+import { getOrder } from "./db";
+import { brandOfItem, buildPurchaseOrderDoc, type PurchaseOrderDoc } from "./purchase-order";
 
 const HEADER_FILL: ExcelJS.Fill = {
   type: "pattern",
   pattern: "solid",
-  fgColor: { argb: "FF1F2A44" },
+  fgColor: { argb: "FF3A3A3A" },
 };
 const BAND_FILL: ExcelJS.Fill = {
   type: "pattern",
@@ -15,178 +14,160 @@ const BAND_FILL: ExcelJS.Fill = {
   fgColor: { argb: "FFF3F1EC" },
 };
 const thin: Partial<ExcelJS.Borders> = {
-  top: { style: "thin", color: { argb: "FFB8B5AD" } },
-  bottom: { style: "thin", color: { argb: "FFB8B5AD" } },
-  left: { style: "thin", color: { argb: "FFB8B5AD" } },
-  right: { style: "thin", color: { argb: "FFB8B5AD" } },
+  top: { style: "thin", color: { argb: "FFD9D6CE" } },
+  bottom: { style: "thin", color: { argb: "FFD9D6CE" } },
+  left: { style: "thin", color: { argb: "FFD9D6CE" } },
+  right: { style: "thin", color: { argb: "FFD9D6CE" } },
 };
+const MONEY = '"$"#,##0.00';
+const CENTER = { horizontal: "center", vertical: "middle" } as const;
+
+/** Excel sheet names can't contain []:*?/\ and are capped at 31 chars; keep them unique. */
+function sheetName(brand: string, used: Set<string>): string {
+  const base = (brand.replace(/[[\]*?/\\:]/g, " ").trim().slice(0, 28) || "PO");
+  let name = base;
+  let n = 2;
+  while (used.has(name)) name = `${base} ${n++}`.slice(0, 31);
+  used.add(name);
+  return name;
+}
+
+/** Render one brand's PO doc onto a worksheet — the Excel twin of the printable PO page. */
+function addPurchaseOrderSheet(wb: ExcelJS.Workbook, doc: PurchaseOrderDoc, orderRef: string, name: string) {
+  const ws = wb.addWorksheet(name, { pageSetup: { orientation: "portrait", fitToPage: true } });
+  ws.columns = [{ width: 6 }, { width: 24 }, { width: 44 }, { width: 10 }, { width: 12 }, { width: 14 }];
+
+  // ---- supplier banner (rows 1-4, merged across A:F) ----
+  const banner = (r: number, value: string, font: Partial<ExcelJS.Font>) => {
+    ws.mergeCells(`A${r}:F${r}`);
+    const c = ws.getCell(`A${r}`);
+    c.value = value;
+    c.font = font;
+    c.alignment = CENTER;
+  };
+  const sup = doc.supplier;
+  banner(1, doc.supplierName, { size: 14, bold: true });
+  ws.getRow(1).height = 22;
+  banner(2, sup?.addressLines.length ? `ADD: ${sup.addressLines.join(", ")}` : "", {});
+  banner(
+    3,
+    sup ? [sup.tel && `Tel: ${sup.tel}`, sup.fax && `Fax: ${sup.fax}`, sup.website].filter(Boolean).join("      ") : "",
+    {}
+  );
+  banner(4, "PURCHASE ORDER", { size: 16, bold: true });
+  ws.getRow(4).height = 24;
+
+  // ---- buyer block (left) + invoice meta (right), rows 5-8 ----
+  const metaVal = (k: string) => doc.meta.find((m) => m[0] === k)?.[1] ?? "";
+  const kv = (r: number, aLabel: string, bVal: string, dLabel?: string, eVal?: string) => {
+    ws.getCell(`A${r}`).value = aLabel;
+    ws.getCell(`A${r}`).font = { bold: true, color: { argb: "FF6B6A66" } };
+    ws.mergeCells(`B${r}:C${r}`);
+    ws.getCell(`B${r}`).value = bVal;
+    if (dLabel != null) {
+      ws.getCell(`D${r}`).value = dLabel;
+      ws.getCell(`D${r}`).font = { bold: true, color: { argb: "FF6B6A66" } };
+      ws.mergeCells(`E${r}:F${r}`);
+      ws.getCell(`E${r}`).value = eVal ?? "";
+    }
+  };
+  kv(5, "Buyer:", doc.buyerName, "Date:", metaVal("Date"));
+  kv(6, "Attn:", doc.buyer.attn, "Order No.:", orderRef);
+  kv(7, "Address:", doc.buyer.addressLines.join(", "), "Currency:", metaVal("Currency"));
+  kv(8, "Tel:", [doc.buyer.tel, doc.buyer.email].filter(Boolean).join("   "));
+
+  // ---- parts table header (row 10) ----
+  const H = 10;
+  const headers = ["Item", "Part No.", "Description", "Qty", "Unit Price", "Amount"];
+  const hr = ws.getRow(H);
+  headers.forEach((h, i) => {
+    const c = hr.getCell(i + 1);
+    c.value = h;
+    c.fill = HEADER_FILL;
+    c.font = { bold: true, color: { argb: "FFFFFFFF" } };
+    c.alignment = { horizontal: i >= 3 ? "right" : i === 0 ? "center" : "left", vertical: "middle" };
+    c.border = thin;
+  });
+  hr.height = 20;
+
+  // ---- item rows ----
+  let r = H;
+  let itemNo = 0;
+  for (const row of doc.rows) {
+    r++;
+    if (!row.sub) itemNo++;
+    const desc = (row.sub ? "↳ " : "") + row.name + (row.detail ? `\n${row.detail}` : "");
+    const values: ExcelJS.CellValue[] = [row.sub ? "" : itemNo, row.sku ?? "", desc, row.qty, row.rate, row.amount];
+    const rr = ws.getRow(r);
+    values.forEach((v, i) => {
+      const c = rr.getCell(i + 1);
+      c.value = v;
+      c.border = thin;
+      c.alignment = { wrapText: true, vertical: "top", horizontal: i >= 3 ? "right" : i === 0 ? "center" : "left" };
+    });
+    rr.getCell(5).numFmt = MONEY;
+    rr.getCell(6).numFmt = MONEY;
+  }
+
+  // ---- total ----
+  r++;
+  ws.mergeCells(`A${r}:E${r}`);
+  const totLabel = ws.getCell(`A${r}`);
+  totLabel.value = "Total Amount";
+  totLabel.font = { bold: true };
+  totLabel.alignment = { horizontal: "right" };
+  totLabel.fill = BAND_FILL;
+  const totVal = ws.getCell(`F${r}`);
+  totVal.value = doc.total;
+  totVal.font = { bold: true };
+  totVal.numFmt = MONEY;
+  totVal.fill = BAND_FILL;
+
+  // ---- supplier bank details ----
+  if (doc.bank.length) {
+    r += 2;
+    ws.mergeCells(`A${r}:F${r}`);
+    ws.getCell(`A${r}`).value = "Bank Information";
+    ws.getCell(`A${r}`).font = { bold: true };
+    for (const [k, v] of doc.bank) {
+      r++;
+      ws.mergeCells(`A${r}:B${r}`);
+      ws.getCell(`A${r}`).value = k;
+      ws.getCell(`A${r}`).font = { color: { argb: "FF6B6A66" } };
+      ws.mergeCells(`C${r}:F${r}`);
+      ws.getCell(`C${r}`).value = v;
+    }
+  }
+}
 
 /**
- * Builds the pre-order workbook in the bilingual format the China supplier
- * ingests: one header block + one row per quote line, with manufacturing
- * facts (fabric meters, panel counts) precomputed.
+ * Builds the supplier purchase-order workbook — one Commercial-Invoice-style sheet per brand in the
+ * order (supplier banner + our buyer block + parts table + total + supplier bank). Pass `brand` to
+ * emit just that brand's sheet (matches the printable per-brand PO page exactly); omit it for the
+ * whole order (one sheet per brand).
  */
-export async function buildOrderWorkbook(orderId: number): Promise<{ buffer: Buffer; filename: string }> {
+export async function buildOrderWorkbook(orderId: number, brand?: string): Promise<{ buffer: Buffer; filename: string }> {
   const order = await getOrder(orderId);
   if (!order) throw new Error("Order not found");
 
+  // Brands present, in first-seen order.
+  const brands: string[] = [];
+  for (const it of order.quote.items) {
+    const b = brandOfItem(it);
+    if (!brands.includes(b)) brands.push(b);
+  }
+  const targets = brand ? brands.filter((b) => b === brand) : brands;
+  if (targets.length === 0) throw new Error("No lines for the requested brand");
+
   const wb = new ExcelJS.Workbook();
   wb.creator = `${BRAND.name} ${BRAND.tagline}`;
-  const ws = wb.addWorksheet("订单 Order", {
-    pageSetup: { orientation: "landscape", fitToPage: true },
-  });
-
-  ws.columns = [
-    { width: 6 }, { width: 16 }, { width: 12 }, { width: 18 }, { width: 14 },
-    { width: 16 }, { width: 12 }, { width: 12 }, { width: 26 }, { width: 30 },
-    { width: 8 }, { width: 12 }, { width: 24 },
-  ];
-
-  // ---- header block ----
-  ws.mergeCells("A1:M1");
-  const title = ws.getCell("A1");
-  title.value = `预订单 PRE-ORDER — ${BRAND.name}`;
-  title.font = { size: 16, bold: true, color: { argb: "FF1F2A44" } };
-  ws.getRow(1).height = 26;
-
-  const meta: [string, string][] = [
-    ["订单号 PO Ref", order.ref],
-    ["报价单号 Quote Ref", order.quote.ref],
-    ["零售商 Retailer", order.quote.retailer],
-    ["项目 Project", order.quote.projectName ?? "—"],
-    ["下单日期 Order Date", order.createdAt.slice(0, 10)],
-    ["币种 Currency", "USD"],
-  ];
-  meta.forEach(([k, v], i) => {
-    const row = ws.getRow(3 + i);
-    row.getCell(1).value = k;
-    ws.mergeCells(3 + i, 1, 3 + i, 2);
-    row.getCell(1).font = { bold: true, color: { argb: "FF6B6A66" } };
-    row.getCell(3).value = v;
-    ws.mergeCells(3 + i, 3, 3 + i, 5);
-  });
-
-  // ---- line items ----
-  const headerRowIdx = 10;
-  const headers = [
-    "序号\nNo.",
-    "产品线\nProduct Line",
-    "型号\nSKU",
-    "花色\nPattern",
-    "颜色\nColor",
-    "遮光度\nOpacity",
-    "宽 (cm)\nWidth",
-    "高 (cm)\nHeight",
-    "选项\nOptions",
-    "工艺参数\nMfg. Facts",
-    "数量\nQty",
-    "单价\nUnit (USD)",
-    "备注\nRemarks",
-  ];
-  const headerRow = ws.getRow(headerRowIdx);
-  headers.forEach((h, i) => {
-    const cell = headerRow.getCell(i + 1);
-    cell.value = h;
-    cell.fill = HEADER_FILL;
-    cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 10 };
-    cell.alignment = { wrapText: true, vertical: "middle", horizontal: "center" };
-    cell.border = thin;
-  });
-  headerRow.height = 30;
-
-  order.quote.items.forEach((item, idx) => {
-    const factsText = item.computation.facts.map((f) => `${f.label}: ${f.value}`).join("\n");
-    const row = ws.getRow(headerRowIdx + 1 + idx);
-
-    let values: (string | number)[];
-    if (isAdjustmentConfig(item.config)) {
-      // Ad-hoc surcharge/discount — money-only, not a manufactured line. Show it as a financial row
-      // (no qty/specs) so the bilingual sheet still balances to the order total.
-      const cfg = item.config;
-      values = [idx + 1, "调整 Adjustment", "", cfg.label, "—", "—", "", "", cfg.note ?? "", "", "", item.computation.unitPrice, ""];
-    } else if (isAccessoryConfig(item.config)) {
-      // Accessory (A-OK motor): no pattern/color/dimensions/options.
-      const cfg = item.config;
-      values = [idx + 1, cfg.category, cfg.sku, cfg.name, "—", "—", "", "", `Brand: ${cfg.brand}`, factsText, item.qty, item.computation.unitPrice, ""];
-    } else {
-      const product = getProduct(item.productId)!;
-      const line = getLine(item.lineId as string)!;
-      const cfg = item.config;
-      const color = product.colors.find((c) => c.id === cfg.colorId);
-      const width = cfg.dimensions.width ?? cfg.dimensions.rodWidth ?? 0;
-      const height = cfg.dimensions.height ?? 0;
-      const optionText = line.optionGroups
-        .map((g) => {
-          const picked = g.options.find((o) => o.id === cfg.options[g.key]);
-          return picked ? `${g.label}: ${picked.name}` : null;
-        })
-        .filter(Boolean)
-        .join("\n");
-      values = [
-        idx + 1,
-        line.name,
-        product.sku,
-        product.name,
-        color?.name ?? cfg.colorId,
-        OPACITY_LABELS[cfg.opacityId],
-        width,
-        height,
-        optionText,
-        factsText,
-        item.qty,
-        item.computation.unitPrice,
-        "",
-      ];
-    }
-    values.forEach((v, i) => {
-      const cell = row.getCell(i + 1);
-      cell.value = v as ExcelJS.CellValue;
-      cell.border = thin;
-      cell.alignment = { wrapText: true, vertical: "top" };
-      if (idx % 2 === 1) cell.fill = BAND_FILL;
-    });
-    row.getCell(12).numFmt = '"$"#,##0.00';
-  });
-
-  // ---- totals ----
-  const totalRowIdx = headerRowIdx + order.quote.items.length + 2;
-  const totalRow = ws.getRow(totalRowIdx);
-  totalRow.getCell(10).value = "合计 Total";
-  totalRow.getCell(10).font = { bold: true };
-  totalRow.getCell(11).value = order.quote.items.reduce((s, i) => s + (isAdjustmentConfig(i.config) ? 0 : i.qty), 0);
-  totalRow.getCell(11).font = { bold: true };
-  totalRow.getCell(12).value = order.quote.total;
-  totalRow.getCell(12).numFmt = '"$"#,##0.00';
-  totalRow.getCell(12).font = { bold: true };
-
-  // ---- order discount (when this retailer has a standing discount) ----
-  if (order.discountPct > 0) {
-    const net = order.amount ?? order.quote.total;
-    const discRow = ws.getRow(totalRowIdx + 1);
-    discRow.getCell(10).value = `折扣 Discount (${order.discountPct}%)`;
-    discRow.getCell(12).value = -(Math.round((order.quote.total - net) * 100) / 100);
-    discRow.getCell(12).numFmt = '"$"#,##0.00';
-    const netRow = ws.getRow(totalRowIdx + 2);
-    netRow.getCell(10).value = "应付 Net Total";
-    netRow.getCell(10).font = { bold: true };
-    netRow.getCell(12).value = net;
-    netRow.getCell(12).numFmt = '"$"#,##0.00';
-    netRow.getCell(12).font = { bold: true };
+  const used = new Set<string>();
+  for (const b of targets) {
+    const doc = await buildPurchaseOrderDoc(order, b);
+    if (doc) addPurchaseOrderSheet(wb, doc, order.ref, sheetName(b, used));
   }
 
-  // ---- instructions sheet ----
-  const info = wb.addWorksheet("说明 Instructions");
-  info.columns = [{ width: 100 }];
-  [
-    `1. 本预订单由 ${BRAND.name} 自动生成。 This pre-order was generated automatically by ${BRAND.name}.`,
-    "2. 请在确认后回传采购订单号。 Please return the purchase order number upon confirmation.",
-    "3. 发货后请提供运单号以同步物流状态。 Provide the tracking number at dispatch so logistics status can sync.",
-    "4. 所有尺寸为成品尺寸，单位厘米。 All dimensions are finished sizes, in centimeters.",
-  ].forEach((t, i) => {
-    info.getCell(`A${i + 1}`).value = t;
-    info.getCell(`A${i + 1}`).alignment = { wrapText: true };
-  });
-
   const buffer = Buffer.from(await wb.xlsx.writeBuffer());
-  return { buffer, filename: `${order.ref}_${BRAND.slug}_PreOrder.xlsx` };
+  const suffix = brand ? `_${brand.replace(/[^a-z0-9-]+/gi, "-")}` : "";
+  return { buffer, filename: `${order.ref}${suffix}_PO.xlsx` };
 }
