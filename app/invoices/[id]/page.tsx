@@ -2,7 +2,7 @@ import Link from "next/link";
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { InvoicePayPicker, PrintInvoiceButton } from "@/components/InvoiceActions";
+import { InvoiceAutoPay, InvoicePayPicker, PrintInvoiceButton } from "@/components/InvoiceActions";
 import { SubmitPreOrderButton } from "@/components/QuoteActions";
 import { Badge, Button } from "@/components/ui";
 import { canAccessOwned, userClient } from "@/lib/auth/user";
@@ -11,6 +11,7 @@ import { admin } from "@/lib/supabase/admin";
 import { BRAND } from "@/lib/brand";
 import { isAccessoryConfig } from "@/lib/types";
 import {
+  getAccessoryDefaultPriceBySku,
   getBankInfo,
   getOrAssignInvoiceRef,
   getOrder,
@@ -50,7 +51,7 @@ export default async function InvoicePage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ t?: string }>;
+  searchParams: Promise<{ t?: string; pay?: string }>;
 }) {
   const { id } = await params;
   const quoteId = Number(id);
@@ -61,8 +62,10 @@ export default async function InvoicePage({
   // /quotes: an admin acting on behalf of a retailer (代下单) reads as that retailer (service_role),
   // a plain retailer reads their own (RLS). Using the same identity as the list keeps the Invoice
   // link and this page in agreement (else acting-as 404s here).
-  const { t } = await searchParams;
+  const { t, pay } = await searchParams;
   const publicMode = verifyInvoiceToken(quoteId, t);
+  // Payment Options deep link (?pay=…) — auto-start that method on load (see InvoiceAutoPay).
+  const payMethod = pay === "paypal" || pay === "stripe" || pay === "bank_transfer" ? pay : null;
 
   let sb: SupabaseClient;
   if (publicMode) {
@@ -93,7 +96,10 @@ export default async function InvoicePage({
   const bank = await getBankInfo();
   const seller = await getSeller();
 
-  const lines = buildInvoiceLines(quote.items);
+  const defaultPriceBySku = await getAccessoryDefaultPriceBySku();
+  const lines = buildInvoiceLines(quote.items, defaultPriceBySku);
+  // Show the struck-through "List" column only if at least one line actually has a Default-tier price.
+  const hasListPrice = lines.some((l) => l.listRate != null);
   const discountPct = await getRetailerDiscount(ownerId);
   const subtotal = round2(quote.total);
   const discountAmt = round2((subtotal * discountPct) / 100);
@@ -134,6 +140,11 @@ export default async function InvoicePage({
 
   return (
     <div className="min-h-screen bg-[#f4f2ec] py-6 print:bg-white print:py-0">
+      <InvoiceAutoPay
+        method={payMethod}
+        orderId={order?.status === "awaiting_payment" ? order.id : null}
+        token={shareToken}
+      />
       {/* Action bar — hidden when printing */}
       <div className="mx-auto mb-5 flex max-w-3xl items-center justify-between gap-3 px-4 print:hidden">
         {publicMode ? (
@@ -248,6 +259,7 @@ export default async function InvoicePage({
             <col className="w-10" />
             <col />
             <col className="w-20" />
+            {hasListPrice && <col className="w-24" />}
             <col className="w-24" />
             <col className="w-28" />
           </colgroup>
@@ -256,6 +268,7 @@ export default async function InvoicePage({
               <th className="px-4 py-2.5 text-center font-normal">#</th>
               <th className="px-4 py-2.5 font-normal">Item &amp; Description</th>
               <th className="px-4 py-2.5 text-right font-normal">Qty</th>
+              {hasListPrice && <th className="px-4 py-2.5 text-right font-normal">List</th>}
               <th className="px-4 py-2.5 text-right font-normal">Rate</th>
               <th className="px-4 py-2.5 text-right font-normal">Amount</th>
             </tr>
@@ -272,6 +285,11 @@ export default async function InvoicePage({
                   {l.qty}
                   <div className="text-[12px] text-[#8a8a8a]">Each</div>
                 </td>
+                {hasListPrice && (
+                  <td className="px-4 py-4 text-right tabular-nums text-[#8a8a8a]">
+                    {l.listRate != null ? <span className="line-through">{num2(l.listRate)}</span> : ""}
+                  </td>
+                )}
                 <td className="px-4 py-4 text-right tabular-nums text-ink">{num2(l.rate)}</td>
                 <td className="px-4 py-4 text-right tabular-nums text-ink">{num2(l.amount)}</td>
               </tr>
@@ -313,20 +331,21 @@ export default async function InvoicePage({
               <p className="mt-1 text-muted">{INVOICE_NOTES}</p>
             </div>
           )}
-          {/* Payment Options — accepted methods, mirroring the reference invoice. Each chip links to
-              this online invoice (absolute URL) so it stays clickable from a downloaded PDF, landing
-              on the page whose action bar runs the real payment flow (the "Pay" action above). */}
+          {/* Payment Options — accepted methods, mirroring the reference invoice. Each chip is an
+              absolute deep link (`?pay=<method>`) so it stays clickable from a downloaded PDF and
+              opens this invoice pre-set to that method: PayPal / card forward to the gateway,
+              bank transfer reveals the wire details (see InvoiceAutoPay). */}
           <div className="flex flex-wrap items-center gap-3">
             <span className="font-semibold text-ink">Payment Options</span>
             <span className="inline-flex items-center divide-x divide-line overflow-hidden rounded-md border border-line bg-[#fafaf7] text-[11.5px] font-medium text-ink-soft">
               {[
-                { label: "PayPal", icon: "🅿️" },
-                { label: "Credit / debit card", icon: "💳" },
-                { label: "Bank transfer", icon: "🏦" },
+                { label: "PayPal", icon: "🅿️", method: "paypal" },
+                { label: "Credit / debit card", icon: "💳", method: "stripe" },
+                { label: "Bank transfer", icon: "🏦", method: "bank_transfer" },
               ].map((m) => (
                 <a
                   key={m.label}
-                  href={invoiceUrl}
+                  href={`${invoiceUrl}${invoiceUrl.includes("?") ? "&" : "?"}pay=${m.method}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 transition-colors hover:bg-[#f1efe9] hover:text-ink"

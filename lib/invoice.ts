@@ -76,15 +76,29 @@ export type InvoiceLine = {
   qty: number;
   rate: number;
   amount: number;
+  /** Shared Default-tier "list" unit price, shown struck-through so the customer sees the deal.
+   *  null when the line has no Default-tier price (full products, ad-hoc adjustments). */
+  listRate: number | null;
+  /** listRate × qty; null whenever listRate is null. */
+  listAmount: number | null;
 };
 
-/** Build the printable line items from a quote's lines — products described in full, accessories
- *  by their snapshotted name/brand/variations. Rate = unit price, amount = rate × qty. */
-export function buildInvoiceLines(items: QuoteItemRow[]): InvoiceLine[] {
+/**
+ * Build the printable line items from a quote's lines — products described in full, accessories
+ * by their snapshotted name/brand/variations. Rate = unit price, amount = rate × qty.
+ *
+ * `defaultPriceBySku` (from getAccessoryDefaultPriceBySku) supplies the shared Default-tier motor
+ * price for accessory lines; the line's List price is that default base + the SAME snapshotted
+ * variation prices (variations have no per-retailer tier), matching how the actual rate is built.
+ */
+export function buildInvoiceLines(
+  items: QuoteItemRow[],
+  defaultPriceBySku: Record<string, number> = {},
+): InvoiceLine[] {
   return items.map((item, i) => {
     const rate = item.computation.unitPrice;
     const qty = item.qty;
-    const base = { n: i + 1, qty, rate, amount: round2(rate * qty) };
+    const base = { n: i + 1, qty, rate, amount: round2(rate * qty), listRate: null, listAmount: null };
 
     const cfg = item.config;
     if (isAdjustmentConfig(cfg)) {
@@ -93,7 +107,15 @@ export function buildInvoiceLines(items: QuoteItemRow[]): InvoiceLine[] {
     if (isAccessoryConfig(cfg)) {
       const variations = (cfg.variations ?? []).map((v) => v.itemLabel).join(", ");
       const description = [cfg.brand, cfg.category, variations].filter(Boolean).join(" · ");
-      return { ...base, name: cfg.name, description, sku: cfg.sku };
+      const defBase = defaultPriceBySku[cfg.sku];
+      let listRate: number | null = null;
+      let listAmount: number | null = null;
+      if (defBase != null) {
+        const varSum = (cfg.variations ?? []).reduce((s, v) => s + v.price * (v.qty ?? 1), 0);
+        listRate = round2(defBase + varSum);
+        listAmount = round2(listRate * qty);
+      }
+      return { ...base, name: cfg.name, description, sku: cfg.sku, listRate, listAmount };
     }
 
     const product = getProduct(item.productId);

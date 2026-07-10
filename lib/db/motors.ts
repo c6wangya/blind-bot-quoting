@@ -136,6 +136,21 @@ export async function getDefaultPriceMap(sb: SupabaseClient = admin()): Promise<
   return map;
 }
 
+/**
+ * sku → shared Default-tier price (default tier ?? static catalog price) — the same number the
+ * Motor Management "Default tier" screen shows. Keyed by sku because quote/invoice accessory lines
+ * snapshot only the sku (not the model id). Used as the struck-through "List" price on invoices.
+ */
+export async function getAccessoryDefaultPriceBySku(
+  sb: SupabaseClient = admin()
+): Promise<Record<string, number>> {
+  const cat = await loadCatalog();
+  const def = await getDefaultPriceMap(sb);
+  const out: Record<string, number> = {};
+  for (const m of cat.models) out[m.sku] = def[m.id] ?? m.price ?? 0;
+  return out;
+}
+
 /** model_id → a single retailer's override price. */
 export async function getRetailerOverrideMap(
   retailerId: string,

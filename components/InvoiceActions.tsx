@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button, cx } from "./ui";
 import type { PaymentMethod } from "@/lib/types";
 
@@ -30,6 +30,101 @@ export function PrintInvoiceButton({ fileName }: { fileName?: string }) {
     <Button variant="secondary" onClick={() => window.print()} className="py-2.5">
       Print / Save PDF
     </Button>
+  );
+}
+
+const METHOD_LABEL: Record<PaymentMethod, string> = {
+  paypal: "PayPal",
+  stripe: "the card checkout",
+  bank_transfer: "your invoice",
+};
+
+/**
+ * Auto-start a payment when the invoice is opened from a "Payment Options" deep link
+ * (`/invoices/[id]?pay=paypal|stripe|bank_transfer`). Those links live in the invoice sheet, so they
+ * work from a downloaded PDF: the link opens this page and this component runs the same flow as the
+ * picker — switch the order's method, then forward to the gateway (or, for bank transfer, reveal the
+ * wire details). No payable order (quote not yet submitted) → renders nothing and the page loads as
+ * usual so the visitor can submit first.
+ */
+export function InvoiceAutoPay({
+  method,
+  orderId,
+  token,
+}: {
+  method: PaymentMethod | null;
+  /** the awaiting-payment order to pay, or null when there's nothing payable yet */
+  orderId: number | null;
+  token: string;
+}) {
+  const started = useRef(false);
+  const [error, setError] = useState<string | null>(null);
+  const [redirecting, setRedirecting] = useState(false);
+
+  useEffect(() => {
+    if (started.current || !method || !orderId) return;
+    started.current = true; // guard against Strict Mode's double-invoke (avoids a double POST)
+    setRedirecting(true);
+
+    const authHeaders: Record<string, string> = { "Content-Type": "application/json" };
+    if (token) authHeaders["x-invoice-token"] = token;
+
+    (async () => {
+      try {
+        const rs = await fetch(`/api/orders/${orderId}/payment-method`, {
+          method: "POST",
+          headers: authHeaders,
+          body: JSON.stringify({ method }),
+        });
+        if (!rs.ok) {
+          const ds = await rs.json().catch(() => ({}));
+          throw new Error(ds.error ?? "Could not select this payment method");
+        }
+        if (method === "bank_transfer") {
+          // Drop the ?pay flag and reload so the invoice shows the awaiting status + wire details.
+          const url = new URL(window.location.href);
+          url.searchParams.delete("pay");
+          window.location.assign(url.toString());
+          return;
+        }
+        const r = await fetch(`/api/orders/${orderId}/pay`, { method: "POST", headers: authHeaders });
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(data.error ?? "Could not start payment");
+        window.location.assign(data.url); // gateway hand-off (PayPal / Stripe)
+      } catch (e) {
+        setError((e as Error).message);
+        setRedirecting(false);
+      }
+    })();
+  }, [method, orderId, token]);
+
+  if (!method || !orderId) return null;
+  if (!error && !redirecting) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6 text-center print:hidden">
+      <div className="w-full max-w-sm rounded-2xl bg-surface p-6 shadow-2xl">
+        {error ? (
+          <>
+            <div className="text-[14px] font-semibold text-ink">Couldn&apos;t start payment</div>
+            <p className="mt-2 text-[12.5px] text-muted">{error}</p>
+            <Button
+              variant="secondary"
+              className="mt-4 py-2"
+              onClick={() => {
+                const url = new URL(window.location.href);
+                url.searchParams.delete("pay");
+                window.location.assign(url.toString());
+              }}
+            >
+              Back to invoice
+            </Button>
+          </>
+        ) : (
+          <div className="text-[13.5px] font-medium text-ink">Redirecting to {METHOD_LABEL[method]}…</div>
+        )}
+      </div>
+    </div>
   );
 }
 

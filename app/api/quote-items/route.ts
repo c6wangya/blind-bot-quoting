@@ -25,8 +25,10 @@ import {
   updateQuoteItem,
 } from "@/lib/db";
 import { computeQuote, PricingError } from "@/lib/pricing";
-import { isAccessoryConfig, type AccessoryConfig, type ItemConfig, type QuoteComputation, type QuoteRow } from "@/lib/types";
+import { isAccessoryConfig, type AccessoryConfig, type ItemConfig, type QuoteComputation, type QuoteRow, type VariationSnapshot } from "@/lib/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
+
+const round2 = (n: number) => Math.round(n * 100) / 100;
 
 /**
  * The draft quote an item should land in. With an explicit `quoteId` (adding from a quote's
@@ -45,6 +47,44 @@ async function resolveTargetQuote(
     return { id: q.id, ref: q.ref };
   }
   return getOrCreateDraftQuote(userId, undefined, sb);
+}
+
+// ---- Merge-on-add: a second "Add" of an identical item bumps the existing line's qty instead of
+// splitting into a duplicate row. Only merges when EVERYTHING matches (same product/model, same
+// variation selection, same computed unit price, and no per-quote price override), so per-line
+// custom pricing is never silently collapsed. Applies to new adds only — pre-existing dupes stay.
+
+type QuoteLineRow = {
+  id: number;
+  product_id: string;
+  config: ItemConfig | AccessoryConfig;
+  qty: number;
+  computation: QuoteComputation;
+};
+
+/** Existing lines on the target quote. */
+async function loadQuoteLines(quoteId: number, sb: SupabaseClient): Promise<QuoteLineRow[]> {
+  const { data } = await sb
+    .from("quote_items")
+    .select("id, product_id, config, qty, computation")
+    .eq("quote_id", quoteId);
+  return (data ?? []) as QuoteLineRow[];
+}
+
+/** Order-independent structural key (jsonb round-trips don't preserve object key order). */
+function stableKey(v: unknown): string {
+  if (v === null || typeof v !== "object") return JSON.stringify(v) ?? "null";
+  if (Array.isArray(v)) return `[${v.map(stableKey).join(",")}]`;
+  const o = v as Record<string, unknown>;
+  return `{${Object.keys(o).sort().map((k) => `${JSON.stringify(k)}:${stableKey(o[k])}`).join(",")}}`;
+}
+
+/** Same variation selection (same sub-parts + per-motor qtys), order-independent. */
+function sameVariations(a: VariationSnapshot[] = [], b: VariationSnapshot[] = []): boolean {
+  if (a.length !== b.length) return false;
+  const key = (vs: VariationSnapshot[]) => vs.map((v) => `${v.itemId}:${v.qty ?? 1}`).sort();
+  const [ak, bk] = [key(a), key(b)];
+  return ak.every((k, i) => k === bk[i]);
 }
 
 class PickError extends Error {
@@ -183,6 +223,30 @@ export async function POST(req: Request) {
       const quote = await resolveTargetQuote(userId, sb, quoteId);
       // Snapshot this retailer's effective price (override → default → static).
       const unitPrice = await resolveMotorPrice(accessory.id, userId);
+      const newUnit = round2(unitPrice + variations.reduce((s, v) => s + v.price * (v.qty ?? 1), 0));
+      // Merge into an identical existing line (same model + variations + price, no per-quote override).
+      const dup = (await loadQuoteLines(quote.id, sb)).find(
+        (l) =>
+          l.product_id === accessory.id &&
+          isAccessoryConfig(l.config) &&
+          sameVariations((l.config as AccessoryConfig).variations, variations) &&
+          l.computation.componentPrices == null &&
+          l.computation.priceOverride == null &&
+          round2(l.computation.unitPrice) === newUnit,
+      );
+      if (dup) {
+        const mergedQty = dup.qty + qty;
+        if (stock !== null && mergedQty > stock) {
+          return NextResponse.json(
+            { error: stock === 0 ? "This motor is out of stock" : `Only ${stock} of this motor left` },
+            { status: 409 },
+          );
+        }
+        const mergedSubErr = await checkSubPartStock(variations, mergedQty);
+        if (mergedSubErr) return NextResponse.json({ error: mergedSubErr }, { status: 409 });
+        await updateAccessoryItem(dup.id, accessory, mergedQty, unitPrice, variations, sb);
+        return NextResponse.json({ quoteId: quote.id, quoteRef: quote.ref, item: { id: dup.id, merged: true } });
+      }
       const item = await addAccessoryItem(quote.id, accessory, qty, sb, unitPrice, variations);
       return NextResponse.json({ quoteId: quote.id, quoteRef: quote.ref, item });
     }
@@ -195,6 +259,19 @@ export async function POST(req: Request) {
     // Recompute server-side — the client preview is never trusted for stored prices.
     const computation = computeQuote(line, product, body.config, pricing.config, pricing.version);
     const quote = await resolveTargetQuote(userId, sb, quoteId);
+    // Merge into an identical existing product line (same product + config + price, no override).
+    const dup = (await loadQuoteLines(quote.id, sb)).find(
+      (l) =>
+        l.product_id === product.id &&
+        !isAccessoryConfig(l.config) &&
+        l.computation.priceOverride == null &&
+        stableKey(l.config) === stableKey(body.config) &&
+        round2(l.computation.unitPrice) === round2(computation.unitPrice),
+    );
+    if (dup) {
+      await updateQuoteItem(dup.id, { qty: Math.min(500, dup.qty + qty) }, sb);
+      return NextResponse.json({ quoteId: quote.id, quoteRef: quote.ref, item: { id: dup.id, merged: true } });
+    }
     const item = await addQuoteItem(quote.id, product, body.config, qty, computation, sb);
     return NextResponse.json({ quoteId: quote.id, quoteRef: quote.ref, item });
   } catch (err) {

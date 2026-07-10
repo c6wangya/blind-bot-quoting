@@ -259,8 +259,8 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
       {quote.items.length === 0 ? (
         <EmptyState
           title="This quote is empty"
-          description="Add configured products from the catalog to build the quote."
-          action={<LinkButton href={`/catalog?quote=${quote.id}`}>Add product</LinkButton>}
+          description="Add accessories from the catalog to build the quote."
+          action={<LinkButton href={`/catalog/accessories?quote=${quote.id}`}>Add accessory</LinkButton>}
         />
       ) : (
         <ShippingRecalcProvider>
@@ -316,10 +316,7 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
             {editable && (
               <div className="flex flex-wrap items-center justify-end gap-2">
                 {viewerIsAdmin && <AddAdjustmentButton quoteId={quote.id} />}
-                <LinkButton href={`/catalog?quote=${quote.id}`}>+ Add product</LinkButton>
-                <LinkButton href={`/catalog/accessories?quote=${quote.id}`} variant="secondary">
-                  + Add accessory
-                </LinkButton>
+                <LinkButton href={`/catalog/accessories?quote=${quote.id}`}>+ Add accessory</LinkButton>
               </div>
             )}
 

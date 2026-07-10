@@ -66,6 +66,16 @@ export default async function AccessoriesPage({
     variationStock[itemId] = modelId in inventory ? inventory[modelId] : null;
   }
 
+  // "Add alone" (buy just this part) is only offered when the part's source model belongs to an
+  // orderable category — mirroring the server's orderable guard in POST /api/quote-items, so the
+  // button never appears for a part that would 422 on click. (Full itemModelMap still drives stock.)
+  const aloneableItemModelMap: Record<string, string> = {};
+  for (const [itemId, modelId] of Object.entries(itemModelMap)) {
+    const model = catalog.model(modelId);
+    const category = model ? catalog.category(model.categoryId) : undefined;
+    if (category?.orderable) aloneableItemModelMap[itemId] = modelId;
+  }
+
   // The current user's open (draft) quotes — offered in the in-page "Add to quote" picker so a
   // motor can be dropped into a quote without leaving the catalog.
   const draftRows = effectiveOwner
@@ -294,7 +304,9 @@ export default async function AccessoriesPage({
           variations={variations}
           exclusionGroups={exclusionGroups}
           variationStock={variationStock}
+          itemModelMap={aloneableItemModelMap}
           quotes={draftQuotes}
+          preselectedQuoteId={quoteId}
           showCategory={filtering}
         />
       </div>

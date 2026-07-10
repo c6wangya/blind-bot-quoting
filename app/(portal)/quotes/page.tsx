@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { Badge, Card, EmptyState, LinkButton, PageHeader } from "@/components/ui";
+import { Badge, Card, EmptyState, PageHeader } from "@/components/ui";
 import { ListToolbar } from "@/components/ListToolbar";
 import { DeleteQuoteListButton } from "@/components/QuoteActions";
+import { CreateQuoteButton } from "@/components/CreateQuoteButton";
 import { redirect } from "next/navigation";
 import { userClient } from "@/lib/auth/user";
 import { getActingContext } from "@/lib/auth/acting-as";
@@ -42,14 +43,14 @@ export default async function QuotesPage({
         eyebrow="Quoting"
         title="Quotes"
         description="Auto-priced by the backend formula engine from catalog, variations and dimensions. Submit a draft to convert it into a supply-chain order."
-        actions={<LinkButton href="/quotes/new">Create New Quote</LinkButton>}
+        actions={<CreateQuoteButton />}
       />
 
       {all.length === 0 ? (
         <EmptyState
           title="No quotes yet"
-          description="Start a quote with the customer and ship-to details, then add products — or configure a product from the catalog and we'll help you create one."
-          action={<LinkButton href="/quotes/new">Create New Quote</LinkButton>}
+          description="Create a quote, then add accessories from the catalog. We'll pre-fill your default ship-to details."
+          action={<CreateQuoteButton />}
         />
       ) : (
         <>

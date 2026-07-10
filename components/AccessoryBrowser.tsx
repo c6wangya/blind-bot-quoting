@@ -38,7 +38,9 @@ export function AccessoryBrowser({
   variations,
   exclusionGroups,
   variationStock,
+  itemModelMap,
   quotes,
+  preselectedQuoteId,
   showCategory,
 }: {
   models: BrowserModel[];
@@ -47,8 +49,13 @@ export function AccessoryBrowser({
   exclusionGroups: Record<string, string[][]>;
   /** add-on part item id → stock (null = untracked) */
   variationStock: Record<string, number | null>;
+  /** add-on part item id → its source catalog model id, ONLY for parts whose model is in an
+   *  orderable category (present = the part can be bought on its own; mirrors the server guard) */
+  itemModelMap: Record<string, string>;
   /** the user's open draft quotes (for the in-page picker) */
   quotes: QuoteOpt[];
+  /** arrived here from a specific quote (?quote=<id>): skip the picker and add straight to it */
+  preselectedQuoteId?: number;
   /** show each row's category name (filtering across categories) */
   showCategory: boolean;
 }) {
@@ -143,7 +150,9 @@ export function AccessoryBrowser({
             model={selected}
             variations={variations}
             variationStock={variationStock}
+            itemModelMap={itemModelMap}
             quotes={quotes}
+            preselectedQuoteId={preselectedQuoteId}
             onClose={() => setPicked(null)}
           />
         </div>
@@ -189,14 +198,18 @@ function VariationPanel({
   variations,
   exclusionGroups,
   variationStock,
+  itemModelMap,
   quotes,
+  preselectedQuoteId,
   onClose,
 }: {
   model: BrowserModel;
   variations: VariationType[];
   exclusionGroups: Record<string, string[][]>;
   variationStock: Record<string, number | null>;
+  itemModelMap: Record<string, string>;
   quotes: QuoteOpt[];
+  preselectedQuoteId?: number;
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -214,9 +227,14 @@ function VariationPanel({
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
   const [zoom, setZoom] = useState<string | null>(null);
-  const [expandedQuote, setExpandedQuote] = useState<number | null>(null);
+  // Preselected quote starts expanded so its items are visible right away; the chevron still toggles.
+  const [expandedQuote, setExpandedQuote] = useState<number | null>(preselectedQuoteId ?? null);
   const [descOpen, setDescOpen] = useState(false);
   const [tagsOpen, setTagsOpen] = useState(false);
+  // "Buy on its own": when set, the quote picker adds THIS single part (its own catalog model) as a
+  // standalone line instead of the configured motor + kit. null = normal motor mode.
+  const [alone, setAlone] = useState<{ name: string; modelId: string; stock: number | null } | null>(null);
+  const [aloneQty, setAloneQty] = useState(1);
 
   const avail = useMemo(() => availableTypes(variations, model.availableItemIds), [variations, model.availableItemIds]);
   const blocked = useMemo(() => buildBlockedFromGroups(exclusionGroups[model.id] ?? []), [exclusionGroups, model.id]);
@@ -302,39 +320,62 @@ function VariationPanel({
     return q ? labelOf(q) : "quote";
   };
 
-  // POST the configured motor (+ add-on parts) to an existing quote id. Returns ok on success.
-  const postItemTo = async (quoteId: number): Promise<boolean> => {
-    const variationItems = selectedIds.map((id) => ({ itemId: id, qty: qtyOf(id) }));
-    const r = await fetch("/api/quote-items", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ productId: model.id, qty: motorQty, quoteId, variationItems }),
-    });
-    if (r.status === 401) {
-      window.location.assign(`/login?next=${encodeURIComponent(location.pathname + location.search)}`);
-      return false;
-    }
-    const data = await r.json();
-    if (!r.ok) throw new Error(data.error ?? "Could not add to quote");
-    return true;
-  };
-
-  // Add to an existing quote — stay on the page so the user can keep shopping.
-  const doAdd = async (targetId: number) => {
-    if (oversold.size > 0) return;
+  // Add to an existing quote — stay on the page so the user can keep shopping. `aloneOverride`
+  // lets a row add its part straight to a preselected quote without waiting on `alone` state.
+  const doAdd = async (
+    targetId: number,
+    aloneOverride?: { name: string; modelId: string; stock: number | null }
+  ) => {
+    const a = aloneOverride ?? alone;
+    const q = aloneOverride ? 1 : aloneQty;
+    if (a) {
+      if (a.stock !== null && q > a.stock) return;
+    } else if (oversold.size > 0) return;
     setMenuOpen(false);
     setBusy(true);
     setError(null);
     try {
-      if (await postItemTo(targetId)) {
-        setBusy(false);
-        toast(`Added ${model.name} to ${refOf(targetId)}`);
-        router.refresh(); // refresh the draft list (item counts) without leaving the page
+      // Standalone part → its own catalog model, no variationItems. Motor → model + kit.
+      const body = a
+        ? { productId: a.modelId, qty: q, quoteId: targetId }
+        : {
+            productId: model.id,
+            qty: motorQty,
+            quoteId: targetId,
+            variationItems: selectedIds.map((id) => ({ itemId: id, qty: qtyOf(id) })),
+          };
+      const r = await fetch("/api/quote-items", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (r.status === 401) {
+        window.location.assign(`/login?next=${encodeURIComponent(location.pathname + location.search)}`);
+        return;
       }
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error ?? "Could not add to quote");
+      setBusy(false);
+      toast(`Added ${a ? a.name : model.name} to ${refOf(targetId)}`);
+      setAlone(null);
+      router.refresh(); // refresh the draft list (item counts) without leaving the page
     } catch (e) {
       setError((e as Error).message);
       setBusy(false);
     }
+  };
+
+  // A part row's "Add on its own": buy just this part (its source catalog model), not the motor.
+  // Opens the SAME footer popover as a normal add — with a qty stepper — so quantity is editable.
+  // Preselected quote: the popover is just "part + qty" and the footer button confirms it (no quote
+  // list, no second CTA). Otherwise it also lists the quotes to pick/create.
+  const openAddAlone = (name: string, modelId: string, stock: number | null) => {
+    setError(null);
+    setCreating(false);
+    setNewName("");
+    setAlone({ name, modelId, stock });
+    setAloneQty(1);
+    setMenuOpen(true);
   };
 
   // Create a new (optionally named) empty draft, then silently refresh so it appears at the top of
@@ -444,9 +485,14 @@ function VariationPanel({
           {/* Add-on parts — one pick per type (互斥-aware), borderless rows */}
           {avail.length > 0 && (
             <div className="mt-5 space-y-4">
-              <div className="flex items-baseline justify-between border-t border-line/70 pt-4">
-                <span className="text-[11px] font-semibold uppercase tracking-wide text-muted">Add-on parts</span>
-                <span className="text-[10.5px] text-muted">Qty is per motor</span>
+              <div className="border-t border-line/70 pt-4">
+                <div className="flex items-baseline justify-between">
+                  <span className="text-[11px] font-semibold uppercase tracking-wide text-muted">Add-on parts</span>
+                  <span className="text-[10.5px] text-muted">Qty is per motor</span>
+                </div>
+                <p className="mt-1 text-[10.5px] leading-snug text-muted">
+                  Tick a part to bundle it with the motor · <span className="font-medium text-ink-soft">Add alone</span> orders just that part.
+                </p>
               </div>
 
               {avail.map((t) => {
@@ -475,6 +521,8 @@ function VariationPanel({
                             stock={stockOf(it.id)}
                             oversold={oversold.has(it.id)}
                             qty={qtyOf(it.id)}
+                            canAlone={!!itemModelMap[it.id]}
+                            onAddAlone={() => openAddAlone(it.name, itemModelMap[it.id], stockOf(it.id))}
                             onToggle={() => toggle(t.id, it.id)}
                             onQty={(n) => setQty(it.id, n)}
                             onZoom={setZoom}
@@ -520,6 +568,9 @@ function VariationPanel({
             <Button
               variant="primary"
               onClick={() => {
+                // Opener for both flows: reveal the quote (with its current items) so it can be
+                // reviewed before adding. The motor is a lone-part-free add.
+                setAlone(null);
                 setCreating(false);
                 setNewName("");
                 setMenuOpen((o) => !o);
@@ -528,7 +579,7 @@ function VariationPanel({
               disabled={oversold.size > 0}
               className="w-full justify-center py-2.5"
             >
-              Add to quote
+              {preselectedQuoteId != null ? `Add to ${refOf(preselectedQuoteId)}` : "Add to quote"}
             </Button>
 
             {menuOpen && (
@@ -539,15 +590,35 @@ function VariationPanel({
                     setMenuOpen(false);
                     setCreating(false);
                     setNewName("");
+                    setAlone(null);
                   }}
                   aria-hidden
                 />
                 <div className="absolute bottom-full right-0 z-40 mb-2 max-h-80 w-full overflow-auto rounded-xl border border-line bg-surface p-1 shadow-xl">
+                  {alone && (
+                    <div className={cx("px-2 pb-2 pt-1.5", preselectedQuoteId == null && "border-b border-line/70")}>
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-brass">Adding a part on its own</div>
+                      <div className="mt-1 flex items-center justify-between gap-2">
+                        <span className="min-w-0 truncate text-[12.5px] font-medium text-ink">{alone.name}</span>
+                        <div onClick={(e) => e.stopPropagation()}>
+                          <Stepper value={aloneQty} min={1} max={alone.stock ?? 999} onChange={setAloneQty} />
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   <div className="flex items-center justify-between gap-2 px-2 py-1">
                     <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
-                      {quotes.length > 0 ? "Add to existing" : "Your quotes"}
+                      {preselectedQuoteId != null
+                        ? alone
+                          ? "Add this part to"
+                          : "Add to"
+                        : alone
+                          ? "Add to which quote?"
+                          : quotes.length > 0
+                            ? "Add to existing"
+                            : "Your quotes"}
                     </span>
-                    {!creating && (
+                    {!creating && preselectedQuoteId == null && (
                       <button
                         onClick={() => setCreating(true)}
                         className="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-[12px] font-medium text-ink transition-colors hover:bg-[#faf9f5]"
@@ -582,7 +653,10 @@ function VariationPanel({
                       </Button>
                     </div>
                   )}
-                  {quotes.map((qu) => {
+                  {(preselectedQuoteId != null
+                    ? quotes.filter((q) => q.id === preselectedQuoteId)
+                    : quotes
+                  ).map((qu) => {
                     const open = expandedQuote === qu.id;
                     return (
                       <div key={qu.id}>
@@ -668,6 +742,8 @@ function OptionRow({
   stock,
   oversold,
   qty,
+  canAlone,
+  onAddAlone,
   onToggle,
   onQty,
   onZoom,
@@ -680,6 +756,9 @@ function OptionRow({
   stock: number | null;
   oversold: boolean;
   qty: number;
+  /** the part is backed by its own catalog model → it can be bought on its own */
+  canAlone: boolean;
+  onAddAlone: () => void;
   onToggle: () => void;
   onQty: (n: number) => void;
   onZoom: (url: string) => void;
@@ -697,7 +776,7 @@ function OptionRow({
             : undefined
       }
       className={cx(
-        "flex items-center gap-3 rounded-lg px-2 py-1.5 transition-colors",
+        "group flex items-center gap-3 rounded-lg px-2 py-1.5 transition-colors",
         blocked ? "cursor-not-allowed opacity-40" : selected ? "cursor-pointer bg-[#fbf8f1]" : "cursor-pointer hover:bg-[#faf9f5]"
       )}
     >
@@ -738,11 +817,21 @@ function OptionRow({
           ) : null}
         </div>
       </div>
-      {selected && (
-        <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
-          <Stepper value={qty} min={1} max={stock !== null ? stock : 999} onChange={onQty} />
-        </div>
-      )}
+      <div className="flex shrink-0 items-center gap-2" onClick={(e) => e.stopPropagation()}>
+        {/* Buy on its own — independent of the motor / of kit compatibility. Hidden only when the
+            part has no catalog model to sell or is out of stock. */}
+        {canAlone && !outOfStock && (
+          <button
+            type="button"
+            onClick={onAddAlone}
+            title="Add just this part to a quote — on its own, not with the motor"
+            className="rounded-md border border-line px-2 py-1 text-[10.5px] font-medium text-muted transition-colors hover:border-ink hover:text-ink group-hover:text-ink-soft"
+          >
+            ＋ Add alone
+          </button>
+        )}
+        {selected && <Stepper value={qty} min={1} max={stock !== null ? stock : 999} onChange={onQty} />}
+      </div>
     </div>
   );
 }
