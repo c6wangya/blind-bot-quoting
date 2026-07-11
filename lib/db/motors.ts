@@ -171,44 +171,18 @@ export async function getBusinessPriceMap(sb: SupabaseClient = admin()): Promise
 }
 
 /**
- * sku → the customer's "list" tier price — Business tier when `business` (the invoice's retailer is
- * business-authorized), else the shared Default tier, each falling back to the static catalog price.
- * Excludes per-retailer overrides (those are the negotiated Rate, not the List reference). Keyed by
- * sku because quote/invoice accessory lines snapshot only the sku. Used as the struck-through "List".
+ * sku → shared Default-tier price (default tier ?? static catalog price) — the same number the
+ * Motor Management "Default tier" screen shows. Keyed by sku because quote/invoice accessory lines
+ * snapshot only the sku (not the model id). Used as the struck-through "List" price on invoices,
+ * which always shows the Default (retail) tier regardless of any Business-tier authorization.
  */
 export async function getAccessoryDefaultPriceBySku(
-  sb: SupabaseClient = admin(),
-  business = false
+  sb: SupabaseClient = admin()
 ): Promise<Record<string, number>> {
   const cat = await loadCatalog();
   const def = await getDefaultPriceMap(sb);
-  const biz = business ? await getBusinessPriceMap(sb) : {};
   const out: Record<string, number> = {};
-  for (const m of cat.models) out[m.sku] = (business ? biz[m.id] : undefined) ?? def[m.id] ?? m.price ?? 0;
-  return out;
-}
-
-/**
- * variation item_id → the customer's "list" tier price, resolved through the sub-part's source
- * model (Business tier when `business`, else Default, else static). Mirrors the sub-product Rate
- * chain minus per-retailer overrides, so a business invoice strikes through the Business list.
- */
-export async function getVariationItemTierList(
-  sb: SupabaseClient = admin(),
-  business = false
-): Promise<Record<string, number>> {
-  const [cat, itemModel, def, biz] = await Promise.all([
-    loadCatalog(),
-    getVariationItemModelMap(sb),
-    getDefaultPriceMap(sb),
-    business ? getBusinessPriceMap(sb) : Promise.resolve<Record<string, number>>({}),
-  ]);
-  const staticByModel: Record<string, number> = {};
-  for (const m of cat.models) staticByModel[m.id] = m.price ?? 0;
-  const out: Record<string, number> = {};
-  for (const [itemId, modelId] of Object.entries(itemModel)) {
-    out[itemId] = (business ? biz[modelId] : undefined) ?? def[modelId] ?? staticByModel[modelId] ?? 0;
-  }
+  for (const m of cat.models) out[m.sku] = def[m.id] ?? m.price ?? 0;
   return out;
 }
 

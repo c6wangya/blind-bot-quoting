@@ -14,8 +14,6 @@ import { isAccessoryConfig } from "@/lib/types";
 import {
   getAccessoryDefaultPriceBySku,
   getVariationItemDetails,
-  getVariationItemTierList,
-  isBusinessPricingEnabled,
   getBankInfo,
   getOrAssignInvoiceRef,
   getOrder,
@@ -100,18 +98,12 @@ export default async function InvoicePage({
   const bank = await getBankInfo();
   const seller = await getSeller();
 
-  // A business-authorized retailer sees the Business tier as their struck-through "List" (both the
-  // motor base and each model-backed sub-part), matching the tier their Rate was priced from.
-  const business = await isBusinessPricingEnabled(ownerId);
-  const [defaultPriceBySku, variationDetails, itemTierList] = await Promise.all([
-    getAccessoryDefaultPriceBySku(admin(), business),
+  // "List" is always the shared Default tier (the retail catalog reference), struck through so the
+  // customer sees the deal vs their actual Rate — regardless of any Business-tier authorization.
+  const [defaultPriceBySku, variationDetails] = await Promise.all([
+    getAccessoryDefaultPriceBySku(),
     getVariationItemDetails(),
-    business ? getVariationItemTierList(admin(), true) : Promise.resolve<Record<string, number>>({}),
   ]);
-  // Overlay the Business-tier list onto the sub-part details (keep the live thumbnail).
-  for (const id of Object.keys(itemTierList)) {
-    if (variationDetails[id]) variationDetails[id] = { ...variationDetails[id], price: itemTierList[id] };
-  }
   const lines = buildInvoiceLines(quote.items, defaultPriceBySku, variationDetails);
   // Show the struck-through "List" column only if at least one line actually has a Default-tier price.
   const hasListPrice = lines.some((l) => l.listRate != null);
