@@ -1,21 +1,25 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth/api";
-import { resetRetailerPrice, setDefaultPrice, setPricesBatch, setRetailerPrice } from "@/lib/db";
+import { resetRetailerPrice, setBusinessPrice, setDefaultPrice, setPricesBatch, setRetailerPrice } from "@/lib/db";
 
 /**
  * Set a motor price, or reset a retailer to default. Admin only. Body:
  *   { modelId, price }                     → set the DEFAULT price
+ *   { modelId, price, tier:"business" }    → set the shared BUSINESS-tier price
  *   { modelId, retailerId, price }         → set this retailer's override
  *   { prices: [{modelId, price}] }         → batch-set DEFAULT prices ("Save all")
+ *   { prices, tier:"business" }            → batch-set shared BUSINESS-tier prices
  *   { retailerId, prices: [{modelId, price}] } → batch-set this retailer's overrides
  *   { retailerId, reset: true }            → reset this retailer (all models) to default
  *   { retailerId, modelId, reset: true }   → reset one model for this retailer
+ * `tier` applies only to the shared (no-retailerId) writes; it's ignored for retailer overrides.
  */
 export async function POST(req: Request) {
   const gate = await requireAdmin();
   if (gate instanceof NextResponse) return gate;
   try {
-    const { modelId, retailerId, price, reset, prices } = await req.json();
+    const { modelId, retailerId, price, reset, prices, tier } = await req.json();
+    const sharedTier: "default" | "business" = tier === "business" ? "business" : "default";
     if (Array.isArray(prices)) {
       const clean: { modelId: string; price: number }[] = [];
       for (const p of prices) {
@@ -27,7 +31,8 @@ export async function POST(req: Request) {
         }
         clean.push({ modelId: p.modelId, price: p.price });
       }
-      await setPricesBatch(typeof retailerId === "string" && retailerId ? retailerId : null, clean);
+      const rid = typeof retailerId === "string" && retailerId ? retailerId : null;
+      await setPricesBatch(rid, clean, undefined, sharedTier);
       return NextResponse.json({ ok: true });
     }
     if (reset === true) {
@@ -45,6 +50,8 @@ export async function POST(req: Request) {
     }
     if (typeof retailerId === "string" && retailerId) {
       await setRetailerPrice(modelId, retailerId, price);
+    } else if (sharedTier === "business") {
+      await setBusinessPrice(modelId, price);
     } else {
       await setDefaultPrice(modelId, price);
     }

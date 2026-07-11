@@ -1,25 +1,34 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { usd } from "@/lib/format";
 import { useToast } from "./Toast";
-import { Button, Card, Spinner } from "./ui";
+import { Button, Card, cx, Spinner } from "./ui";
 
 export type PriceRow = {
   modelId: string;
   name: string;
   sku: string;
   category: string;
+  brand: string;
   defaultPrice: number;
+  /** Shared Business-tier price (falls back to default when the model has no business row).
+   *  Shown as a read-only reference column on the per-retailer override screen. */
+  businessPrice: number;
   currentPrice: number;
   hasOverride: boolean;
 };
-export type Target = { kind: "default" } | { kind: "retailer"; retailerId: string; label: string };
+export type Target =
+  | { kind: "default" }
+  | { kind: "business" }
+  | { kind: "retailer"; retailerId: string; label: string };
 
 // Shared grid + sub-column widths so the header labels/actions line up with each data row's
-// input / Save / Reset. Keep these three in lockstep with the slot widths below.
-const GRID = "grid grid-cols-[1fr_120px_256px] gap-3 px-5";
+// input / Save / Reset. Keep these three in lockstep with the slot widths below. The retailer
+// screen adds a read-only "Business" reference column (Default | Business | This retailer).
+const gridClass = (showBusiness: boolean) =>
+  `grid ${showBusiness ? "grid-cols-[1fr_120px_120px_256px]" : "grid-cols-[1fr_120px_256px]"} gap-3 px-5`;
 const W_INPUT = "w-24"; // price input box — "This retailer" header sits above it
 const W_SAVE = "w-20"; //  Save button   — "Save all" header sits above it
 const W_RESET = "w-14"; // Reset button  — "Reset all" header sits above it
@@ -38,6 +47,9 @@ export function MotorPriceEditor({ target, rows }: { target: Target; rows: Price
   const router = useRouter();
   const toast = useToast();
   const isRetailer = target.kind === "retailer";
+  const isBusiness = target.kind === "business";
+  // On the per-retailer screen, show the shared Business tier as a read-only reference column.
+  const showBusiness = isRetailer;
   const retailerId = isRetailer ? target.retailerId : undefined;
   // Which batch action is in flight — so "Save all" and "Reset all" each show their own spinner
   // rather than both lighting up off a shared boolean.
@@ -58,6 +70,9 @@ export function MotorPriceEditor({ target, rows }: { target: Target; rows: Price
   if (seenRows !== rows) {
     setSeenRows(rows);
     setBaseline(seed());
+    // Re-seed the input boxes too so they follow the server's effective price — e.g. when the
+    // Business-pricing toggle flips, un-overridden rows should snap to Business/Default here.
+    setValues(Object.fromEntries(rows.map((r) => [r.modelId, String(r.currentPrice)])));
   }
 
   // A row is "changed" when its (valid) input differs from the price currently in effect.
@@ -66,6 +81,24 @@ export function MotorPriceEditor({ target, rows }: { target: Target; rows: Price
     return Number.isFinite(n) && n >= 0 && n !== (baseline[r.modelId] ?? r.currentPrice);
   });
   const canSave = !busy && changed.length > 0;
+
+  // Group rows under a brand subheader, preserving each brand's first-seen order.
+  const groups: { brand: string; rows: PriceRow[] }[] = [];
+  const groupIdx = new Map<string, number>();
+  for (const r of rows) {
+    const brand = r.brand || "Other";
+    let i = groupIdx.get(brand);
+    if (i === undefined) {
+      i = groups.length;
+      groupIdx.set(brand, i);
+      groups.push({ brand, rows: [] });
+    }
+    groups[i].rows.push(r);
+  }
+
+  // Collapse/expand each brand section (all expanded by default).
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const toggleBrand = (brand: string) => setCollapsed((c) => ({ ...c, [brand]: !c[brand] }));
 
   const resetAll = async () => {
     if (!isRetailer) return;
@@ -86,6 +119,7 @@ export function MotorPriceEditor({ target, rows }: { target: Target; rows: Price
     try {
       await post({
         ...(retailerId ? { retailerId } : {}),
+        ...(isBusiness ? { tier: "business" } : {}),
         prices: changed.map((r) => ({ modelId: r.modelId, price: Number(values[r.modelId]) })),
       });
       // Re-baseline what we just persisted → changed drops to 0 immediately (no enabled flash).
@@ -107,12 +141,15 @@ export function MotorPriceEditor({ target, rows }: { target: Target; rows: Price
     <Card className="overflow-hidden">
       {/* Header — column labels on the left; batch actions sit directly above their row columns. */}
       <div
-        className={`${GRID} items-center border-b border-line bg-[#fafaf7] py-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted`}
+        className={`${gridClass(showBusiness)} items-center border-b border-line bg-[#fafaf7] py-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted`}
       >
         <span>Motor</span>
-        <span>{isRetailer ? "Default" : "Price"}</span>
+        <span>{target.kind === "default" ? "Price" : "Default"}</span>
+        {showBusiness && <span>Business</span>}
         <div className="flex items-center justify-end gap-2">
-          <span className={`${W_INPUT} shrink-0 text-left`}>{isRetailer ? "This retailer" : ""}</span>
+          <span className={`${W_INPUT} shrink-0 text-left`}>
+            {isRetailer ? "This retailer" : isBusiness ? "Business" : ""}
+          </span>
           <button
             onClick={saveAll}
             disabled={!canSave}
@@ -150,15 +187,45 @@ export function MotorPriceEditor({ target, rows }: { target: Target; rows: Price
         </div>
       </div>
       <ul className="divide-y divide-line/70">
-        {rows.map((r) => (
-          <Row
-            key={r.modelId}
-            row={r}
-            target={target}
-            value={values[r.modelId] ?? ""}
-            onChange={(v) => setValue(r.modelId, v)}
-          />
-        ))}
+        {groups.map((g) => {
+          const isCollapsed = collapsed[g.brand];
+          return (
+            <Fragment key={g.brand}>
+              <li className="border-b border-line bg-[#fafaf7]">
+                <button
+                  type="button"
+                  onClick={() => toggleBrand(g.brand)}
+                  className="flex w-full items-center gap-2 px-5 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-muted transition-colors hover:bg-[#f3f2ec]"
+                >
+                  <svg
+                    viewBox="0 0 12 12"
+                    className={cx("size-3 shrink-0 transition-transform", isCollapsed ? "-rotate-90" : "rotate-0")}
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.6"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M2.5 4.5 6 8l3.5-3.5" />
+                  </svg>
+                  <span>{g.brand}</span>
+                  <span className="font-normal normal-case text-muted/70">· {g.rows.length}</span>
+                </button>
+              </li>
+              {!isCollapsed &&
+                g.rows.map((r) => (
+                  <Row
+                    key={r.modelId}
+                    row={r}
+                    target={target}
+                    showBusiness={showBusiness}
+                    value={values[r.modelId] ?? ""}
+                    onChange={(v) => setValue(r.modelId, v)}
+                  />
+                ))}
+            </Fragment>
+          );
+        })}
       </ul>
     </Card>
   );
@@ -167,11 +234,13 @@ export function MotorPriceEditor({ target, rows }: { target: Target; rows: Price
 function Row({
   row,
   target,
+  showBusiness,
   value,
   onChange,
 }: {
   row: PriceRow;
   target: Target;
+  showBusiness: boolean;
   value: string;
   onChange: (v: string) => void;
 }) {
@@ -199,11 +268,17 @@ function Row({
       setError("Enter a valid price");
       return;
     }
-    run(isRetailer ? { modelId: row.modelId, retailerId: (target as { retailerId: string }).retailerId, price } : { modelId: row.modelId, price });
+    run(
+      isRetailer
+        ? { modelId: row.modelId, retailerId: (target as { retailerId: string }).retailerId, price }
+        : target.kind === "business"
+          ? { modelId: row.modelId, price, tier: "business" }
+          : { modelId: row.modelId, price }
+    );
   };
 
   return (
-    <li className={`${GRID} items-center py-3`}>
+    <li className={`${gridClass(showBusiness)} items-center py-3`}>
       <div className="min-w-0">
         <div className="truncate text-[13.5px] font-semibold text-ink">{row.name}</div>
         <div className="truncate text-[11px] text-muted">
@@ -212,6 +287,7 @@ function Row({
         </div>
       </div>
       <div className="text-[13px] tabular-nums text-muted">{usd(row.defaultPrice)}</div>
+      {showBusiness && <div className="text-[13px] tabular-nums text-muted">{usd(row.businessPrice)}</div>}
       <div className="flex items-center justify-end gap-2">
         <div className={`${W_INPUT} flex shrink-0 items-center rounded-lg border border-line bg-surface px-2`}>
           <span className="text-xs text-muted">$</span>
@@ -241,7 +317,7 @@ function Row({
           )}
         </span>
       </div>
-      {error && <span className="col-span-3 text-[11px] text-red-500">{error}</span>}
+      {error && <span className={`${showBusiness ? "col-span-4" : "col-span-3"} text-[11px] text-red-500`}>{error}</span>}
     </li>
   );
 }

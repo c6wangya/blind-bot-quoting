@@ -5,6 +5,7 @@ import { ModelTagEditor, type TaggableModel } from "@/components/ModelTagEditor"
 import { MotorInventoryEditor, type InventoryRow } from "@/components/MotorInventoryEditor";
 import { MotorPriceEditor, type PriceRow, type Target } from "@/components/MotorPriceEditor";
 import { MotorShippingEditor, type ShippingRow } from "@/components/MotorShippingEditor";
+import { BusinessPricingToggle } from "@/components/BusinessPricingToggle";
 import { RetailerDiscountEditor } from "@/components/RetailerDiscountEditor";
 import { RetailerPricingList } from "@/components/RetailerPricingList";
 import { WaiveShippingEditor } from "@/components/WaiveShippingEditor";
@@ -14,8 +15,11 @@ import { CatalogAdmin } from "@/components/CatalogAdmin";
 import { requireAdminPage } from "@/lib/auth/user";
 import {
   getAttributes,
+  getBusinessPriceMap,
+  getCatalogCreatedAt,
   getEffectivePrices,
   getInventoryMap,
+  isBusinessPricingEnabled,
   getModelFilesMap,
   getModelTagMap,
   getProductDefaultsMap,
@@ -44,17 +48,23 @@ const TABS: { id: Tab; label: string }[] = [
 
 /** Orderable motor models with category, the surface inventory/pricing/shipping share. */
 async function motors() {
-  const cat = await loadCatalog();
-  return cat.categories
+  const [cat, createdAt] = await Promise.all([loadCatalog(), getCatalogCreatedAt()]);
+  const rows = cat.categories
     .filter((c) => c.orderable)
     .flatMap((c) => {
-      const brand = cat.brands.find((b) => b.id === c.brandId)?.name ?? cat.brand.name;
+      const brandId = c.brandId ?? "";
+      const brand = cat.brands.find((b) => b.id === brandId)?.name ?? cat.brand.name;
       return cat.modelsIn(c.id).map((m) => ({
-        id: m.id, name: m.name, sku: m.sku, category: c.name, brand, moq: m.moq ?? 0,
+        id: m.id, name: m.name, sku: m.sku, category: c.name, brand, brandId, moq: m.moq ?? 0,
         shipGround: m.shipGround ?? 0, shipExpedite: m.shipExpedite ?? 0,
         shipMode: m.shipMode ?? "fob",
       }));
     });
+  // Order by brand creation time, then model creation time — earliest created first.
+  return rows.sort((a, b) => {
+    const bt = (createdAt.brands[a.brandId] ?? "").localeCompare(createdAt.brands[b.brandId] ?? "");
+    return bt !== 0 ? bt : (createdAt.models[a.id] ?? "").localeCompare(createdAt.models[b.id] ?? "");
+  });
 }
 
 /** Every accessory catalog model with its category — variations can apply to any product. */
@@ -251,7 +261,16 @@ async function PricingTab({ retailerParam }: { retailerParam?: string }) {
           <Card className="flex items-center justify-between px-5 py-4 transition-colors hover:bg-[#faf9f5]">
             <div>
               <div className="text-[14px] font-semibold text-ink">Default pricing</div>
-              <div className="text-[12px] text-muted">The baseline every retailer starts from</div>
+              <div className="text-[12px] text-muted">The retail baseline every self-serve customer sees</div>
+            </div>
+            <span className="text-brass">→</span>
+          </Card>
+        </Link>
+        <Link href="/motors?tab=pricing&retailer=business" className="block">
+          <Card className="flex items-center justify-between px-5 py-4 transition-colors hover:bg-[#faf9f5]">
+            <div>
+              <div className="text-[14px] font-semibold text-ink">Business pricing</div>
+              <div className="text-[12px] text-muted">The shared wholesale tier for authorized customers</div>
             </div>
             <span className="text-brass">→</span>
           </Card>
@@ -263,10 +282,15 @@ async function PricingTab({ retailerParam }: { retailerParam?: string }) {
 
   let target: Target;
   let overrideMap: Record<string, number> = {};
+  let businessMap: Record<string, number> = {};
   let discountPct = 0;
   let waivers = { ground: false, expedite: false };
+  let businessEnabled = false;
   if (retailerParam === "default") {
     target = { kind: "default" };
+  } else if (retailerParam === "business") {
+    target = { kind: "business" };
+    businessMap = await getBusinessPriceMap();
   } else {
     const r = retailers.find((x) => x.id === retailerParam);
     if (!r) {
@@ -277,10 +301,12 @@ async function PricingTab({ retailerParam }: { retailerParam?: string }) {
       );
     }
     target = { kind: "retailer", retailerId: r.id, label: r.company ?? r.email };
-    [overrideMap, discountPct, waivers] = await Promise.all([
+    [overrideMap, businessMap, discountPct, waivers, businessEnabled] = await Promise.all([
       getRetailerOverrideMap(r.id),
+      getBusinessPriceMap(),
       getRetailerDiscount(r.id),
       getShippingWaivers(r.id),
+      isBusinessPricingEnabled(r.id),
     ]);
   }
 
@@ -291,8 +317,19 @@ async function PricingTab({ retailerParam }: { retailerParam?: string }) {
       name: m.name,
       sku: m.sku,
       category: m.category,
+      brand: m.brand,
       defaultPrice,
-      currentPrice: target.kind === "retailer" ? overrideMap[m.id] ?? defaultPrice : defaultPrice,
+      businessPrice: businessMap[m.id] ?? defaultPrice,
+      // "This retailer" = the customer's actually-effective price, mirroring resolveMotorPrice:
+      // override ?? (business tier, if authorized) ?? default. Seeding the input to the true
+      // effective price means an un-overridden row that's already following the Business tier
+      // shows the Business price (not Default) and stays override-free unless the admin edits it.
+      currentPrice:
+        target.kind === "retailer"
+          ? overrideMap[m.id] ?? (businessEnabled ? businessMap[m.id] : undefined) ?? defaultPrice
+          : target.kind === "business"
+            ? businessMap[m.id] ?? defaultPrice
+            : defaultPrice,
       hasOverride: m.id in overrideMap,
     };
   });
@@ -304,11 +341,16 @@ async function PricingTab({ retailerParam }: { retailerParam?: string }) {
           ← All retailers
         </Link>
         <span className="text-muted">
-          {target.kind === "default" ? "Editing the shared Default tier" : `Overrides for ${target.label}`}
+          {target.kind === "default"
+            ? "Editing the shared Default tier"
+            : target.kind === "business"
+              ? "Editing the shared Business tier"
+              : `Overrides for ${target.label}`}
         </span>
       </div>
       {target.kind === "retailer" && (
-        <>
+        <Card className="mb-4 divide-y divide-line">
+          <BusinessPricingToggle retailerId={target.retailerId} label={target.label} initialEnabled={businessEnabled} />
           <RetailerDiscountEditor retailerId={target.retailerId} label={target.label} initialPct={discountPct} />
           <WaiveShippingEditor
             retailerId={target.retailerId}
@@ -316,7 +358,7 @@ async function PricingTab({ retailerParam }: { retailerParam?: string }) {
             initialGround={waivers.ground}
             initialExpedite={waivers.expedite}
           />
-        </>
+        </Card>
       )}
       <MotorPriceEditor key={retailerParam} target={target} rows={rows} />
     </div>

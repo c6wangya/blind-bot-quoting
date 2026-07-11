@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useToast } from "./Toast";
-import { Card, cx } from "./ui";
+import { cx } from "./ui";
 
 /**
  * Admin: exempt a special retailer from shipping. Two independent waivers:
@@ -73,7 +73,7 @@ export function WaiveShippingEditor({
   };
 
   return (
-    <Card className="mb-4 px-5 py-4">
+    <div className="px-5 py-4">
       <div className="text-[13.5px] font-semibold text-ink">Waive shipping</div>
       <div className="mt-1 text-[12px] text-muted">
         Exempt this retailer from shipping charges. Expedite can only be waived once ground is waived.
@@ -96,7 +96,7 @@ export function WaiveShippingEditor({
           onToggle={toggleExpedite}
         />
       </div>
-    </Card>
+    </div>
   );
 }
 

@@ -5,7 +5,7 @@ import { admin } from "@/lib/supabase/admin";
 // system but items carry a price and are selected at quote time. Reads are public catalog
 // metadata (admin() = system read); admin writes go through the API's requireAdmin gate.
 
-export type VariationItem = { id: string; variationId: string; name: string; price: number; sort: number; image: string | null };
+export type VariationItem = { id: string; variationId: string; name: string; price: number; sort: number; image: string | null; sourceModelId: string | null };
 export type VariationType = { id: string; name: string; pairGroup: string | null; sort: number; items: VariationItem[] };
 /** One chosen variation item, snapshotted onto a quote line. */
 export type VariationSelection = {
@@ -26,7 +26,7 @@ export type VariationSelection = {
 export type ExclusionGroup = { id: string; modelId: string; itemIds: string[] };
 
 const TYPE_COLS = "id, name, pairGroup:pair_group, sort";
-const ITEM_COLS = "id, variationId:variation_id, name, price, sort, image:image_url";
+const ITEM_COLS = "id, variationId:variation_id, name, price, sort, image:image_url, sourceModelId:source_model_id";
 
 const slugify = (s: string) => s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 
@@ -353,7 +353,12 @@ export async function setProductVariationItems(
 export async function resolveVariationSelections(
   modelId: string,
   requested: Array<{ itemId: string; qty?: number }>,
-  sb: SupabaseClient = admin()
+  sb: SupabaseClient = admin(),
+  // model_id → the customer's effective (tiered) price. A sub-product is model-backed, so its unit
+  // price follows its source model's price chain (override → business → default). Falls back to the
+  // item's own list price when unmapped. Pass from the caller (which knows the retailer) to keep
+  // this module free of a motors.ts import cycle.
+  priceByModel?: Record<string, number>
 ): Promise<VariationSelection[]> {
   // Dedup by itemId (last qty wins); a per-sub-part qty defaults to 1 and is clamped to [1, 999].
   const qtyByItem = new Map<string, number>();
@@ -371,12 +376,14 @@ export async function resolveVariationSelections(
   for (const id of chosen) {
     const hit = itemIndex.get(id);
     if (!hit) throw new Error("A selected option is no longer available for this product");
+    const src = hit.item.sourceModelId;
+    const tiered = src && priceByModel && priceByModel[src] != null ? priceByModel[src] : undefined;
     selections.push({
       variationId: hit.type.id,
       variationName: hit.type.name,
       itemId: hit.item.id,
       itemLabel: hit.item.name,
-      price: hit.item.price,
+      price: tiered ?? hit.item.price,
       qty: qtyByItem.get(id)!,
     });
   }

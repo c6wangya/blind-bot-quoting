@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useToast } from "./Toast";
-import { Button, Card } from "./ui";
+import { Button } from "./ui";
 
 /**
  * Admin: set a retailer's standing order-level discount (% off every order subtotal). Stacks on
@@ -46,7 +46,7 @@ export function RetailerDiscountEditor({
   };
 
   return (
-    <Card className="mb-4 px-5 py-4">
+    <div className="px-5 py-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <div className="text-[13.5px] font-semibold text-ink">Order discount</div>
@@ -84,6 +84,6 @@ export function RetailerDiscountEditor({
           )}
         </div>
       </div>
-    </Card>
+    </div>
   );
 }

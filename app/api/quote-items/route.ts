@@ -8,6 +8,7 @@ import {
   addQuoteItem,
   applyPriceOverride,
   getActivePricing,
+  getEffectivePrices,
   getLine,
   getInventoryMap,
   getOrCreateDraftQuote,
@@ -217,12 +218,14 @@ export async function POST(req: Request) {
         : Array.isArray(body.variationItemIds)
           ? body.variationItemIds.map((itemId) => ({ itemId, qty: 1 }))
           : [];
-      const variations = await resolveVariationSelections(accessory.id, requested, sb);
+      // Snapshot this retailer's tiered prices once — the main model AND each model-backed
+      // sub-product price off the same override → business → default → static chain.
+      const eff = await getEffectivePrices(userId);
+      const variations = await resolveVariationSelections(accessory.id, requested, sb, eff);
       const stockErr = await checkSubPartStock(variations, qty);
       if (stockErr) return NextResponse.json({ error: stockErr }, { status: 409 });
       const quote = await resolveTargetQuote(userId, sb, quoteId);
-      // Snapshot this retailer's effective price (override → default → static).
-      const unitPrice = await resolveMotorPrice(accessory.id, userId);
+      const unitPrice = eff[accessory.id] ?? (await resolveMotorPrice(accessory.id, userId));
       const newUnit = round2(unitPrice + variations.reduce((s, v) => s + v.price * (v.qty ?? 1), 0));
       const existingLines = await loadQuoteLines(quote.id, sb);
       // One-brand-per-quote guard: a quote may only contain accessories from a single brand. Resolve
@@ -384,11 +387,13 @@ export async function PATCH(req: Request) {
       const requested = Array.isArray(body.variationItems)
         ? body.variationItems
         : (cfg.variations ?? []).map((v) => ({ itemId: v.itemId, qty: v.qty ?? 1 }));
-      const variations = await resolveVariationSelections(accessory.id, requested, sb);
+      // Tiered prices for this quote's owner — main model + model-backed sub-products off one chain.
+      const ownerId = await getQuoteOwnerId(row.quote_id);
+      const eff = await getEffectivePrices(ownerId ?? null);
+      const variations = await resolveVariationSelections(accessory.id, requested, sb, eff);
       const stockErr = await checkSubPartStock(variations, qty);
       if (stockErr) return NextResponse.json({ error: stockErr }, { status: 409 });
-      const ownerId = await getQuoteOwnerId(row.quote_id);
-      const unitPrice = await resolveMotorPrice(accessory.id, ownerId ?? null);
+      const unitPrice = eff[accessory.id] ?? (await resolveMotorPrice(accessory.id, ownerId ?? null));
       // Resolve the effective per-component overrides: start from the line's existing overrides, then
       // apply the (partial) change in this request (number = set, null = clear; whole value null =
       // clear all). Finally drop any sub-part override that's no longer on the line.

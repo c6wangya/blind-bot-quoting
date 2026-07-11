@@ -66,6 +66,18 @@ export default async function AccessoriesPage({
     variationStock[itemId] = modelId in inventory ? inventory[modelId] : null;
   }
 
+  // Sub-products are model-backed, so their displayed price follows the source model's tiered price
+  // (override → business → default → static) — same chain the server re-prices with on add. Falls
+  // back to the item's list price when the source model isn't an orderable/priced motor.
+  const pricedVariations = variations.map((v) => ({
+    ...v,
+    items: v.items.map((it) => {
+      const src = itemModelMap[it.id];
+      const tiered = src != null ? effectivePrices[src] : undefined;
+      return tiered != null ? { ...it, price: tiered } : it;
+    }),
+  }));
+
   // "Add alone" (buy just this part) is only offered when the part's source model belongs to an
   // orderable category — mirroring the server's orderable guard in POST /api/quote-items, so the
   // button never appears for a part that would 422 on click. (Full itemModelMap still drives stock.)
@@ -284,7 +296,7 @@ export default async function AccessoriesPage({
         </div>
       )}
 
-      <FrequentParts parts={frequentParts} quoteId={quoteId} variations={variations} exclusionGroups={exclusionGroups} />
+      <FrequentParts parts={frequentParts} quoteId={quoteId} variations={pricedVariations} exclusionGroups={exclusionGroups} />
 
       <AccessoryToolbar
         brands={brandsData}
@@ -301,7 +313,7 @@ export default async function AccessoriesPage({
       <div className="min-h-0 flex-1">
         <AccessoryBrowser
           models={browserModels}
-          variations={variations}
+          variations={pricedVariations}
           exclusionGroups={exclusionGroups}
           variationStock={variationStock}
           itemModelMap={aloneableItemModelMap}

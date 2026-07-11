@@ -52,6 +52,28 @@ export async function setRetailerDiscount(retailerId: string, pct: number): Prom
 }
 
 /**
+ * Whether a retailer is authorized for BUSINESS pricing (sales-toggled). false when unset, for the
+ * public demo (no owner), or before the column is migrated — i.e. the customer sees the Default
+ * tier until sales explicitly turns this on.
+ */
+export async function isBusinessPricingEnabled(ownerId: string | null | undefined): Promise<boolean> {
+  if (!ownerId) return false;
+  const { data, error } = await admin()
+    .from("profiles")
+    .select("business_pricing")
+    .eq("id", ownerId)
+    .maybeSingle();
+  if (error || !data) return false;
+  return (data as { business_pricing: boolean | null }).business_pricing === true;
+}
+
+/** Authorize (or revoke) a retailer for the shared Business price tier. */
+export async function setBusinessPricing(retailerId: string, enabled: boolean): Promise<void> {
+  const { error } = await admin().from("profiles").update({ business_pricing: !!enabled }).eq("id", retailerId);
+  if (error) throw error;
+}
+
+/**
  * A retailer's shipping waivers. All false when unset, for the public demo (no owner), or before the
  * columns are migrated. Expedite can only be waived on top of ground (see setWaiveExpedite).
  */
