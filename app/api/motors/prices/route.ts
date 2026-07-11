@@ -7,12 +7,15 @@ import { resetRetailerPrice, setBusinessPrice, setDefaultPrice, setPricesBatch, 
  *   { modelId, price }                     → set the DEFAULT price
  *   { modelId, price, tier:"business" }    → set the shared BUSINESS-tier price
  *   { modelId, retailerId, price }         → set this retailer's override
+ *   { modelId, retailerId, price, tier:"business" } → set this retailer's PERSONAL business price
  *   { prices: [{modelId, price}] }         → batch-set DEFAULT prices ("Save all")
  *   { prices, tier:"business" }            → batch-set shared BUSINESS-tier prices
  *   { retailerId, prices: [{modelId, price}] } → batch-set this retailer's overrides
- *   { retailerId, reset: true }            → reset this retailer (all models) to default
- *   { retailerId, modelId, reset: true }   → reset one model for this retailer
- * `tier` applies only to the shared (no-retailerId) writes; it's ignored for retailer overrides.
+ *   { retailerId, prices, tier:"business" }    → batch-set this retailer's personal business prices
+ *   { retailerId, reset: true }            → reset this retailer (both tiers, all models)
+ *   { retailerId, reset: true, tier }      → reset one tier (override / personal business)
+ *   { retailerId, modelId, reset: true, tier? } → reset one model (one tier, or both) for this retailer
+ * `tier` selects the Business tier for shared writes, or the personal-Business row for retailer writes.
  */
 export async function POST(req: Request) {
   const gate = await requireAdmin();
@@ -39,7 +42,9 @@ export async function POST(req: Request) {
       if (typeof retailerId !== "string" || !retailerId) {
         return NextResponse.json({ error: "retailerId required to reset" }, { status: 400 });
       }
-      await resetRetailerPrice(retailerId, typeof modelId === "string" && modelId ? modelId : null);
+      // No tier → clear both the override and the personal business price.
+      const resetTier = tier === "business" || tier === "default" ? tier : undefined;
+      await resetRetailerPrice(retailerId, typeof modelId === "string" && modelId ? modelId : null, undefined, resetTier);
       return NextResponse.json({ ok: true });
     }
     if (typeof modelId !== "string" || !modelId) {
@@ -49,7 +54,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "price must be a non-negative number" }, { status: 400 });
     }
     if (typeof retailerId === "string" && retailerId) {
-      await setRetailerPrice(modelId, retailerId, price);
+      await setRetailerPrice(modelId, retailerId, price, undefined, sharedTier);
     } else if (sharedTier === "business") {
       await setBusinessPrice(modelId, price);
     } else {

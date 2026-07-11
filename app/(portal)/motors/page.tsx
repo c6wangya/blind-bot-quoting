@@ -27,6 +27,7 @@ import {
   getProductVariationMap,
   getExclusionGroupsMap,
   getRetailerDefaultsMap,
+  getRetailerBusinessMap,
   getRetailerDiscount,
   getRetailerOverrideMap,
   getShippingWaivers,
@@ -287,6 +288,7 @@ async function PricingTab({ retailerParam }: { retailerParam?: string }) {
 
   let target: Target;
   let overrideMap: Record<string, number> = {};
+  let personalBusinessMap: Record<string, number> = {};
   let businessMap: Record<string, number> = {};
   let discountPct = 0;
   let waivers = { ground: false, expedite: false };
@@ -305,14 +307,15 @@ async function PricingTab({ retailerParam }: { retailerParam?: string }) {
         </Link>
       );
     }
-    target = { kind: "retailer", retailerId: r.id, label: r.company ?? r.email };
-    [overrideMap, businessMap, discountPct, waivers, businessEnabled] = await Promise.all([
+    [overrideMap, personalBusinessMap, businessMap, discountPct, waivers, businessEnabled] = await Promise.all([
       getRetailerOverrideMap(r.id),
+      getRetailerBusinessMap(r.id),
       getBusinessPriceMap(),
       getRetailerDiscount(r.id),
       getShippingWaivers(r.id),
       isBusinessPricingEnabled(r.id),
     ]);
+    target = { kind: "retailer", retailerId: r.id, label: r.company ?? r.email, businessEnabled };
   }
 
   const rows: PriceRow[] = (await motors()).map((m) => {
@@ -324,17 +327,14 @@ async function PricingTab({ retailerParam }: { retailerParam?: string }) {
       category: m.category,
       brand: m.brand,
       defaultPrice,
+      // Shared (global) Business tier — read-only reference on the retailer screen.
       businessPrice: businessMap[m.id] ?? defaultPrice,
-      // "This retailer" = the customer's actually-effective price, mirroring resolveMotorPrice:
-      // override ?? (business tier, if authorized) ?? default. Seeding the input to the true
-      // effective price means an un-overridden row that's already following the Business tier
-      // shows the Business price (not Default) and stays override-free unless the admin edits it.
+      // The two per-retailer editable tiers (null = not set → the row inherits from below).
+      overridePrice: m.id in overrideMap ? overrideMap[m.id] : null,
+      personalBusinessPrice: m.id in personalBusinessMap ? personalBusinessMap[m.id] : null,
+      // Single-column screens (Default / shared Business) seed the one editable input from here.
       currentPrice:
-        target.kind === "retailer"
-          ? overrideMap[m.id] ?? (businessEnabled ? businessMap[m.id] : undefined) ?? defaultPrice
-          : target.kind === "business"
-            ? businessMap[m.id] ?? defaultPrice
-            : defaultPrice,
+        target.kind === "business" ? businessMap[m.id] ?? defaultPrice : defaultPrice,
       hasOverride: m.id in overrideMap,
     };
   });

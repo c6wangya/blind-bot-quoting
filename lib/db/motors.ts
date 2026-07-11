@@ -186,21 +186,42 @@ export async function getAccessoryDefaultPriceBySku(
   return out;
 }
 
-/** model_id → a single retailer's override price. */
-export async function getRetailerOverrideMap(
+/** model_id → a single retailer's price rows for one tier ('default' = its overrides). */
+async function getRetailerTierMap(
   retailerId: string,
+  tier: "default" | "business",
   sb: SupabaseClient = admin()
 ): Promise<Record<string, number>> {
-  const { data, error } = await sb.from("accessory_prices").select("model_id, price").eq("retailer_id", retailerId);
+  const { data, error } = await sb
+    .from("accessory_prices")
+    .select("model_id, price")
+    .eq("retailer_id", retailerId)
+    .eq("tier", tier);
   if (error) return {};
   const map: Record<string, number> = {};
   for (const r of (data ?? []) as { model_id: string; price: number }[]) map[r.model_id] = Number(r.price);
   return map;
 }
 
+/** model_id → a single retailer's override price (per-retailer rows, tier='default'). */
+export async function getRetailerOverrideMap(
+  retailerId: string,
+  sb: SupabaseClient = admin()
+): Promise<Record<string, number>> {
+  return getRetailerTierMap(retailerId, "default", sb);
+}
+
+/** model_id → a single retailer's personal Business-tier price (per-retailer rows, tier='business'). */
+export async function getRetailerBusinessMap(
+  retailerId: string,
+  sb: SupabaseClient = admin()
+): Promise<Record<string, number>> {
+  return getRetailerTierMap(retailerId, "business", sb);
+}
+
 /**
  * Effective price for every orderable motor for a retailer. Resolution chain:
- *   per-retailer override  ??  (if business-authorized: shared Business tier)  ??  Default  ??  static
+ *   per-retailer override  ??  (if authorized: personal business ?? shared Business)  ??  Default  ??  static
  * A `businessTier` override forces the Business tier on/off (used by the admin editor); when unset,
  * it's derived from the retailer's `business_pricing` authorization flag.
  */
@@ -214,16 +235,18 @@ export async function getEffectivePrices(
   const useBusiness = businessTier ?? (retailerId ? await isBusinessPricingEnabled(retailerId) : false);
   const business = useBusiness ? await getBusinessPriceMap(sb) : {};
   const override = retailerId ? await getRetailerOverrideMap(retailerId, sb) : {};
+  const personalBiz = retailerId && useBusiness ? await getRetailerBusinessMap(retailerId, sb) : {};
   const out: Record<string, number> = {};
   for (const c of cat.categories.filter((x) => x.orderable)) {
-    for (const m of cat.modelsIn(c.id)) out[m.id] = override[m.id] ?? business[m.id] ?? def[m.id] ?? m.price ?? 0;
+    for (const m of cat.modelsIn(c.id))
+      out[m.id] = override[m.id] ?? personalBiz[m.id] ?? business[m.id] ?? def[m.id] ?? m.price ?? 0;
   }
   return out;
 }
 
 /**
  * Effective price for one motor for one retailer — the trusted server-side re-price:
- *   per-retailer override  ??  (if business-authorized: shared Business tier)  ??  Default  ??  static
+ *   per-retailer override  ??  (if authorized: personal business ?? shared Business)  ??  Default  ??  static
  */
 export async function resolveMotorPrice(
   modelId: string,
@@ -231,15 +254,25 @@ export async function resolveMotorPrice(
   sb: SupabaseClient = admin()
 ): Promise<number> {
   if (retailerId) {
+    // Explicit per-retailer override (tier='default') wins over every tier.
     const { data } = await sb
       .from("accessory_prices")
       .select("price")
       .eq("model_id", modelId)
       .eq("retailer_id", retailerId)
+      .eq("tier", "default")
       .maybeSingle();
     if (data) return Number((data as { price: number }).price);
-    // Authorized business customers fall to the shared Business tier before the Default tier.
+    // Authorized business customers: this retailer's personal Business price, then the shared one.
     if (await isBusinessPricingEnabled(retailerId)) {
+      const { data: pb } = await sb
+        .from("accessory_prices")
+        .select("price")
+        .eq("model_id", modelId)
+        .eq("retailer_id", retailerId)
+        .eq("tier", "business")
+        .maybeSingle();
+      if (pb) return Number((pb as { price: number }).price);
       const { data: biz } = await sb
         .from("accessory_prices")
         .select("price")
@@ -263,7 +296,8 @@ export async function resolveMotorPrice(
 }
 
 // Manual update-or-insert (partial unique indexes can't be PostgREST upsert targets).
-// `tier` distinguishes the two shared (retailer_id NULL) rows; it's ignored for retailer overrides.
+// `tier` distinguishes the two rows a given (model, retailer-or-shared) can hold: the Default tier
+// and the Business tier (shared Business, or a retailer's personal Business price).
 async function setPrice(
   modelId: string,
   retailerId: string | null,
@@ -295,22 +329,27 @@ async function setPrice(
     }
     return;
   }
-  // Per-retailer override keyed by (model_id, retailer_id); tier stays at its column default.
+  // Per-retailer row keyed by (model_id, retailer_id, tier): tier='default' = an override,
+  // tier='business' = this retailer's personal Business price.
   const { data } = await sb
     .from("accessory_prices")
     .select("model_id")
     .eq("model_id", modelId)
     .eq("retailer_id", retailerId)
+    .eq("tier", tier)
     .maybeSingle();
   if (data) {
     const { error } = await sb
       .from("accessory_prices")
       .update({ price, updated_at })
       .eq("model_id", modelId)
-      .eq("retailer_id", retailerId);
+      .eq("retailer_id", retailerId)
+      .eq("tier", tier);
     if (error) throw error;
   } else {
-    const { error } = await sb.from("accessory_prices").insert({ model_id: modelId, retailer_id: retailerId, price });
+    const { error } = await sb
+      .from("accessory_prices")
+      .insert({ model_id: modelId, retailer_id: retailerId, price, tier });
     if (error) throw error;
   }
 }
@@ -325,14 +364,15 @@ export async function setBusinessPrice(modelId: string, price: number, sb: Supab
   await setPrice(modelId, null, price, sb, "business");
 }
 
-/** Set a single retailer's override price for a model. */
+/** Set a single retailer's price for a model — its override (default tier) or personal Business price. */
 export async function setRetailerPrice(
   modelId: string,
   retailerId: string,
   price: number,
-  sb: SupabaseClient = admin()
+  sb: SupabaseClient = admin(),
+  tier: "default" | "business" = "default"
 ): Promise<void> {
-  await setPrice(modelId, retailerId, price, sb);
+  await setPrice(modelId, retailerId, price, sb, tier);
 }
 
 /**
@@ -350,14 +390,19 @@ export async function setPricesBatch(
   }
 }
 
-/** Reset a retailer to default for one model (delete the override) or all models. */
+/**
+ * Reset a retailer's custom pricing for one model or all models. `tier` narrows it to just the
+ * override ('default') or just the personal Business price ('business'); omit to clear both.
+ */
 export async function resetRetailerPrice(
   retailerId: string,
   modelId: string | null,
-  sb: SupabaseClient = admin()
+  sb: SupabaseClient = admin(),
+  tier?: "default" | "business"
 ): Promise<void> {
   let q = sb.from("accessory_prices").delete().eq("retailer_id", retailerId);
   if (modelId) q = q.eq("model_id", modelId);
+  if (tier) q = q.eq("tier", tier);
   const { error } = await q;
   if (error) throw error;
 }
