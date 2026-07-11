@@ -15,6 +15,7 @@ import { CatalogAdmin } from "@/components/CatalogAdmin";
 import { requireAdminPage } from "@/lib/auth/user";
 import {
   getAttributes,
+  getModelCompatVariations,
   getBusinessPriceMap,
   getCatalogCreatedAt,
   getEffectivePrices,
@@ -122,8 +123,12 @@ export default async function MotorsPage({
 }
 
 async function CatalogTab() {
-  const [catalog, files] = await Promise.all([loadCatalogAdmin(), getModelFilesMap()]);
-  return <CatalogAdmin catalog={catalog} files={files} />;
+  const [catalog, files, compatVariations] = await Promise.all([
+    loadCatalogAdmin(),
+    getModelFilesMap(),
+    getModelCompatVariations(),
+  ]);
+  return <CatalogAdmin catalog={catalog} files={files} compatVariations={compatVariations} />;
 }
 
 async function InventoryTab() {

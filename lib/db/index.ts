@@ -20,6 +20,7 @@ export * from "./quotes";
 export * from "./invoices";
 export * from "./orders";
 export * from "./tags";
+export * from "./compat";
 export * from "./motors";
 export * from "./accessory-catalog";
 export * from "./accessory-catalog-admin";

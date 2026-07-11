@@ -9,6 +9,7 @@ import { getCurrentUserId } from "@/lib/auth/user";
 import { quoteItemsToRefs } from "@/lib/message-items";
 import {
   getAttributes,
+  getModelCompatVariations,
   getEffectivePrices,
   getFrequentPartIds,
   getInventoryMap,
@@ -41,10 +42,11 @@ export default async function AccessoriesPage({
   // ordering on someone's behalf, else the logged-in user). Order history / frequent parts must
   // key off this, not the real uid — otherwise an admin acting-as sees an empty card.
   const [userId, effectiveOwner] = await Promise.all([getCurrentUserId(), getEffectiveOwnerId()]);
-  const [catalog, attributes, tagMap, effectivePrices, inventory, variations, variationMap, filesMap, defaultsMap, retailerDefaults, exclusionGroups, itemModelMap, frequentRaw] = await Promise.all([
+  const [catalog, attributes, tagMap, compatVariations, effectivePrices, inventory, variations, variationMap, filesMap, defaultsMap, retailerDefaults, exclusionGroups, itemModelMap, frequentRaw] = await Promise.all([
     loadCatalog(),
     getAttributes(),
     getModelTagMap(),
+    getModelCompatVariations(),
     getEffectivePrices(effectiveOwner), // this retailer's price per motor (override → default → static)
     getInventoryMap(), // model_id → stock; absent = untracked
     getVariations(),
@@ -140,6 +142,46 @@ export default async function AccessoriesPage({
   const valueLabel: Record<string, string> = {};
   for (const a of attributes) for (const v of a.values) valueLabel[v.id] = v.label;
 
+  // Compatible-variation views: resolve each entry's checked item ids to catalog models, grouped
+  // by their category (Crown → c1,c3 / Drive → d1,d2), for display next to each part.
+  const catName: Record<string, string> = {};
+  for (const c of catalog.categories) catName[c.id] = c.name;
+  const compatViewFor = (modelId: string) =>
+    (compatVariations[modelId] ?? []).map((v) => {
+      // Group by category NAME (not id): the catalog can hold several distinct category ids that
+      // share a name (e.g. two "Drive" categories) — merge them into one section so the popover
+      // doesn't show the same header twice.
+      const byName = new Map<string, { id: string; name: string; sku: string; imageUrl: string | null }[]>();
+      // The catalog can duplicate a part across categories (same SKU, different model id) — collapse
+      // by SKU so the same physical part never appears twice in one entry.
+      const seenSku = new Set<string>();
+      for (const itemId of v.itemIds) {
+        const im = catalog.model(itemId);
+        if (!im) continue;
+        const dedupKey = im.sku || im.id;
+        if (seenSku.has(dedupKey)) continue;
+        seenSku.add(dedupKey);
+        const label = catName[im.categoryId] ?? im.categoryId;
+        (byName.get(label) ?? byName.set(label, []).get(label)!).push({
+          id: im.id,
+          name: im.name,
+          sku: im.sku,
+          imageUrl: catalog.image(im) || null,
+        });
+      }
+      const groups = [...byName].map(([category, items]) => ({ category, items }));
+      return { id: v.id, name: v.name, imageUrl: v.imageUrl, groups };
+    });
+
+  // Kit add-on parts live in ANY category, but the left-list `browserModels` is scoped to the
+  // active category — so resolve each part's source-model compat here (full itemModelMap) and key it
+  // by item id, so the "Compatible with" hint shows on kit parts too, not just same-category rows.
+  const itemCompat: Record<string, ReturnType<typeof compatViewFor>> = {};
+  for (const [itemId, modelId] of Object.entries(itemModelMap)) {
+    const v = compatViewFor(modelId);
+    if (v.length) itemCompat[itemId] = v;
+  }
+
   // active filters from ?t_<attrId>=<valueId>, plus the ?moq=1 "minimum-order only" toggle
   const selected: Record<string, string> = {};
   for (const a of attributes) {
@@ -205,6 +247,7 @@ export default async function AccessoriesPage({
     categoryName: modelCat.name,
     orderable: !!modelCat.orderable,
     tags: (tagMap[model.id] ?? []).map((t) => valueLabel[t] ?? t),
+    compat: compatViewFor(model.id),
     files: (filesMap[model.id] ?? []).map((f) => ({ id: f.id, url: f.url, kind: f.kind, name: f.name })),
     availableItemIds: variationMap[model.id] ?? [],
     defaultItemIds: effDefault(model.id),
@@ -317,6 +360,7 @@ export default async function AccessoriesPage({
           exclusionGroups={exclusionGroups}
           variationStock={variationStock}
           itemModelMap={aloneableItemModelMap}
+          itemCompat={itemCompat}
           quotes={draftQuotes}
           preselectedQuoteId={quoteId}
           showCategory={filtering}

@@ -3,10 +3,12 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { AdminCatalog, AdminCategory, AdminModel, AccessoryBrand, AccessoryModelFile, ModelFileKind } from "@/lib/db";
+import type { CompatVariation } from "@/lib/types";
 import { useToast } from "./Toast";
 import { Button, Card, cx } from "./ui";
 
 type FilesMap = Record<string, AccessoryModelFile[]>;
+type CompatMap = Record<string, CompatVariation[]>;
 
 async function uploadModelFile(modelId: string, file: File, kind: ModelFileKind): Promise<void> {
   const fd = new FormData();
@@ -45,7 +47,15 @@ async function uploadImage(file: File): Promise<string> {
 }
 
 /** Admin catalog tree: brands → categories → models, all editable (incl. image + attachments). */
-export function CatalogAdmin({ catalog, files }: { catalog: AdminCatalog; files: FilesMap }) {
+export function CatalogAdmin({
+  catalog,
+  files,
+  compatVariations,
+}: {
+  catalog: AdminCatalog;
+  files: FilesMap;
+  compatVariations: CompatMap;
+}) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -69,7 +79,7 @@ export function CatalogAdmin({ catalog, files }: { catalog: AdminCatalog; files:
       {error && <p className="text-sm text-red-500">{error}</p>}
 
       {catalog.brands.map((brand) => (
-        <BrandBlock key={brand.id} brand={brand} catalog={catalog} files={files} />
+        <BrandBlock key={brand.id} brand={brand} catalog={catalog} files={files} compatVariations={compatVariations} />
       ))}
 
       <Card className="flex items-end gap-2 px-5 py-4">
@@ -90,7 +100,7 @@ export function CatalogAdmin({ catalog, files }: { catalog: AdminCatalog; files:
   );
 }
 
-function BrandBlock({ brand, catalog, files }: { brand: AccessoryBrand; catalog: AdminCatalog; files: FilesMap }) {
+function BrandBlock({ brand, catalog, files, compatVariations }: { brand: AccessoryBrand; catalog: AdminCatalog; files: FilesMap; compatVariations: CompatMap }) {
   const router = useRouter();
   const [name, setName] = useState(brand.name);
   const [tagline, setTagline] = useState(brand.tagline ?? "");
@@ -119,7 +129,7 @@ function BrandBlock({ brand, catalog, files }: { brand: AccessoryBrand; catalog:
 
       <div className="space-y-3 px-5 py-4">
         {cats.map((cat) => (
-          <CategoryBlock key={cat.id} category={cat} models={catalog.models.filter((m) => m.categoryId === cat.id)} files={files} />
+          <CategoryBlock key={cat.id} category={cat} catalog={catalog} models={catalog.models.filter((m) => m.categoryId === cat.id)} files={files} compatVariations={compatVariations} />
         ))}
         <div className="flex items-end gap-2">
           <input value={newCat} onChange={(e) => setNewCat(e.target.value)} placeholder="New category name" className={cx(INPUT, "w-56")} />
@@ -132,7 +142,7 @@ function BrandBlock({ brand, catalog, files }: { brand: AccessoryBrand; catalog:
   );
 }
 
-function CategoryBlock({ category, models, files }: { category: AdminCategory; models: AdminModel[]; files: FilesMap }) {
+function CategoryBlock({ category, catalog, models, files, compatVariations }: { category: AdminCategory; catalog: AdminCatalog; models: AdminModel[]; files: FilesMap; compatVariations: CompatMap }) {
   const router = useRouter();
   const toast = useToast();
   const [open, setOpen] = useState(false);
@@ -200,7 +210,7 @@ function CategoryBlock({ category, models, files }: { category: AdminCategory; m
         <div className="border-t border-line/70 bg-[#fbfaf7] px-3 py-3">
           <ul className="space-y-1.5">
             {models.map((m) => (
-              <ModelRow key={`${m.id}:${m.active}`} model={m} files={files[m.id] ?? []} />
+              <ModelRow key={`${m.id}:${m.active}`} model={m} catalog={catalog} files={files[m.id] ?? []} compatInitial={compatVariations[m.id] ?? []} />
             ))}
           </ul>
           <div className="mt-3 space-y-2 rounded-lg border border-dashed border-line p-2.5">
@@ -236,7 +246,7 @@ function CategoryBlock({ category, models, files }: { category: AdminCategory; m
   );
 }
 
-function ModelRow({ model, files }: { model: AdminModel; files: AccessoryModelFile[] }) {
+function ModelRow({ model, catalog, files, compatInitial }: { model: AdminModel; catalog: AdminCatalog; files: AccessoryModelFile[]; compatInitial: CompatVariation[] }) {
   const router = useRouter();
   const [name, setName] = useState(model.name);
   const [sku, setSku] = useState(model.sku);
@@ -367,6 +377,9 @@ function ModelRow({ model, files }: { model: AdminModel; files: AccessoryModelFi
               <span className="text-[10.5px] text-muted">PDF / image / doc, ≤ 15 MB</span>
             </div>
           </div>
+
+          {/* Compatible variation — named + imaged entries shown next to this accessory on the catalog */}
+          <ModelCompatEditor modelId={model.id} catalog={catalog} variations={compatInitial} />
         </div>
       )}
       {confirming && (() => {
@@ -403,5 +416,236 @@ function ModelRow({ model, files }: { model: AdminModel; files: AccessoryModelFi
       })()}
       {err && <p className="mt-1 text-[11px] text-red-500">{err}</p>}
     </li>
+  );
+}
+
+/**
+ * Per-model "Compatible variation" — a list of named + imaged entries, each of which checks any
+ * number of OTHER catalog models (grouped by category on the retailer accessory page). All inline
+ * in the model's details. "+ Add variation" creates an empty entry immediately (POST + refresh);
+ * each entry's name/image/checked-items save together via PUT.
+ */
+function ModelCompatEditor({
+  modelId,
+  catalog,
+  variations,
+}: {
+  modelId: string;
+  catalog: AdminCatalog;
+  variations: CompatVariation[];
+}) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const addVariation = async () => {
+    setBusy(true);
+    setErr(null);
+    try {
+      const r = await fetch("/api/motors/compat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ modelId, name: "" }),
+      });
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error ?? "Request failed");
+      router.refresh();
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="mt-1 border-t border-line/70 pt-3">
+      <div className="mb-2 flex items-center gap-2">
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-muted">Compatible variation</span>
+        <span className="text-[10.5px] text-muted/70">named entries · shown next to this part on the accessory page</span>
+        <Button variant="secondary" busy={busy} className="ml-auto py-1 text-[11px]" onClick={addVariation}>
+          + Add variation
+        </Button>
+      </div>
+
+      {variations.length === 0 ? (
+        <p className="text-[11px] text-muted/70">No compatible variations yet.</p>
+      ) : (
+        <div className="space-y-2">
+          {variations.map((v) => (
+            <CompatVariationRow key={v.id} variation={v} catalog={catalog} />
+          ))}
+        </div>
+      )}
+      {err && <p className="mt-1 text-[11px] text-red-500">{err}</p>}
+    </div>
+  );
+}
+
+/** One compatible-variation entry: title (name + image), a category→models checkbox tree, one Save. */
+function CompatVariationRow({ variation, catalog }: { variation: CompatVariation; catalog: AdminCatalog }) {
+  const router = useRouter();
+  const [name, setName] = useState(variation.name);
+  const [image, setImage] = useState(variation.imageUrl ?? "");
+  const [selected, setSelected] = useState<Set<string>>(() => new Set(variation.itemIds));
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [q, setQ] = useState("");
+
+  const initialItems = new Set(variation.itemIds);
+  const dirty =
+    name !== variation.name ||
+    image !== (variation.imageUrl ?? "") ||
+    selected.size !== initialItems.size ||
+    [...selected].some((id) => !initialItems.has(id));
+
+  const run = async (fn: () => Promise<unknown>) => {
+    setBusy(true); setErr(null);
+    try { await fn(); router.refresh(); } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
+  };
+
+  const toggle = (id: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+
+  const save = () =>
+    run(async () => {
+      const r = await fetch("/api/motors/compat", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ variationId: variation.id, name, imageUrl: image || null, itemIds: [...selected] }),
+      });
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error ?? "Save failed");
+    });
+
+  const remove = () =>
+    run(async () => {
+      const r = await fetch("/api/motors/compat", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ variationId: variation.id }),
+      });
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error ?? "Delete failed");
+    });
+
+  // Only offer models from the SAME brand as the model being edited (an A-OK part shows A-OK parts).
+  const ownBrand = catalog.categories.find(
+    (c) => c.id === catalog.models.find((m) => m.id === variation.modelId)?.categoryId
+  )?.brandId;
+  const needle = q.trim().toLowerCase();
+  const groups = catalog.categories
+    .filter((c) => c.brandId === ownBrand)
+    .map((c) => ({
+      category: c,
+      models: catalog.models.filter(
+        (m) => m.categoryId === c.id && (!needle || `${m.name} ${m.sku}`.toLowerCase().includes(needle))
+      ),
+    }))
+    .filter((g) => g.models.length > 0);
+  const selCount = groups.reduce((n, g) => n + g.models.filter((m) => selected.has(m.id)).length, 0);
+
+  return (
+    <div className="rounded-lg border border-line bg-[#fbfaf7] p-2.5">
+      {/* Title row: name + image (click the thumbnail to upload/replace) */}
+      <div className="flex flex-wrap items-center gap-2">
+        <label
+          title={image ? "Click to replace image" : "Click to upload image"}
+          className={cx("group relative size-9 shrink-0 cursor-pointer overflow-hidden rounded-lg border", image ? "border-line" : "border-dashed border-line hover:border-ink", busy && "pointer-events-none opacity-50")}
+        >
+          {image ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={image} alt="" className="size-full object-cover" />
+          ) : (
+            <span className="flex size-full items-center justify-center text-[9px] text-muted group-hover:text-ink">{busy ? "…" : "img"}</span>
+          )}
+          <input type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) run(async () => setImage(await uploadImage(f))); }} />
+        </label>
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Variation name (e.g. 1.5″ tube)" className={cx(INPUT, "min-w-[160px] flex-1 py-1 text-[12px] font-medium")} />
+        {image && <button onClick={() => setImage("")} disabled={busy} className="text-[11px] text-muted hover:text-red-500">Clear</button>}
+        <Button variant="primary" busy={busy} disabled={!dirty} className="py-1 text-[11px]" onClick={save}>Save</Button>
+        <button onClick={remove} disabled={busy} className="text-[11px] font-medium text-muted hover:text-red-500">Delete</button>
+      </div>
+
+      {/* Compatible items: any catalog model, grouped by category (search + scrollable) */}
+      <div className="mt-2">
+        <div className="mb-1.5 flex items-center gap-2">
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Filter models…"
+            className={cx(INPUT, "flex-1 py-1 text-[11.5px]")}
+          />
+          <span className="text-[10.5px] text-muted">{selCount} selected</span>
+        </div>
+        <div className="max-h-56 space-y-1 overflow-y-auto rounded-lg border border-line/60 bg-surface p-1.5">
+          {groups.length === 0 ? (
+            <p className="px-1 py-2 text-center text-[11px] text-muted">No models match “{q}”.</p>
+          ) : (
+            groups.map((g) => (
+              <CompatCatGroup
+                key={g.category.id}
+                name={g.category.name}
+                models={g.models}
+                selected={selected}
+                onToggle={toggle}
+                forceOpen={needle !== ""}
+              />
+            ))
+          )}
+        </div>
+      </div>
+      {err && <p className="mt-1 text-[11px] text-red-500">{err}</p>}
+    </div>
+  );
+}
+
+/** A collapsible category of checkboxes (the catalog models compatible with this variation). */
+function CompatCatGroup({
+  name,
+  models,
+  selected,
+  onToggle,
+  forceOpen,
+}: {
+  name: string;
+  models: AdminModel[];
+  selected: Set<string>;
+  onToggle: (id: string) => void;
+  forceOpen: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const count = models.filter((m) => selected.has(m.id)).length;
+  const show = open || forceOpen || count > 0;
+
+  return (
+    <div className="rounded-md">
+      <button onClick={() => setOpen((o) => !o)} className="flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left hover:bg-[#faf9f5]">
+        <span className="w-3 text-[10px] text-muted">{show ? "▾" : "▸"}</span>
+        <span className="text-[11.5px] font-medium text-ink-soft">{name}</span>
+        <span className="text-[10px] text-muted/60">· {models.length}</span>
+        {count > 0 && <span className="ml-auto rounded-full bg-ink px-1.5 py-px text-[10px] font-medium text-white">{count}</span>}
+      </button>
+      {show && (
+        <div className="flex flex-wrap gap-1 px-1.5 pb-1.5 pl-6">
+          {models.map((m) => {
+            const on = selected.has(m.id);
+            return (
+              <button
+                key={m.id}
+                onClick={() => onToggle(m.id)}
+                className={cx(
+                  "rounded-md px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-inset transition-colors",
+                  on ? "bg-ink text-white ring-ink" : "bg-surface text-ink-soft ring-line hover:bg-[#faf9f5]"
+                )}
+                title={m.sku}
+              >
+                {m.name}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }

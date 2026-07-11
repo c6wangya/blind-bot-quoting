@@ -256,6 +256,11 @@ export async function deleteModel(
   await sb.from("accessory_inventory").delete().eq("model_id", id);
   await sb.from("accessory_prices").delete().eq("model_id", id);
   await sb.from("accessory_model_tags").delete().eq("model_id", id);
+  // Compatible-variation entries owned by this model, plus any entry (on another model) that
+  // referenced it as a checked item. Both FK-cascade from accessory_models (0041), but delete
+  // explicitly per convention; the owned entries' item rows cascade from the entry delete.
+  await sb.from("accessory_compat_variation_items").delete().eq("item_model_id", id);
+  await sb.from("accessory_model_compat_variations").delete().eq("model_id", id);
   await sb.from("variation_product_items").delete().eq("model_id", id);
   // Exclusion groups DO cascade from accessory_models (0038), but delete explicitly per convention
   // (their group_items rows cascade from the group delete).

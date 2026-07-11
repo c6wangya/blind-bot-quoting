@@ -167,6 +167,37 @@ export interface AccessoryAttributeValue {
   sort: number;
 }
 
+/**
+ * Admin-managed "Compatible variation" — a named + imaged fitment entry attached to one
+ * accessory model. Each entry references any number of other catalog models ("items"); on the
+ * retailer accessory page they are grouped by category and shown next to the part. A model may
+ * have several entries. Display metadata only — does not affect pricing. See
+ * supabase/migrations/0041_accessory_compat.sql.
+ */
+export interface CompatVariation {
+  id: string;
+  modelId: string;
+  name: string;
+  imageUrl: string | null;
+  sort: number;
+  /** ids of the catalog models checked in this entry. */
+  itemIds: string[];
+}
+
+/** A resolved compatible-item group for display: category name + the item labels within it. */
+export interface CompatItemGroup {
+  category: string;
+  items: { id: string; name: string; sku: string; imageUrl: string | null }[];
+}
+
+/** A compatible variation resolved for retailer display: name + image + items grouped by category. */
+export interface CompatVariationView {
+  id: string;
+  name: string;
+  imageUrl: string | null;
+  groups: CompatItemGroup[];
+}
+
 export interface BreakdownLine {
   label: string;
   detail?: string;

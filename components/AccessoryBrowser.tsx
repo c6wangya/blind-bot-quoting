@@ -23,6 +23,13 @@ export type BrowserModel = {
   categoryName: string;
   orderable: boolean;
   tags: string[];
+  /** Compatible-variation entries: each a named + imaged fitment group of catalog items (by category). */
+  compat: {
+    id: string;
+    name: string;
+    imageUrl: string | null;
+    groups: { category: string; items: { id: string; name: string; sku: string; imageUrl: string | null }[] }[];
+  }[];
   files: { id: string; url: string; kind: string; name: string }[];
   availableItemIds: string[];
   defaultItemIds: string[];
@@ -30,6 +37,81 @@ export type BrowserModel = {
 
 /** An open (draft) quote offered in the in-page "Add to quote" picker. */
 export type QuoteOpt = { id: number; ref: string; quoteName: string | null; projectName: string | null; itemCount: number; items: MessageItemRef[] };
+
+/** Compact "Compatible with" hint shown next to a part; hovering opens a popover that lists each
+ *  compatible-variation entry (name + image) and, under it, the fitting catalog parts (by category)
+ *  each with a thumbnail. The popover is position:fixed so the scrollable list never clips it. */
+function CompatBadge({ modelName, compat }: { modelName: string; compat: BrowserModel["compat"] }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const W = 300;
+  const open = () => {
+    const r = ref.current?.getBoundingClientRect();
+    if (!r) return;
+    let left = r.right + 8;
+    if (left + W > window.innerWidth - 8) left = Math.max(8, r.left - W - 8);
+    const top = Math.min(Math.max(8, r.top), Math.max(8, window.innerHeight - 372));
+    setPos({ top, left });
+  };
+  return (
+    <span
+      ref={ref}
+      className="relative mt-1 inline-flex"
+      onMouseEnter={open}
+      onMouseLeave={() => setPos(null)}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <span className="inline-flex cursor-help items-center gap-1 rounded-full border border-[#c9d3e6] bg-[#eef1f6] px-2 py-0.5 text-[10.5px] font-semibold text-[#3a465c]">
+        <svg viewBox="0 0 16 16" className="size-3" fill="none" stroke="currentColor" strokeWidth="1.6">
+          <path d="M6 8.5 7.3 10 10.5 6M8 1.5l5.5 2v3.7c0 3.2-2.2 5.6-5.5 7.3-3.3-1.7-5.5-4.1-5.5-7.3V3.5z" strokeLinejoin="round" strokeLinecap="round" />
+        </svg>
+        Compatible with
+      </span>
+      {pos && (
+        <div
+          className="fixed z-50 w-[300px] max-h-[364px] overflow-y-auto rounded-xl border border-line bg-surface p-3 shadow-xl"
+          style={{ top: pos.top, left: pos.left }}
+        >
+          <div className="mb-2 flex items-baseline gap-1.5">
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-muted">Compatible with</span>
+            <span className="text-[11px] font-medium text-ink">{modelName}</span>
+          </div>
+          <div className="space-y-2.5">
+            {compat.map((c) => (
+              <div key={c.id}>
+                <div className="flex items-center gap-1.5">
+                  {c.imageUrl && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={c.imageUrl} alt="" className="size-6 shrink-0 rounded bg-[#0e0e10] object-contain p-0.5" />
+                  )}
+                  <span className="text-[12px] font-semibold text-ink">{c.name || "Variation"}</span>
+                </div>
+                {c.groups.map((g, gi) => (
+                  <div key={gi} className="mt-1 pl-1">
+                    <div className="text-[10px] font-medium uppercase tracking-wide text-muted">{g.category}</div>
+                    <div className="mt-0.5 space-y-0.5">
+                      {g.items.map((it) => (
+                        <div key={it.id} className="flex items-start gap-1.5">
+                          {it.imageUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={it.imageUrl} alt="" className="size-6 shrink-0 rounded bg-[#0e0e10] object-contain p-0.5" />
+                          ) : (
+                            <span className="size-6 shrink-0 rounded bg-[#0e0e10]" />
+                          )}
+                          <span className="min-w-0 flex-1 text-[11px] leading-snug text-ink">{it.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </span>
+  );
+}
 
 /** One unified, full-height panel: a summary list (left) glued to a detail + configure pane
  *  (right). The page constrains the height; both sides scroll internally. */
@@ -39,6 +121,7 @@ export function AccessoryBrowser({
   exclusionGroups,
   variationStock,
   itemModelMap,
+  itemCompat,
   quotes,
   preselectedQuoteId,
   showCategory,
@@ -52,6 +135,8 @@ export function AccessoryBrowser({
   /** add-on part item id → its source catalog model id, ONLY for parts whose model is in an
    *  orderable category (present = the part can be bought on its own; mirrors the server guard) */
   itemModelMap: Record<string, string>;
+  /** add-on part item id → its source model's compatible-variation entries (present only if any) */
+  itemCompat: Record<string, BrowserModel["compat"]>;
   /** the user's open draft quotes (for the in-page picker) */
   quotes: QuoteOpt[];
   /** arrived here from a specific quote (?quote=<id>): skip the picker and add straight to it */
@@ -119,6 +204,7 @@ export function AccessoryBrowser({
                       <span className="font-mono">{m.sku}</span>
                       {showCategory && <span>· {m.categoryName}</span>}
                     </div>
+                    {m.compat.length > 0 && <CompatBadge modelName={m.name} compat={m.compat} />}
                     {selectable && m.stock !== null && (
                       <div
                         className={cx(
@@ -151,6 +237,7 @@ export function AccessoryBrowser({
             variations={variations}
             variationStock={variationStock}
             itemModelMap={itemModelMap}
+            itemCompat={itemCompat}
             quotes={quotes}
             preselectedQuoteId={preselectedQuoteId}
             onClose={() => setPicked(null)}
@@ -199,6 +286,7 @@ function VariationPanel({
   exclusionGroups,
   variationStock,
   itemModelMap,
+  itemCompat,
   quotes,
   preselectedQuoteId,
   onClose,
@@ -208,6 +296,7 @@ function VariationPanel({
   exclusionGroups: Record<string, string[][]>;
   variationStock: Record<string, number | null>;
   itemModelMap: Record<string, string>;
+  itemCompat: Record<string, BrowserModel["compat"]>;
   quotes: QuoteOpt[];
   preselectedQuoteId?: number;
   onClose: () => void;
@@ -522,6 +611,7 @@ function VariationPanel({
                             oversold={oversold.has(it.id)}
                             qty={qtyOf(it.id)}
                             canAlone={!!itemModelMap[it.id]}
+                            compat={itemCompat[it.id] ?? []}
                             onAddAlone={() => openAddAlone(it.name, itemModelMap[it.id], stockOf(it.id))}
                             onToggle={() => toggle(t.id, it.id)}
                             onQty={(n) => setQty(it.id, n)}
@@ -743,6 +833,7 @@ function OptionRow({
   oversold,
   qty,
   canAlone,
+  compat,
   onAddAlone,
   onToggle,
   onQty,
@@ -758,6 +849,8 @@ function OptionRow({
   qty: number;
   /** the part is backed by its own catalog model → it can be bought on its own */
   canAlone: boolean;
+  /** compatible-variation entries of the part's source catalog model (empty if none) */
+  compat: BrowserModel["compat"];
   onAddAlone: () => void;
   onToggle: () => void;
   onQty: (n: number) => void;
@@ -806,6 +899,7 @@ function OptionRow({
       )}
       <div className="min-w-0 flex-1">
         <div className="text-[12.5px] font-medium leading-snug text-ink">{item.name}</div>
+        {compat.length > 0 && <CompatBadge modelName={item.name} compat={compat} />}
         <div className="flex flex-wrap items-center gap-x-2 text-[11px] text-muted">
           {item.price ? <span>+{usd(item.price)} ea</span> : null}
           {outOfStock ? (
