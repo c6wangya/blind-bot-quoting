@@ -1,7 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { admin } from "@/lib/supabase/admin";
 import { loadCatalog } from "./accessory-catalog";
-import { isBusinessPricingEnabled } from "./profile";
 import { getVariationItemModelMap } from "./variations";
 import { isAccessoryConfig, type AccessoryConfig } from "@/lib/types";
 
@@ -221,32 +220,29 @@ export async function getRetailerBusinessMap(
 
 /**
  * Effective price for every orderable motor for a retailer. Resolution chain:
- *   per-retailer override  ??  (if authorized: personal business ?? shared Business)  ??  Default  ??  static
- * A `businessTier` override forces the Business tier on/off (used by the admin editor); when unset,
- * it's derived from the retailer's `business_pricing` authorization flag.
+ *   per-retailer override  ??  per-retailer personal Business price  ??  Default  ??  static
+ * Personal Business prices are set per-product by the admin (the "Personal business" button on the
+ * retailer pricing screen syncs one product to the shared Business tier); they apply on their own,
+ * without any account-wide authorization flag.
  */
 export async function getEffectivePrices(
   retailerId: string | null,
-  sb: SupabaseClient = admin(),
-  businessTier?: boolean
+  sb: SupabaseClient = admin()
 ): Promise<Record<string, number>> {
   const cat = await loadCatalog();
   const def = await getDefaultPriceMap(sb);
-  const useBusiness = businessTier ?? (retailerId ? await isBusinessPricingEnabled(retailerId) : false);
-  const business = useBusiness ? await getBusinessPriceMap(sb) : {};
   const override = retailerId ? await getRetailerOverrideMap(retailerId, sb) : {};
-  const personalBiz = retailerId && useBusiness ? await getRetailerBusinessMap(retailerId, sb) : {};
   const out: Record<string, number> = {};
   for (const c of cat.categories.filter((x) => x.orderable)) {
     for (const m of cat.modelsIn(c.id))
-      out[m.id] = override[m.id] ?? personalBiz[m.id] ?? business[m.id] ?? def[m.id] ?? m.price ?? 0;
+      out[m.id] = override[m.id] ?? def[m.id] ?? m.price ?? 0;
   }
   return out;
 }
 
 /**
  * Effective price for one motor for one retailer — the trusted server-side re-price:
- *   per-retailer override  ??  (if authorized: personal business ?? shared Business)  ??  Default  ??  static
+ *   per-retailer override (This retailer / synced Business)  ??  Default  ??  static
  */
 export async function resolveMotorPrice(
   modelId: string,
@@ -254,7 +250,7 @@ export async function resolveMotorPrice(
   sb: SupabaseClient = admin()
 ): Promise<number> {
   if (retailerId) {
-    // Explicit per-retailer override (tier='default') wins over every tier.
+    // The per-retailer override (tier='default') — set directly, or synced to the Business price.
     const { data } = await sb
       .from("accessory_prices")
       .select("price")
@@ -263,25 +259,6 @@ export async function resolveMotorPrice(
       .eq("tier", "default")
       .maybeSingle();
     if (data) return Number((data as { price: number }).price);
-    // Authorized business customers: this retailer's personal Business price, then the shared one.
-    if (await isBusinessPricingEnabled(retailerId)) {
-      const { data: pb } = await sb
-        .from("accessory_prices")
-        .select("price")
-        .eq("model_id", modelId)
-        .eq("retailer_id", retailerId)
-        .eq("tier", "business")
-        .maybeSingle();
-      if (pb) return Number((pb as { price: number }).price);
-      const { data: biz } = await sb
-        .from("accessory_prices")
-        .select("price")
-        .eq("model_id", modelId)
-        .is("retailer_id", null)
-        .eq("tier", "business")
-        .maybeSingle();
-      if (biz) return Number((biz as { price: number }).price);
-    }
   }
   const { data: def } = await sb
     .from("accessory_prices")

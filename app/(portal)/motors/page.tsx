@@ -5,7 +5,6 @@ import { ModelTagEditor, type TaggableModel } from "@/components/ModelTagEditor"
 import { MotorInventoryEditor, type InventoryRow } from "@/components/MotorInventoryEditor";
 import { MotorPriceEditor, type PriceRow, type Target } from "@/components/MotorPriceEditor";
 import { MotorShippingEditor, type ShippingRow } from "@/components/MotorShippingEditor";
-import { BusinessPricingToggle } from "@/components/BusinessPricingToggle";
 import { RetailerDiscountEditor } from "@/components/RetailerDiscountEditor";
 import { RetailerPricingList } from "@/components/RetailerPricingList";
 import { WaiveShippingEditor } from "@/components/WaiveShippingEditor";
@@ -20,14 +19,12 @@ import {
   getCatalogCreatedAt,
   getEffectivePrices,
   getInventoryMap,
-  isBusinessPricingEnabled,
   getModelFilesMap,
   getModelTagMap,
   getProductDefaultsMap,
   getProductVariationMap,
   getExclusionGroupsMap,
   getRetailerDefaultsMap,
-  getRetailerBusinessMap,
   getRetailerDiscount,
   getRetailerOverrideMap,
   getShippingWaivers,
@@ -288,11 +285,9 @@ async function PricingTab({ retailerParam }: { retailerParam?: string }) {
 
   let target: Target;
   let overrideMap: Record<string, number> = {};
-  let personalBusinessMap: Record<string, number> = {};
   let businessMap: Record<string, number> = {};
   let discountPct = 0;
   let waivers = { ground: false, expedite: false };
-  let businessEnabled = false;
   if (retailerParam === "default") {
     target = { kind: "default" };
   } else if (retailerParam === "business") {
@@ -307,15 +302,13 @@ async function PricingTab({ retailerParam }: { retailerParam?: string }) {
         </Link>
       );
     }
-    [overrideMap, personalBusinessMap, businessMap, discountPct, waivers, businessEnabled] = await Promise.all([
+    [overrideMap, businessMap, discountPct, waivers] = await Promise.all([
       getRetailerOverrideMap(r.id),
-      getRetailerBusinessMap(r.id),
       getBusinessPriceMap(),
       getRetailerDiscount(r.id),
       getShippingWaivers(r.id),
-      isBusinessPricingEnabled(r.id),
     ]);
-    target = { kind: "retailer", retailerId: r.id, label: r.company ?? r.email, businessEnabled };
+    target = { kind: "retailer", retailerId: r.id, label: r.company ?? r.email };
   }
 
   const rows: PriceRow[] = (await motors()).map((m) => {
@@ -329,9 +322,8 @@ async function PricingTab({ retailerParam }: { retailerParam?: string }) {
       defaultPrice,
       // Shared (global) Business tier — read-only reference on the retailer screen.
       businessPrice: businessMap[m.id] ?? defaultPrice,
-      // The two per-retailer editable tiers (null = not set → the row inherits from below).
+      // The per-retailer override (null = not set → the row inherits Default). Synced via the button.
       overridePrice: m.id in overrideMap ? overrideMap[m.id] : null,
-      personalBusinessPrice: m.id in personalBusinessMap ? personalBusinessMap[m.id] : null,
       // Single-column screens (Default / shared Business) seed the one editable input from here.
       currentPrice:
         target.kind === "business" ? businessMap[m.id] ?? defaultPrice : defaultPrice,
@@ -355,7 +347,6 @@ async function PricingTab({ retailerParam }: { retailerParam?: string }) {
       </div>
       {target.kind === "retailer" && (
         <Card className="mb-4 divide-y divide-line">
-          <BusinessPricingToggle retailerId={target.retailerId} label={target.label} initialEnabled={businessEnabled} />
           <RetailerDiscountEditor retailerId={target.retailerId} label={target.label} initialPct={discountPct} />
           <WaiveShippingEditor
             retailerId={target.retailerId}

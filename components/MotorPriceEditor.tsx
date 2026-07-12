@@ -16,10 +16,8 @@ export type PriceRow = {
   defaultPrice: number;
   /** Shared (global) Business-tier price (falls back to Default). Read-only ref on the retailer screen. */
   businessPrice: number;
-  /** This retailer's explicit override (tier='default'), or null if none. Retailer screen only. */
+  /** This retailer's price (tier='default') — set directly or synced to Business, or null if unset. */
   overridePrice: number | null;
-  /** This retailer's explicit personal Business price (tier='business'), or null. Retailer screen only. */
-  personalBusinessPrice: number | null;
   /** Seed for the single editable input on the Default / shared-Business screens. */
   currentPrice: number;
   hasOverride: boolean;
@@ -27,13 +25,14 @@ export type PriceRow = {
 export type Target =
   | { kind: "default" }
   | { kind: "business" }
-  | { kind: "retailer"; retailerId: string; label: string; businessEnabled: boolean };
+  | { kind: "retailer"; retailerId: string; label: string };
 
 // A price column — either a read-only reference or an editable tier.
-type ColKey = "default" | "business" | "personalBusiness" | "override";
+type ColKey = "default" | "business" | "override";
 type Col = { key: ColKey; label: string };
 
 const REF_W = 96; // read-only reference column
+const PB_W = 132; // personal-business action column
 const INPUT_W = 108; // editable price input column
 const W_INPUT = "w-24"; // the $ input box inside an editable column
 const W_SAVE = "w-20"; // Save button / "Save all" header
@@ -51,10 +50,7 @@ const refColsFor = (t: Target): Col[] =>
 
 const editColsFor = (t: Target): Col[] =>
   t.kind === "retailer"
-    ? [
-        { key: "personalBusiness", label: "Personal business" },
-        { key: "override", label: "This retailer" },
-      ]
+    ? [{ key: "override", label: "This retailer" }]
     : t.kind === "business"
       ? [{ key: "business", label: "Business" }]
       : [{ key: "default", label: "Price" }];
@@ -63,31 +59,22 @@ const cellKey = (modelId: string, col: ColKey) => `${modelId}::${col}`;
 
 /** The value an editable column's input is pre-filled with — the price currently in effect there,
  *  so an un-set cell shows the value it inherits and stays un-set until the admin edits it. */
-function seedFor(row: PriceRow, col: ColKey, businessEnabled: boolean): number {
+function seedFor(row: PriceRow, col: ColKey): number {
   switch (col) {
     case "default":
       return row.defaultPrice;
     case "business":
       return row.businessPrice;
-    case "personalBusiness":
-      return row.personalBusinessPrice ?? row.businessPrice;
     case "override":
-      return (
-        row.overridePrice ??
-        (businessEnabled ? row.personalBusinessPrice ?? row.businessPrice : row.defaultPrice)
-      );
+      return row.overridePrice ?? row.defaultPrice;
   }
 }
 
 const refValue = (row: PriceRow, col: ColKey) => (col === "business" ? row.businessPrice : row.defaultPrice);
-const hasCustom = (row: PriceRow, col: ColKey) =>
-  col === "personalBusiness" ? row.personalBusinessPrice != null : col === "override" ? row.overridePrice != null : false;
 
-/** Build the POST body that persists one price cell. */
+/** Build the POST body that persists one editable price cell. */
 function bodyFor(col: ColKey, modelId: string, price: number, retailerId?: string): unknown {
   switch (col) {
-    case "personalBusiness":
-      return { modelId, retailerId, price, tier: "business" };
     case "override":
       return { modelId, retailerId, price };
     case "business":
@@ -107,33 +94,33 @@ const post = async (body: unknown) => {
 };
 
 /**
- * Admin: edit motor prices. The Default and shared-Business screens edit one tier; the per-retailer
- * screen edits two — the retailer's Personal business price and their explicit Override — alongside
- * read-only Default / Global-business reference columns.
+ * Admin: edit motor prices. The Default and shared-Business screens edit one tier. The per-retailer
+ * screen shows Default / Global-business reference columns, a one-click "Sync business" button that
+ * sets this retailer's price for a product to the Business price, and the editable This-retailer price.
  */
 export function MotorPriceEditor({ target, rows }: { target: Target; rows: PriceRow[] }) {
   const router = useRouter();
   const toast = useToast();
   const isRetailer = target.kind === "retailer";
   const retailerId = isRetailer ? target.retailerId : undefined;
-  const businessEnabled = isRetailer ? target.businessEnabled : false;
 
   const refCols = refColsFor(target);
   const editCols = editColsFor(target);
   const gridTemplate = [
     "minmax(0,1fr)",
     ...refCols.map(() => `${REF_W}px`),
+    ...(isRetailer ? [`${PB_W}px`] : []),
     ...editCols.map(() => `${INPUT_W}px`),
     "auto",
   ].join(" ");
 
   const seedValues = (rs: PriceRow[]) =>
     Object.fromEntries(
-      rs.flatMap((r) => editCols.map((c) => [cellKey(r.modelId, c.key), String(seedFor(r, c.key, businessEnabled))]))
+      rs.flatMap((r) => editCols.map((c) => [cellKey(r.modelId, c.key), String(seedFor(r, c.key))]))
     ) as Record<string, string>;
   const seedBaseline = (rs: PriceRow[]) =>
     Object.fromEntries(
-      rs.flatMap((r) => editCols.map((c) => [cellKey(r.modelId, c.key), seedFor(r, c.key, businessEnabled)]))
+      rs.flatMap((r) => editCols.map((c) => [cellKey(r.modelId, c.key), seedFor(r, c.key)]))
     ) as Record<string, number>;
 
   const [pending, setPending] = useState<"save" | "reset" | null>(null);
@@ -141,7 +128,7 @@ export function MotorPriceEditor({ target, rows }: { target: Target; rows: Price
   const [values, setValues] = useState<Record<string, string>>(() => seedValues(rows));
   const setValue = (k: string, v: string) => setValues((prev) => ({ ...prev, [k]: v }));
 
-  // Re-baseline whenever the server sends fresh rows (e.g. after a save or the Business toggle flips).
+  // Re-baseline whenever the server sends fresh rows (e.g. after a save or a personal-business sync).
   const [baseline, setBaseline] = useState<Record<string, number>>(() => seedBaseline(rows));
   const [seenRows, setSeenRows] = useState(rows);
   if (seenRows !== rows) {
@@ -180,14 +167,19 @@ export function MotorPriceEditor({ target, rows }: { target: Target; rows: Price
     router.refresh();
   };
 
-  // Clear one row's custom cells (per-row Reset — retailer only).
-  const resetRow = async (modelId: string) => {
-    const row = rows.find((r) => r.modelId === modelId);
-    if (!row) return;
-    for (const c of editCols) {
-      if (hasCustom(row, c.key)) {
-        await post({ retailerId, modelId, reset: true, tier: c.key === "personalBusiness" ? "business" : "default" });
-      }
+  // Clear this retailer's price for one product, so it falls back to Default (retailer only).
+  const resetRow = async (row: PriceRow) => {
+    if (row.overridePrice != null) await post({ retailerId, modelId: row.modelId, reset: true, tier: "default" });
+    router.refresh();
+  };
+
+  // Set this retailer's price for one product to the current Business price — or, if it already
+  // equals it, clear it back to Default (toggle). Writes the override so it shows in "This retailer".
+  const syncBusiness = async (row: PriceRow) => {
+    if (row.overridePrice != null && row.overridePrice === row.businessPrice) {
+      await post({ retailerId, modelId: row.modelId, reset: true, tier: "default" });
+    } else {
+      await post({ modelId: row.modelId, retailerId, price: row.businessPrice });
     }
     router.refresh();
   };
@@ -215,13 +207,11 @@ export function MotorPriceEditor({ target, rows }: { target: Target; rows: Price
         if (cells.length === 0) continue;
         const prices = cells.map((x) => ({ modelId: x.modelId, price: Number(values[x.k]) }));
         await post(
-          c.key === "personalBusiness"
-            ? { retailerId, tier: "business", prices }
-            : c.key === "override"
-              ? { retailerId, prices }
-              : c.key === "business"
-                ? { tier: "business", prices }
-                : { prices }
+          c.key === "override"
+            ? { retailerId, prices }
+            : c.key === "business"
+              ? { tier: "business", prices }
+              : { prices }
         );
       }
       setBaseline((b) => {
@@ -254,7 +244,7 @@ export function MotorPriceEditor({ target, rows }: { target: Target; rows: Price
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const toggleBrand = (brand: string) => setCollapsed((c) => ({ ...c, [brand]: !c[brand] }));
 
-  const totalCols = 1 + refCols.length + editCols.length + 1;
+  const totalCols = 1 + refCols.length + (isRetailer ? 1 : 0) + editCols.length + 1;
 
   return (
     <Card className="overflow-hidden">
@@ -267,6 +257,7 @@ export function MotorPriceEditor({ target, rows }: { target: Target; rows: Price
         {refCols.map((c) => (
           <span key={c.key}>{c.label}</span>
         ))}
+        {isRetailer && <span>Sync business</span>}
         {editCols.map((c) => (
           <span key={c.key}>{c.label}</span>
         ))}
@@ -347,7 +338,8 @@ export function MotorPriceEditor({ target, rows }: { target: Target; rows: Price
                     onChange={(col, v) => setValue(cellKey(r.modelId, col), v)}
                     hasRowChange={rowChanged(r.modelId).length > 0}
                     onSave={() => saveRow(r.modelId)}
-                    onReset={() => resetRow(r.modelId)}
+                    onReset={() => resetRow(r)}
+                    onSyncBusiness={() => syncBusiness(r)}
                   />
                 ))}
             </Fragment>
@@ -370,6 +362,7 @@ function Row({
   hasRowChange,
   onSave,
   onReset,
+  onSyncBusiness,
 }: {
   row: PriceRow;
   isRetailer: boolean;
@@ -382,10 +375,13 @@ function Row({
   hasRowChange: boolean;
   onSave: () => Promise<void>;
   onReset: () => Promise<void>;
+  onSyncBusiness: () => Promise<void>;
 }) {
   const [busy, setBusy] = useState(false);
+  const [pbBusy, setPbBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const rowHasCustom = editCols.some((c) => hasCustom(row, c.key));
+  const rowHasCustom = row.overridePrice != null;
+  const pbSynced = row.overridePrice != null && row.overridePrice === row.businessPrice;
 
   const run = async (fn: () => Promise<void>) => {
     setBusy(true);
@@ -396,6 +392,18 @@ function Row({
       setError((e as Error).message);
     } finally {
       setBusy(false);
+    }
+  };
+
+  const runPb = async () => {
+    setPbBusy(true);
+    setError(null);
+    try {
+      await onSyncBusiness();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setPbBusy(false);
     }
   };
 
@@ -413,6 +421,39 @@ function Row({
           {usd(refValue(row, c.key))}
         </div>
       ))}
+      {isRetailer && (
+        <div>
+          <button
+            type="button"
+            onClick={runPb}
+            disabled={pbBusy}
+            title={
+              pbSynced
+                ? "This retailer is on the Business price — click to clear"
+                : "Set this retailer's price to the Business price"
+            }
+            className={cx(
+              "inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium transition-colors disabled:opacity-50",
+              pbSynced
+                ? "border border-brass/40 bg-brass/10 text-brass hover:bg-brass/15"
+                : "border border-line bg-surface text-ink-soft hover:bg-[#faf9f5]"
+            )}
+          >
+            {pbBusy ? (
+              <Spinner />
+            ) : pbSynced ? (
+              <>
+                <svg viewBox="0 0 12 12" className="size-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M2.5 6.5 5 9l4.5-5.5" />
+                </svg>
+                {usd(row.businessPrice)}
+              </>
+            ) : (
+              "Sync business"
+            )}
+          </button>
+        </div>
+      )}
       {editCols.map((c) => (
         <div key={c.key} className={`${W_INPUT} flex items-center rounded-lg border border-line bg-surface px-2`}>
           <span className="text-xs text-muted">$</span>
