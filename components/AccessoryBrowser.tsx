@@ -4,7 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { MessageItemRef, VariationType } from "@/lib/db";
 import { usd } from "@/lib/format";
-import { availableTypes, buildBlockedFromGroups, buildItemNames, disabledFor } from "@/lib/variation-logic";
+import { availableTypes } from "@/lib/variation-logic";
 import { useToast } from "./Toast";
 import { Button, cx } from "./ui";
 
@@ -283,7 +283,6 @@ function Stepper({ value, min, max, onChange }: { value: number; min: number; ma
 function VariationPanel({
   model,
   variations,
-  exclusionGroups,
   variationStock,
   itemModelMap,
   itemCompat,
@@ -312,6 +311,8 @@ function VariationPanel({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  // Read-only preview of the preselected quote's current items, toggled by the add-button chevron.
+  const [preview, setPreview] = useState(false);
   // Inline "Create new quote" form inside the picker: name is optional.
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
@@ -326,40 +327,6 @@ function VariationPanel({
   const [aloneQty, setAloneQty] = useState(1);
 
   const avail = useMemo(() => availableTypes(variations, model.availableItemIds), [variations, model.availableItemIds]);
-  const blocked = useMemo(() => buildBlockedFromGroups(exclusionGroups[model.id] ?? []), [exclusionGroups, model.id]);
-  const itemName = useMemo(() => buildItemNames(avail), [avail]);
-  const priceOf = useMemo(() => {
-    const m: Record<string, number> = {};
-    for (const t of avail) for (const i of t.items) m[i.id] = i.price;
-    return m;
-  }, [avail]);
-
-  // Multi-select per type: each type holds a list of chosen item ids ([] = none). Initial state
-  // seeds ONLY the admin-configured defaults (customer kit → store-wide star). No fallback: a
-  // type with no default starts unselected. The user can add/clear any of them.
-  const [pick, setPick] = useState<Record<string, string[]>>(() => {
-    const p: Record<string, string[]> = {};
-    const chosen = new Set<string>(); // already-seeded ids, for the exclusion-group check
-    const compatible = (id: string) => {
-      const c = blocked.get(id);
-      if (!c) return true;
-      for (const x of chosen) if (c.has(x)) return false;
-      return true;
-    };
-    for (const t of avail) {
-      const ids: string[] = [];
-      for (const i of t.items)
-        if (model.defaultItemIds.includes(i.id) && compatible(i.id)) {
-          ids.push(i.id);
-          chosen.add(i.id);
-        }
-      p[t.id] = ids;
-    }
-    return p;
-  });
-  const [itemQty, setItemQty] = useState<Record<string, number>>({});
-  const qtyOf = (itemId: string) => itemQty[itemId] ?? 1;
-  const setQty = (itemId: string, v: number) => setItemQty((p) => ({ ...p, [itemId]: v }));
 
   // Add-on part stock: undefined/null = untracked (unlimited).
   const stockOf = (id: string): number | null => {
@@ -367,47 +334,18 @@ function VariationPanel({
     return s === undefined ? null : s;
   };
 
-  // Toggle an item within a type (multi-select). Adding an item drops any currently-selected item
-  // (in any type) that shares an exclusion group with it. Out-of-stock items can't be picked.
-  const toggle = (typeId: string, itemId: string) => {
-    setPick((prev) => {
-      const cur = prev[typeId] ?? [];
-      if (cur.includes(itemId)) return { ...prev, [typeId]: cur.filter((x) => x !== itemId) };
-      if ((stockOf(itemId) ?? Infinity) <= 0) return prev;
-      const conflicts = blocked.get(itemId);
-      const next: Record<string, string[]> = {};
-      for (const [tid, ids] of Object.entries(prev)) next[tid] = conflicts ? ids.filter((id) => !conflicts.has(id)) : ids;
-      next[typeId] = [...(next[typeId] ?? []), itemId];
-      return next;
-    });
-  };
-  const clearType = (typeId: string) => setPick((prev) => ({ ...prev, [typeId]: [] }));
-
-  // Currently picked item ids, flattened across all types.
-  const selectedIds = avail.flatMap((t) => pick[t.id] ?? []);
-  const selectedSet = new Set(selectedIds);
-
-  // A picked part whose total need (motorQty × per-motor qty) exceeds its stock.
-  const oversold = useMemo(() => {
-    const set = new Set<string>();
-    for (const id of selectedIds) {
-      const s = variationStock[id];
-      if (s !== undefined && s !== null && motorQty * (itemQty[id] ?? 1) > s) set.add(id);
-    }
-    return set;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pick, motorQty, itemQty, variationStock]);
-
+  // Parts are never bundled with the motor — each is ordered on its own ("Add alone"). The motor
+  // line is therefore just its base price × quantity.
   const base = model.price ?? 0;
-  const addon = selectedIds.reduce((s, id) => s + (priceOf[id] ?? 0) * qtyOf(id), 0);
-  const unitPrice = base + addon;
-  const lineTotal = unitPrice * motorQty;
+  const unitPrice = base;
+  const lineTotal = base * motorQty;
 
   const labelOf = (q: QuoteOpt) => q.quoteName || q.ref;
   const refOf = (id: number) => {
     const q = quotes.find((x) => x.id === id);
     return q ? labelOf(q) : "quote";
   };
+  const preselectedQuote = preselectedQuoteId != null ? quotes.find((q) => q.id === preselectedQuoteId) ?? null : null;
 
   // Add to an existing quote — stay on the page so the user can keep shopping. `aloneOverride`
   // lets a row add its part straight to a preselected quote without waiting on `alone` state.
@@ -417,22 +355,15 @@ function VariationPanel({
   ) => {
     const a = aloneOverride ?? alone;
     const q = aloneOverride ? 1 : aloneQty;
-    if (a) {
-      if (a.stock !== null && q > a.stock) return;
-    } else if (oversold.size > 0) return;
+    if (a && a.stock !== null && q > a.stock) return;
     setMenuOpen(false);
     setBusy(true);
     setError(null);
     try {
-      // Standalone part → its own catalog model, no variationItems. Motor → model + kit.
+      // Standalone part → its own catalog model. Motor → just the motor (parts are never bundled).
       const body = a
         ? { productId: a.modelId, qty: q, quoteId: targetId }
-        : {
-            productId: model.id,
-            qty: motorQty,
-            quoteId: targetId,
-            variationItems: selectedIds.map((id) => ({ itemId: id, qty: qtyOf(id) })),
-          };
+        : { productId: model.id, qty: motorQty, quoteId: targetId };
       const r = await fetch("/api/quote-items", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -571,58 +502,36 @@ function VariationPanel({
             </div>
           )}
 
-          {/* Add-on parts — one pick per type (互斥-aware), borderless rows */}
+          {/* Compatible parts — borderless rows, each ordered on its own via "Add alone" */}
           {avail.length > 0 && (
             <div className="mt-5 space-y-4">
               <div className="border-t border-line/70 pt-4">
-                <div className="flex items-baseline justify-between">
-                  <span className="text-[11px] font-semibold uppercase tracking-wide text-muted">Add-on parts</span>
-                  <span className="text-[10.5px] text-muted">Qty is per motor</span>
-                </div>
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-muted">Compatible parts</span>
                 <p className="mt-1 text-[10.5px] leading-snug text-muted">
-                  Tick a part to bundle it with the motor · <span className="font-medium text-ink-soft">Add alone</span> orders just that part.
+                  Each part is ordered on its own — <span className="font-medium text-ink-soft">Add alone</span> adds just that part to a quote.
                 </p>
               </div>
 
-              {avail.map((t) => {
-                const d = disabledFor(t, selectedSet, blocked, itemName);
-                const sel = pick[t.id] ?? [];
-                return (
-                  <div key={t.id}>
-                    <div className="mb-0.5 flex items-center justify-between">
-                      <span className="text-[11px] font-semibold uppercase tracking-wide text-muted">{t.name}</span>
-                      {sel.length > 0 && (
-                        <button onClick={() => clearType(t.id)} className="text-[10.5px] font-medium text-muted hover:text-ink">
-                          Clear
-                        </button>
-                      )}
-                    </div>
-                    <div>
-                      {t.items.map((it) => {
-                        const selected = sel.includes(it.id);
-                        return (
-                          <OptionRow
-                            key={it.id}
-                            item={it}
-                            selected={selected}
-                            disabled={d.ids.has(it.id) && !selected}
-                            reason={d.reason[it.id]}
-                            stock={stockOf(it.id)}
-                            oversold={oversold.has(it.id)}
-                            qty={qtyOf(it.id)}
-                            canAlone={!!itemModelMap[it.id]}
-                            compat={itemCompat[it.id] ?? []}
-                            onAddAlone={() => openAddAlone(it.name, itemModelMap[it.id], stockOf(it.id))}
-                            onToggle={() => toggle(t.id, it.id)}
-                            onQty={(n) => setQty(it.id, n)}
-                            onZoom={setZoom}
-                          />
-                        );
-                      })}
-                    </div>
+              {avail.map((t) => (
+                <div key={t.id}>
+                  <div className="mb-0.5">
+                    <span className="text-[11px] font-semibold uppercase tracking-wide text-muted">{t.name}</span>
                   </div>
-                );
-              })}
+                  <div>
+                    {t.items.map((it) => (
+                      <OptionRow
+                        key={it.id}
+                        item={it}
+                        stock={stockOf(it.id)}
+                        canAlone={!!itemModelMap[it.id]}
+                        compat={itemCompat[it.id] ?? []}
+                        onAddAlone={() => openAddAlone(it.name, itemModelMap[it.id], stockOf(it.id))}
+                        onZoom={setZoom}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
@@ -641,36 +550,94 @@ function VariationPanel({
 
           <div className="mt-3 flex items-end justify-between border-t border-dashed border-line/70 pt-3">
             <div>
-              <div className="text-[11px] text-muted">
-                {motorQty} × {usd(unitPrice)}
-                {addon > 0 && <span className="text-muted"> (incl. {usd(addon)} parts)</span>}
-              </div>
+              <div className="text-[11px] text-muted">{motorQty} × {usd(unitPrice)}</div>
               <div className="text-[17px] font-semibold tabular-nums text-ink">{usd(lineTotal)}</div>
             </div>
           </div>
 
-          {oversold.size > 0 && (
-            <p className="mt-2 text-[11px] text-red-500">Some add-on parts exceed available stock — reduce the quantity.</p>
-          )}
           {error && <p className="mt-2 text-[11px] text-red-500">{error}</p>}
 
           <div className="relative mt-3">
-            <Button
-              variant="primary"
-              onClick={() => {
-                // Opener for both flows: reveal the quote (with its current items) so it can be
-                // reviewed before adding. The motor is a lone-part-free add.
-                setAlone(null);
-                setCreating(false);
-                setNewName("");
-                setMenuOpen((o) => !o);
-              }}
-              busy={busy}
-              disabled={oversold.size > 0}
-              className="w-full justify-center py-2.5"
-            >
-              {preselectedQuoteId != null ? `Add to ${refOf(preselectedQuoteId)}` : "Add to quote"}
-            </Button>
+            {preselectedQuoteId != null ? (
+              // Arrived from a specific quote: the button adds straight to it; the chevron reveals a
+              // read-only preview of what's already in that quote (no second "add" step).
+              <div className="flex items-stretch gap-1.5">
+                <Button
+                  variant="primary"
+                  onClick={() => {
+                    setAlone(null);
+                    doAdd(preselectedQuoteId);
+                  }}
+                  busy={busy}
+                  className="flex-1 justify-center py-2.5"
+                >
+                  {`Add to ${refOf(preselectedQuoteId)}`}
+                </Button>
+                {preselectedQuote && preselectedQuote.items.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setPreview((o) => !o)}
+                    aria-label={preview ? "Hide quote items" : "Show quote items"}
+                    aria-expanded={preview}
+                    className="flex shrink-0 items-center justify-center rounded-lg border border-line px-2.5 text-ink-soft transition-colors hover:border-ink hover:text-ink"
+                  >
+                    <svg
+                      viewBox="0 0 16 16"
+                      className={cx("size-3.5 transition-transform", preview && "rotate-180")}
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.75"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden
+                    >
+                      <path d="M4 6l4 4 4-4" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+            ) : (
+              <Button
+                variant="primary"
+                onClick={() => {
+                  // Reveal the quote picker (with each quote's current items) so a target can be
+                  // chosen/created before adding. The motor is a lone-part-free add.
+                  setAlone(null);
+                  setCreating(false);
+                  setNewName("");
+                  setMenuOpen((o) => !o);
+                }}
+                busy={busy}
+                className="w-full justify-center py-2.5"
+              >
+                Add to quote
+              </Button>
+            )}
+
+            {preview && preselectedQuote && (
+              <>
+                <div className="fixed inset-0 z-30" onClick={() => setPreview(false)} aria-hidden />
+                <div className="absolute bottom-full right-0 z-40 mb-2 max-h-80 w-full overflow-auto rounded-xl border border-line bg-surface p-3 shadow-xl">
+                  <div className="mb-2 flex items-baseline justify-between gap-2">
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">In this quote</span>
+                    <span className="min-w-0 truncate text-[11px] text-muted">
+                      {labelOf(preselectedQuote)} · {preselectedQuote.itemCount} item{preselectedQuote.itemCount === 1 ? "" : "s"}
+                    </span>
+                  </div>
+                  <ul className="space-y-1">
+                    {preselectedQuote.items.map((it, i) => (
+                      <li key={i} className={cx("flex items-center gap-2 text-[11.5px] leading-snug", it.sub && "pl-3")}>
+                        <span className="min-w-0 flex-1 truncate text-ink-soft">
+                          {it.sub && <span className="text-muted">↳ </span>}
+                          {it.name}
+                        </span>
+                        <span className="shrink-0 tabular-nums text-muted">×{it.qty}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </>
+            )}
 
             {menuOpen && (
               <>
@@ -822,65 +789,35 @@ function VariationPanel({
   );
 }
 
-/** One add-on part: a borderless checkbox row (thumbnail · name · price) that reveals an inline
- *  per-motor qty stepper when checked. Incompatible options grey out. */
+/** One compatible part: a borderless row (thumbnail · name · price · stock) with an "Add alone"
+ *  button. Parts are never bundled with the motor — each is ordered on its own. */
 function OptionRow({
   item,
-  selected,
-  disabled,
-  reason,
   stock,
-  oversold,
-  qty,
   canAlone,
   compat,
   onAddAlone,
-  onToggle,
-  onQty,
   onZoom,
 }: {
   item: VariationType["items"][number];
-  selected: boolean;
-  disabled: boolean;
-  reason?: string;
   /** available stock; null = untracked */
   stock: number | null;
-  oversold: boolean;
-  qty: number;
   /** the part is backed by its own catalog model → it can be bought on its own */
   canAlone: boolean;
   /** compatible-variation entries of the part's source catalog model (empty if none) */
   compat: BrowserModel["compat"];
   onAddAlone: () => void;
-  onToggle: () => void;
-  onQty: (n: number) => void;
   onZoom: (url: string) => void;
 }) {
   const outOfStock = stock !== null && stock <= 0;
-  const blocked = disabled || (outOfStock && !selected);
   return (
     <div
-      onClick={() => !blocked && onToggle()}
-      title={
-        disabled
-          ? `Not compatible with ${reason ?? "your current selection"}`
-          : outOfStock
-            ? "Out of stock"
-            : undefined
-      }
+      title={outOfStock ? "Out of stock" : undefined}
       className={cx(
         "group flex items-center gap-3 rounded-lg px-2 py-1.5 transition-colors",
-        blocked ? "cursor-not-allowed opacity-40" : selected ? "cursor-pointer bg-[#fbf8f1]" : "cursor-pointer hover:bg-[#faf9f5]"
+        outOfStock ? "opacity-40" : "hover:bg-[#faf9f5]"
       )}
     >
-      {/* Square checkbox (multi-select): several items per type can be chosen. */}
-      <span className={cx("flex size-[18px] shrink-0 items-center justify-center rounded-[5px] border", selected ? "border-ink bg-ink" : "border-line")}>
-        {selected && (
-          <svg viewBox="0 0 24 24" className="size-3 text-white" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M5 13l4 4L19 7" />
-          </svg>
-        )}
-      </span>
       {item.image ? (
         <div className="relative shrink-0">
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -905,26 +842,23 @@ function OptionRow({
           {outOfStock ? (
             <span className="font-medium text-red-500">Out of stock</span>
           ) : stock !== null ? (
-            <span className={cx(oversold ? "font-medium text-red-500" : stock <= 5 ? "text-amber-600" : "")}>
-              {oversold ? `Only ${stock} left` : `${stock} in stock`}
-            </span>
+            <span className={cx(stock <= 5 ? "text-amber-600" : "")}>{stock} in stock</span>
           ) : null}
         </div>
       </div>
-      <div className="flex shrink-0 items-center gap-2" onClick={(e) => e.stopPropagation()}>
-        {/* Buy on its own — independent of the motor / of kit compatibility. Hidden only when the
-            part has no catalog model to sell or is out of stock. */}
+      <div className="flex shrink-0 items-center gap-2">
+        {/* Buy on its own — the only way to order a part. Hidden only when the part has no catalog
+            model to sell or is out of stock. */}
         {canAlone && !outOfStock && (
           <button
             type="button"
             onClick={onAddAlone}
-            title="Add just this part to a quote — on its own, not with the motor"
+            title="Add just this part to a quote — on its own"
             className="rounded-md border border-line px-2 py-1 text-[10.5px] font-medium text-muted transition-colors hover:border-ink hover:text-ink group-hover:text-ink-soft"
           >
             ＋ Add alone
           </button>
         )}
-        {selected && <Stepper value={qty} min={1} max={stock !== null ? stock : 999} onChange={onQty} />}
       </div>
     </div>
   );
