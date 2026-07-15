@@ -101,6 +101,12 @@ export interface AccessoryConfig {
   variations?: VariationSnapshot[];
   /** Legacy Crown + Driver choice (pre-0010 lines); kept for display of old quotes. */
   crownDriver?: CrownDriverConfig;
+  /**
+   * Air-freight line: an admin (acting on a retailer's behalf) placed this for an out-of-stock
+   * model — it's procured from China, so it does NOT draw/reserve US inventory. Only honored when
+   * set by the server (see `POST /api/quote-items`); never trust a client-supplied flag.
+   */
+  airFreight?: boolean;
 }
 
 /**

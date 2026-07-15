@@ -2,9 +2,10 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { MessageItemRef, VariationType } from "@/lib/db";
+import type { AccessoryModelNote, MessageItemRef, VariationType } from "@/lib/db";
 import { usd } from "@/lib/format";
 import { availableTypes } from "@/lib/variation-logic";
+import { AccessoryNoteButton } from "./AccessoryNoteButton";
 import { useToast } from "./Toast";
 import { Button, cx } from "./ui";
 
@@ -121,8 +122,12 @@ export function AccessoryBrowser({
   exclusionGroups,
   variationStock,
   itemModelMap,
+  itemModelAll,
   itemModelCat,
   itemCompat,
+  notesMap,
+  isAdmin,
+  canAirFreight,
   quotes,
   preselectedQuoteId,
   showCategory,
@@ -136,10 +141,18 @@ export function AccessoryBrowser({
   /** add-on part item id → its source catalog model id, ONLY for parts whose model is in an
    *  orderable category (present = the part can be bought on its own; mirrors the server guard) */
   itemModelMap: Record<string, string>;
+  /** add-on part item id → its source catalog model id, for ALL parts (used to key the fitment note) */
+  itemModelAll: Record<string, string>;
   /** related-part item id → its source model's category id (deep-link to that part's own detail) */
   itemModelCat: Record<string, string>;
   /** add-on part item id → its source model's compatible-variation entries (present only if any) */
   itemCompat: Record<string, BrowserModel["compat"]>;
+  /** model_id → its retailer-facing compatibility note (free text + images); absent = no note */
+  notesMap: Record<string, AccessoryModelNote>;
+  /** the viewer is an admin → can edit fitment notes (else read-only, shown only when a note exists) */
+  isAdmin: boolean;
+  /** admin acting on a retailer's behalf → may place air-freight (from China) orders for out-of-stock models */
+  canAirFreight: boolean;
   /** the user's open draft quotes (for the in-page picker) */
   quotes: QuoteOpt[];
   /** arrived here from a specific quote (?quote=<id>): skip the picker and add straight to it */
@@ -240,8 +253,12 @@ export function AccessoryBrowser({
             variations={variations}
             variationStock={variationStock}
             itemModelMap={itemModelMap}
+            itemModelAll={itemModelAll}
             itemModelCat={itemModelCat}
             itemCompat={itemCompat}
+            notesMap={notesMap}
+            isAdmin={isAdmin}
+            canAirFreight={canAirFreight}
             quotes={quotes}
             preselectedQuoteId={preselectedQuoteId}
             onClose={() => setPicked(null)}
@@ -289,8 +306,12 @@ function VariationPanel({
   variations,
   variationStock,
   itemModelMap,
+  itemModelAll,
   itemModelCat,
   itemCompat,
+  notesMap,
+  isAdmin,
+  canAirFreight,
   quotes,
   preselectedQuoteId,
   onClose,
@@ -300,8 +321,12 @@ function VariationPanel({
   exclusionGroups: Record<string, string[][]>;
   variationStock: Record<string, number | null>;
   itemModelMap: Record<string, string>;
+  itemModelAll: Record<string, string>;
   itemModelCat: Record<string, string>;
   itemCompat: Record<string, BrowserModel["compat"]>;
+  notesMap: Record<string, AccessoryModelNote>;
+  isAdmin: boolean;
+  canAirFreight: boolean;
   quotes: QuoteOpt[];
   preselectedQuoteId?: number;
   onClose: () => void;
@@ -315,6 +340,9 @@ function VariationPanel({
   const maxQty = tracked ? (model.stock as number) : Infinity;
 
   const [motorQty, setMotorQty] = useState(minQty);
+  // Air-freight add session: the add sheet is placing a from-China line for this out-of-stock model
+  // (admin acting on a retailer's behalf). Skips the stock cap; server re-checks eligibility.
+  const [air, setAir] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -357,6 +385,18 @@ function VariationPanel({
   const openMainAdd = () => {
     setError(null);
     setAlone(null);
+    setAir(false);
+    setMotorQty(minQty);
+    setCreating(false);
+    setNewName("");
+    setMenuOpen(true);
+  };
+  // Open the add sheet in air-freight mode: order this out-of-stock model from China (admin only).
+  const openAirAdd = () => {
+    setError(null);
+    setAlone(null);
+    setAir(true);
+    setMotorQty(minQty);
     setCreating(false);
     setNewName("");
     setMenuOpen(true);
@@ -366,6 +406,7 @@ function VariationPanel({
     setCreating(false);
     setNewName("");
     setAlone(null);
+    setAir(false);
   };
 
   // Add to an existing quote — stay on the page so the user can keep shopping. `aloneOverride`
@@ -382,9 +423,10 @@ function VariationPanel({
     setError(null);
     try {
       // Standalone part → its own catalog model. Motor → just the motor (parts are never bundled).
+      // Air-freight applies only to this out-of-stock model's own line (never a standalone part).
       const body = a
         ? { productId: a.modelId, qty: q, quoteId: targetId }
-        : { productId: model.id, qty: motorQty, quoteId: targetId };
+        : { productId: model.id, qty: motorQty, quoteId: targetId, ...(air ? { airFreight: true } : {}) };
       const r = await fetch("/api/quote-items", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -485,7 +527,18 @@ function VariationPanel({
   // time (Taobao-style "add to cart"), so both share one qty block driven by these.
   const adding = alone
     ? { name: alone.name, qty: aloneQty, setQty: setAloneQty, min: 1, max: alone.stock ?? 999, price: alone.price, image: alone.image, stock: alone.stock }
-    : { name: model.name, qty: motorQty, setQty: setMotorQty, min: minQty, max: maxQty, price: model.price, image: model.image, stock: model.stock };
+    : {
+        name: model.name,
+        qty: motorQty,
+        setQty: setMotorQty,
+        min: minQty,
+        // Air-freight isn't bounded by US stock (it's a from-China order); otherwise cap at stock.
+        max: air ? Infinity : maxQty,
+        price: model.price,
+        image: model.image,
+        // Suppress the "Out of stock" chip in the sheet header for an air-freight add.
+        stock: air ? null : model.stock,
+      };
 
   // The quote the sheet's single confirm button commits to: the user's pick if still valid,
   // otherwise the first (newest) quote. Null only when the retailer has no drafts yet.
@@ -518,11 +571,18 @@ function VariationPanel({
           <button onClick={onClose} className="text-muted hover:text-ink" aria-label="Close">
             ✕
           </button>
-          {!outOfStock && (
+          {/* Fitment note is a per-PART affordance only (see OptionRow); the focal product itself
+              carries just its Add action. */}
+          {!outOfStock ? (
             <Button variant="primary" onClick={openMainAdd} className="px-3.5 py-1.5 text-xs">
               ＋ Add
             </Button>
-          )}
+          ) : canAirFreight ? (
+            // Out of stock in the US, but an admin acting for a retailer can order it from China.
+            <Button variant="primary" onClick={openAirAdd} className="px-3.5 py-1.5 text-xs">
+              ✈ Air freight
+            </Button>
+          ) : null}
         </div>
       </div>
 
@@ -597,6 +657,9 @@ function VariationPanel({
                         stock={stockOf(it.id)}
                         canOrder={!!itemModelMap[it.id]}
                         compat={itemCompat[it.id] ?? []}
+                        noteModelId={itemModelAll[it.id]}
+                        note={itemModelAll[it.id] ? notesMap[itemModelAll[it.id]] : undefined}
+                        isAdmin={isAdmin}
                         onOpen={() => openPart(it.id)}
                         onAdd={() => addPart(it)}
                         onZoom={setZoom}
@@ -614,10 +677,15 @@ function VariationPanel({
           any related part's Add. Standard "add to cart" flow: choose a quantity, then the target
           quote (or, when we arrived from one, confirm straight into it). There is no separate
           footer button — every item carries its own Add, so this sheet is the shared add surface. */}
-      {menuOpen && !outOfStock && (
+      {menuOpen && (!outOfStock || air) && (
         <>
           <div className="absolute inset-0 z-30 bg-black/10" onClick={closeSheet} aria-hidden />
           <div className="absolute inset-x-0 bottom-0 z-40 flex max-h-[88%] flex-col overflow-hidden rounded-t-2xl border-t border-line bg-surface shadow-[0_-10px_30px_-12px_rgba(0,0,0,0.3)]">
+            {air && (
+              <div className="flex items-center gap-1.5 border-b border-line/70 bg-brass-soft/50 px-4 py-2 text-[11px] font-medium text-[#8a6a39]">
+                ✈ Air freight
+              </div>
+            )}
             {/* What you're adding — image, price, stock — plus the quantity stepper. Same card for
                 this product and a related part, so both always show their photo/price/stock. */}
             <div className="flex items-center gap-3 border-b border-line/70 p-4">
@@ -828,6 +896,9 @@ function OptionRow({
   stock,
   canOrder,
   compat,
+  noteModelId,
+  note,
+  isAdmin,
   onOpen,
   onAdd,
   onZoom,
@@ -839,6 +910,12 @@ function OptionRow({
   canOrder: boolean;
   /** compatible-variation entries of the part's source catalog model (empty if none) */
   compat: BrowserModel["compat"];
+  /** the part's source catalog model id (any part, orderable or not) — keys the fitment note */
+  noteModelId?: string;
+  /** the part's fitment note (free text + images); absent = none */
+  note?: AccessoryModelNote;
+  /** viewer is an admin → the fitment note is editable */
+  isAdmin: boolean;
   /** open this part's own detail (deep-link to its model) */
   onOpen: () => void;
   /** add this part to a quote on its own */
@@ -890,7 +967,12 @@ function OptionRow({
           ) : null}
         </div>
       </div>
-      <div className="flex shrink-0 items-center gap-2">
+      <div className="flex shrink-0 items-center gap-2" onClick={(e) => e.stopPropagation()}>
+        {/* Fitment note to the LEFT of Add: admins can always edit it; retailers see it only when
+            a note exists. Only for parts backed by a catalog model. */}
+        {noteModelId && (
+          <AccessoryNoteButton modelId={noteModelId} modelName={item.name} note={note} isAdmin={isAdmin} />
+        )}
         {/* Add this part to a quote on its own. Hidden when the part has no orderable model or is
             out of stock. Stops propagation so it doesn't also trigger the row's open-detail. */}
         {canOrder && !outOfStock && (

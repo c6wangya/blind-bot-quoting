@@ -241,7 +241,8 @@ async function buildAccessoryLine(
   model: AccessoryModel,
   unitPrice: number | undefined,
   variations: VariationSnapshot[],
-  componentPrices?: { motor?: number; items?: Record<string, number>; by: string; at: string }
+  componentPrices?: { motor?: number; items?: Record<string, number>; by: string; at: string },
+  airFreight = false
 ): Promise<{ config: AccessoryConfig; computation: QuoteComputation }> {
   const cat = await loadCatalog();
   const category = cat.category(model.categoryId);
@@ -264,6 +265,7 @@ async function buildAccessoryLine(
     category: category?.name ?? model.categoryId,
     image: cat.image(model),
     ...(outVariations.length ? { variations: outVariations } : {}),
+    ...(airFreight ? { airFreight: true } : {}),
   };
   // Snapshot the retailer's effective price (override → default → static), defaulting to static; an
   // admin motor-base override wins for this quote.
@@ -305,9 +307,10 @@ export async function addAccessoryItem(
   qty: number,
   sb: SupabaseClient = admin(),
   unitPrice?: number,
-  variations: VariationSnapshot[] = []
+  variations: VariationSnapshot[] = [],
+  airFreight = false
 ): Promise<QuoteItemRow> {
-  const { config, computation } = await buildAccessoryLine(model, unitPrice, variations);
+  const { config, computation } = await buildAccessoryLine(model, unitPrice, variations, undefined, airFreight);
   const { data, error } = await sb
     .from("quote_items")
     .insert({ quote_id: quoteId, product_id: model.id, line_id: "accessory", qty, config, computation })
@@ -345,9 +348,10 @@ export async function updateAccessoryItem(
   unitPrice: number,
   variations: VariationSnapshot[],
   sb: SupabaseClient = admin(),
-  componentPrices?: { motor?: number; items?: Record<string, number>; by: string; at: string }
+  componentPrices?: { motor?: number; items?: Record<string, number>; by: string; at: string },
+  airFreight = false
 ): Promise<void> {
-  const { config, computation } = await buildAccessoryLine(model, unitPrice, variations, componentPrices);
+  const { config, computation } = await buildAccessoryLine(model, unitPrice, variations, componentPrices, airFreight);
   await updateQuoteItem(itemId, { config, computation, qty }, sb);
 }
 

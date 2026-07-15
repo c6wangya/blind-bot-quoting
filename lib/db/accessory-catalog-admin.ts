@@ -55,6 +55,51 @@ export async function deleteModelFile(id: string, sb: SupabaseClient = admin()):
   if (error) throw error;
 }
 
+// ---------------- per-model compatibility note (free text + images, retailer-facing) ----------------
+
+export type AccessoryNoteImage = { id: string; url: string };
+export type AccessoryModelNote = { body: string; images: AccessoryNoteImage[] };
+
+/** model_id → its compatibility note (body + images, public URLs derived). Best-effort: {} if the
+ *  tables aren't present yet (migration 0043 not run). Only models WITH a note appear. */
+export async function getModelNotesMap(sb: SupabaseClient = admin()): Promise<Record<string, AccessoryModelNote>> {
+  const [notes, images] = await Promise.all([
+    sb.from("accessory_model_notes").select("modelId:model_id, body"),
+    sb.from("accessory_model_note_images").select("id, modelId:model_id, path").order("sort").order("created_at"),
+  ]);
+  if (notes.error) return {};
+  const map: Record<string, AccessoryModelNote> = {};
+  for (const r of (notes.data ?? []) as { modelId: string; body: string }[]) map[r.modelId] = { body: r.body ?? "", images: [] };
+  for (const r of (images.data ?? []) as { id: string; modelId: string; path: string }[]) {
+    (map[r.modelId] ??= { body: "", images: [] }).images.push({ id: r.id, url: publicUrl(r.path, sb) });
+  }
+  return map;
+}
+
+/** Upsert a model's note body (empty string clears the text but keeps any images). */
+export async function setModelNote(modelId: string, body: string, sb: SupabaseClient = admin()): Promise<void> {
+  const { error } = await sb
+    .from("accessory_model_notes")
+    .upsert({ model_id: modelId, body, updated_at: new Date().toISOString() }, { onConflict: "model_id" });
+  if (error) throw error;
+}
+
+/** Attach an uploaded image (already in the accessory-images bucket) to a model's note. */
+export async function addNoteImage(modelId: string, path: string, sb: SupabaseClient = admin()): Promise<AccessoryNoteImage> {
+  const id = `ni-${Math.random().toString(36).slice(2, 12)}`;
+  const { error } = await sb.from("accessory_model_note_images").insert({ id, model_id: modelId, path });
+  if (error) throw error;
+  return { id, url: publicUrl(path, sb) };
+}
+
+export async function deleteNoteImage(id: string, sb: SupabaseClient = admin()): Promise<void> {
+  const { data } = await sb.from("accessory_model_note_images").select("path").eq("id", id).maybeSingle();
+  const path = (data as { path: string } | null)?.path;
+  if (path) await admin().storage.from(ACCESSORY_BUCKET).remove([path]).then(() => {}, () => {});
+  const { error } = await sb.from("accessory_model_note_images").delete().eq("id", id);
+  if (error) throw error;
+}
+
 async function uniqueId(table: string, base: string, sb: SupabaseClient): Promise<string> {
   let id = base || "x";
   let n = 1;
@@ -271,6 +316,13 @@ export async function deleteModel(
   const { data: files } = await sb.from("accessory_model_files").select("path").eq("model_id", id);
   const paths = ((files ?? []) as { path: string }[]).map((f) => f.path);
   if (paths.length) await admin().storage.from(ACCESSORY_BUCKET).remove(paths).then(() => {}, () => {});
+  // Compatibility-note rows cascade via FK (0043), but remove their storage objects too. The note
+  // row itself also cascades; delete both explicitly per convention.
+  const { data: noteImgs } = await sb.from("accessory_model_note_images").select("path").eq("model_id", id);
+  const notePaths = ((noteImgs ?? []) as { path: string }[]).map((f) => f.path);
+  if (notePaths.length) await admin().storage.from(ACCESSORY_BUCKET).remove(notePaths).then(() => {}, () => {});
+  await sb.from("accessory_model_note_images").delete().eq("model_id", id);
+  await sb.from("accessory_model_notes").delete().eq("model_id", id);
   const { error } = await sb.from("accessory_models").delete().eq("id", id);
   if (error) throw error;
   return { status: "deleted" };

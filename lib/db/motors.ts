@@ -88,7 +88,11 @@ export async function motorNeedsOf(
   items: { config: unknown; productId: string; qty: number }[],
   sb: SupabaseClient = admin()
 ): Promise<{ modelId: string; qty: number }[]> {
-  const lines = items.filter((i) => isAccessoryConfig(i.config as never));
+  // Air-freight lines are procured from China and never touch US inventory, so they're excluded
+  // from every reserve/restore path (this single filter feeds submit, cancel, and refund).
+  const lines = items.filter(
+    (i) => isAccessoryConfig(i.config as never) && !(i.config as AccessoryConfig).airFreight
+  );
   if (lines.length === 0) return [];
   const itemModelMap = await getVariationItemModelMap(sb);
   const byModel: Record<string, number> = {};

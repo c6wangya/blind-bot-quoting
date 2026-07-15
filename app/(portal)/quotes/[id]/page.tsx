@@ -369,12 +369,21 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
                       <div className="min-w-0 flex-1">
                         <div className="flex items-start justify-between gap-3">
                           <div>
-                            <div className="text-[15px] font-semibold text-ink">{cfg.name}</div>
+                            <div className="flex items-center gap-2">
+                              <div className="text-[15px] font-semibold text-ink">{cfg.name}</div>
+                              {cfg.airFreight && (
+                                <span className="shrink-0 rounded-full border border-[#e0cfa8] bg-brass-soft px-2 py-0.5 text-[10.5px] font-semibold text-[#8a6a39]">
+                                  ✈ Air freight
+                                </span>
+                              )}
+                            </div>
                             <div className="mt-0.5 text-xs text-muted">
                               {cfg.brand} · {cfg.category} · {cfg.sku}
                             </div>
                             {editable &&
                               (() => {
+                                // Air-freight lines don't draw US inventory — the US stock chip is irrelevant.
+                                if (cfg.airFreight) return null;
                                 const s = item.productId in inventory ? inventory[item.productId] : null;
                                 if (s === null) return null;
                                 const tone = s <= 0 ? "text-red-500" : s <= 5 ? "text-amber-600" : "text-muted";

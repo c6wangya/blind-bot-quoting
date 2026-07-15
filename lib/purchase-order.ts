@@ -46,7 +46,7 @@ export function buildPurchaseOrderRows(items: QuoteItemRow[]): PurchaseOrderRow[
       rows.push({
         name: cfg.name,
         sku: cfg.sku,
-        detail: [cfg.brand, cfg.category].filter(Boolean).join(" · "),
+        detail: [cfg.brand, cfg.category, cfg.airFreight ? "Air freight / 空运" : null].filter(Boolean).join(" · "),
         qty: item.qty,
         rate: motorRate,
         amount: round2(motorRate * item.qty),

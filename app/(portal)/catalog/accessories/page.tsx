@@ -5,7 +5,7 @@ import { AccessorySearchBox } from "@/components/AccessorySearchBox";
 import { AccessoryToolbar } from "@/components/AccessoryToolbar";
 import { FrequentParts, FrequentPartsToggle, type FrequentPart } from "@/components/FrequentParts";
 import { getEffectiveOwnerId } from "@/lib/auth/acting-as";
-import { getCurrentUserId } from "@/lib/auth/user";
+import { getCurrentUserId, isAdmin } from "@/lib/auth/user";
 import { quoteItemsToRefs } from "@/lib/message-items";
 import {
   getAttributes,
@@ -16,6 +16,7 @@ import {
   getQuote,
   getQuotes,
   getModelFilesMap,
+  getModelNotesMap,
   getModelTagMap,
   getProductDefaultsMap,
   getRetailerDefaultsMap,
@@ -42,7 +43,8 @@ export default async function AccessoriesPage({
   // ordering on someone's behalf, else the logged-in user). Order history / frequent parts must
   // key off this, not the real uid — otherwise an admin acting-as sees an empty card.
   const [userId, effectiveOwner] = await Promise.all([getCurrentUserId(), getEffectiveOwnerId()]);
-  const [catalog, attributes, tagMap, compatVariations, effectivePrices, inventory, variations, variationMap, filesMap, defaultsMap, retailerDefaults, exclusionGroups, itemModelMap, frequentRaw] = await Promise.all([
+  const adminViewer = userId ? await isAdmin(userId) : false;
+  const [catalog, attributes, tagMap, compatVariations, effectivePrices, inventory, variations, variationMap, filesMap, notesMap, defaultsMap, retailerDefaults, exclusionGroups, itemModelMap, frequentRaw] = await Promise.all([
     loadCatalog(),
     getAttributes(),
     getModelTagMap(),
@@ -52,6 +54,7 @@ export default async function AccessoriesPage({
     getVariations(),
     getProductVariationMap(), // model_id → available variation item ids
     getModelFilesMap(), // model_id → spec/cert attachments
+    getModelNotesMap(), // model_id → retailer-facing fitment note (free text + images)
     getProductDefaultsMap(), // model_id → store-wide default variation item ids
     effectiveOwner ? getRetailerDefaultsMap(effectiveOwner) : Promise.resolve<Record<string, string[]>>({}), // this customer's pre-set "kit" (overrides global per model)
     getExclusionGroupsMap(), // model_id → exclusion groups (grey-out in the options picker)
@@ -366,8 +369,12 @@ export default async function AccessoriesPage({
           exclusionGroups={exclusionGroups}
           variationStock={variationStock}
           itemModelMap={aloneableItemModelMap}
+          itemModelAll={itemModelMap}
           itemModelCat={itemModelCat}
           itemCompat={itemCompat}
+          notesMap={notesMap}
+          isAdmin={adminViewer}
+          canAirFreight={adminViewer && !!effectiveOwner && effectiveOwner !== userId}
           quotes={draftQuotes}
           preselectedQuoteId={quoteId}
           showCategory={filtering}

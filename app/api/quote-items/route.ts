@@ -170,6 +170,8 @@ export async function POST(req: Request) {
       variationItems?: Array<{ itemId: string; qty?: number }>;
       /** Admin-only ad-hoc money line: surcharge (positive) or discount (negative). */
       adjustment?: { label: string; amount: number; note?: string };
+      /** Admin-acting-on-behalf: place an air-freight (from China) line for an out-of-stock model. */
+      airFreight?: boolean;
     };
     const qty = Math.max(1, Math.min(500, Math.round(body.qty || 1)));
     const quoteId = typeof body.quoteId === "number" && Number.isInteger(body.quoteId) ? body.quoteId : undefined;
@@ -201,7 +203,18 @@ export async function POST(req: Request) {
       }
       // Stock cap (tracked models only) — friendly block before it ever reaches submit.
       const stock = await getStock(accessory.id);
-      if (stock !== null && qty > stock) {
+      // Air-freight: an admin acting on a retailer's behalf may order an out-of-stock model from
+      // China. Such a line never draws US inventory, so all stock caps below are skipped for it.
+      // Only honored when the request is genuinely an admin-acting one AND the model is out of stock
+      // — a retailer (or a non-out-of-stock model) posting the flag is ignored and hits the caps.
+      const airFreight = body.airFreight === true && acting.isAdmin && !!acting.actingAsId && stock === 0;
+      if (body.airFreight === true && !airFreight) {
+        return NextResponse.json(
+          { error: "Air-freight ordering is only available to an admin, on a retailer's behalf, for an out-of-stock model" },
+          { status: 403 }
+        );
+      }
+      if (!airFreight && stock !== null && qty > stock) {
         return NextResponse.json(
           { error: stock === 0 ? "This motor is out of stock" : `Only ${stock} of this motor left` },
           { status: 409 }
@@ -222,8 +235,10 @@ export async function POST(req: Request) {
       // sub-product price off the same override → business → default → static chain.
       const eff = await getEffectivePrices(userId);
       const variations = await resolveVariationSelections(accessory.id, requested, sb, eff);
-      const stockErr = await checkSubPartStock(variations, qty);
-      if (stockErr) return NextResponse.json({ error: stockErr }, { status: 409 });
+      if (!airFreight) {
+        const stockErr = await checkSubPartStock(variations, qty);
+        if (stockErr) return NextResponse.json({ error: stockErr }, { status: 409 });
+      }
       const quote = await resolveTargetQuote(userId, sb, quoteId);
       const unitPrice = eff[accessory.id] ?? (await resolveMotorPrice(accessory.id, userId));
       const newUnit = round2(unitPrice + variations.reduce((s, v) => s + v.price * (v.qty ?? 1), 0));
@@ -248,6 +263,9 @@ export async function POST(req: Request) {
         (l) =>
           l.product_id === accessory.id &&
           isAccessoryConfig(l.config) &&
+          // An air-freight line and a normal (US-stock) line are distinct fulfilment paths — never
+          // merge across them, even when model + variations + price otherwise match.
+          !!(l.config as AccessoryConfig).airFreight === airFreight &&
           sameVariations((l.config as AccessoryConfig).variations, variations) &&
           l.computation.componentPrices == null &&
           l.computation.priceOverride == null &&
@@ -255,18 +273,20 @@ export async function POST(req: Request) {
       );
       if (dup) {
         const mergedQty = dup.qty + qty;
-        if (stock !== null && mergedQty > stock) {
-          return NextResponse.json(
-            { error: stock === 0 ? "This motor is out of stock" : `Only ${stock} of this motor left` },
-            { status: 409 },
-          );
+        if (!airFreight) {
+          if (stock !== null && mergedQty > stock) {
+            return NextResponse.json(
+              { error: stock === 0 ? "This motor is out of stock" : `Only ${stock} of this motor left` },
+              { status: 409 },
+            );
+          }
+          const mergedSubErr = await checkSubPartStock(variations, mergedQty);
+          if (mergedSubErr) return NextResponse.json({ error: mergedSubErr }, { status: 409 });
         }
-        const mergedSubErr = await checkSubPartStock(variations, mergedQty);
-        if (mergedSubErr) return NextResponse.json({ error: mergedSubErr }, { status: 409 });
-        await updateAccessoryItem(dup.id, accessory, mergedQty, unitPrice, variations, sb);
+        await updateAccessoryItem(dup.id, accessory, mergedQty, unitPrice, variations, sb, undefined, airFreight);
         return NextResponse.json({ quoteId: quote.id, quoteRef: quote.ref, item: { id: dup.id, merged: true } });
       }
-      const item = await addAccessoryItem(quote.id, accessory, qty, sb, unitPrice, variations);
+      const item = await addAccessoryItem(quote.id, accessory, qty, sb, unitPrice, variations, airFreight);
       return NextResponse.json({ quoteId: quote.id, quoteRef: quote.ref, item });
     }
 
@@ -374,10 +394,13 @@ export async function PATCH(req: Request) {
     const accessory = isAccessoryConfig(row.config) ? (await loadCatalog()).model(row.product_id) : null;
     if (accessory) {
       const cfg = row.config as AccessoryConfig;
+      // Preserve an existing air-freight line's fulfilment path across any re-price: it stays a
+      // from-China line (no US inventory), so the stock caps below don't apply to it.
+      const airFreight = cfg.airFreight === true;
       const moq = accessory.moq ?? 0;
       const qty = Math.max(Math.max(1, moq), Math.min(500, Math.round(body.qty ?? row.qty)));
       const stock = await getStock(accessory.id);
-      if (stock !== null && qty > stock) {
+      if (!airFreight && stock !== null && qty > stock) {
         return NextResponse.json(
           { error: stock === 0 ? "This motor is out of stock" : `Only ${stock} of this motor left` },
           { status: 409 }
@@ -391,8 +414,10 @@ export async function PATCH(req: Request) {
       const ownerId = await getQuoteOwnerId(row.quote_id);
       const eff = await getEffectivePrices(ownerId ?? null);
       const variations = await resolveVariationSelections(accessory.id, requested, sb, eff);
-      const stockErr = await checkSubPartStock(variations, qty);
-      if (stockErr) return NextResponse.json({ error: stockErr }, { status: 409 });
+      if (!airFreight) {
+        const stockErr = await checkSubPartStock(variations, qty);
+        if (stockErr) return NextResponse.json({ error: stockErr }, { status: 409 });
+      }
       const unitPrice = eff[accessory.id] ?? (await resolveMotorPrice(accessory.id, ownerId ?? null));
       // Resolve the effective per-component overrides: start from the line's existing overrides, then
       // apply the (partial) change in this request (number = set, null = clear; whole value null =
@@ -404,7 +429,7 @@ export async function PATCH(req: Request) {
         selectedIds,
         acting.realUid
       );
-      await updateAccessoryItem(itemId, accessory, qty, unitPrice, variations, sb, componentPrices);
+      await updateAccessoryItem(itemId, accessory, qty, unitPrice, variations, sb, componentPrices, airFreight);
       return NextResponse.json({ ok: true });
     }
 

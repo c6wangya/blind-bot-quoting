@@ -192,6 +192,11 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                 cfg.name
               )}
               <span className="ml-2 font-normal text-muted">{cfg.sku}</span>
+              {cfg.airFreight && (
+                <span className="ml-2 inline-block rounded-full border border-[#e0cfa8] bg-brass-soft px-2 py-0.5 text-[10px] font-semibold text-[#8a6a39]">
+                  ✈ Air freight
+                </span>
+              )}
             </div>
             <div className="mt-0.5 truncate text-xs text-muted">{cfg.category}</div>
             <AccessoryVariations cfg={cfg} motorQty={item.qty} />
