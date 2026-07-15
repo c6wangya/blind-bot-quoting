@@ -352,6 +352,8 @@ function VariationPanel({
   const [zoom, setZoom] = useState<string | null>(null);
   // Preselected quote starts expanded so its items are visible right away; the chevron still toggles.
   const [expandedQuote, setExpandedQuote] = useState<number | null>(preselectedQuoteId ?? null);
+  // Preselected-quote sheet: its existing-items list is collapsed by default (keeps the sheet compact).
+  const [preOpen, setPreOpen] = useState(false);
   // Which quote the add sheet is targeting (single-select). Null = fall back to the first (newest).
   const [target, setTarget] = useState<number | null>(null);
   const [descOpen, setDescOpen] = useState(false);
@@ -563,6 +565,8 @@ function VariationPanel({
   // The quote the sheet's single confirm button commits to: the user's pick if still valid,
   // otherwise the first (newest) quote. Null only when the retailer has no drafts yet.
   const effectiveTarget = target != null && quotes.some((q) => q.id === target) ? target : quotes[0]?.id ?? null;
+  // When we arrived from a specific quote, resolve it so the sheet can preview what's already in it.
+  const preTarget = preselectedQuoteId != null ? quotes.find((q) => q.id === preselectedQuoteId) ?? null : null;
 
   const TAG_LIMIT = 6;
   const shownTags = tagsOpen ? model.tags : model.tags.slice(0, TAG_LIMIT);
@@ -739,16 +743,47 @@ function VariationPanel({
             {error && <p className="px-4 pt-2 text-[11px] text-red-500">{error}</p>}
 
             {preselectedQuoteId != null ? (
-              // Target quote is already known — one confirm, straight into it.
-              <div className="p-4">
-                <Button
-                  variant="primary"
-                  busy={busy}
-                  onClick={() => doAdd(preselectedQuoteId)}
-                  className="w-full justify-center py-2.5"
-                >
-                  {`Add ${adding.qty} to ${refOf(preselectedQuoteId)}`}
-                </Button>
+              // Target quote already known — the confirm button already names it, so we don't repeat
+              // the name here; just a collapsible peek at what's already in it (collapsed by default).
+              <div className="flex min-h-0 flex-1 flex-col">
+                {preTarget && preTarget.items.length > 0 && (
+                  <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setPreOpen((o) => !o)}
+                      aria-expanded={preOpen}
+                      className="flex shrink-0 items-center justify-between gap-2 rounded-lg px-1 py-1.5 text-left text-[12px] font-medium text-ink-soft transition-colors hover:text-ink"
+                    >
+                      <span>{preTarget.itemCount} item{preTarget.itemCount === 1 ? "" : "s"} already in this quote</span>
+                      <svg viewBox="0 0 16 16" className={cx("size-3.5 transition-transform", preOpen && "rotate-180")} fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                        <path d="M4 6l4 4 4-4" />
+                      </svg>
+                    </button>
+                    {preOpen && (
+                      <ul className="mt-1 min-h-0 flex-1 space-y-1 overflow-auto rounded-lg border border-line/70 bg-[#faf9f5] px-3 py-2">
+                        {preTarget.items.map((it, i) => (
+                          <li key={i} className={cx("flex items-center gap-2 text-[11.5px] leading-snug", it.sub && "pl-3")}>
+                            <span className="min-w-0 flex-1 truncate text-ink-soft">
+                              {it.sub && <span className="text-muted">↳ </span>}
+                              {it.name}
+                            </span>
+                            <span className="shrink-0 tabular-nums text-muted">×{it.qty}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+                <div className="border-t border-line/70 p-3">
+                  <Button
+                    variant="primary"
+                    busy={busy}
+                    onClick={() => doAdd(preselectedQuoteId)}
+                    className="w-full justify-center py-2.5"
+                  >
+                    {`Add ${adding.qty} to ${refOf(preselectedQuoteId)}`}
+                  </Button>
+                </div>
               </div>
             ) : (
               // Single-select target list + one confirm button (the "save to which list?" pattern):
