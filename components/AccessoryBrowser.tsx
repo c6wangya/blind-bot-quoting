@@ -417,16 +417,18 @@ function VariationPanel({
   ) => {
     const a = aloneOverride ?? alone;
     const q = aloneOverride ? 1 : aloneQty;
-    if (a && a.stock !== null && q > a.stock) return;
+    // Air-freight isn't bounded by US stock (it's a from-China order), so skip the stock guard for it.
+    if (a && !air && a.stock !== null && q > a.stock) return;
     setMenuOpen(false);
     setBusy(true);
     setError(null);
     try {
       // Standalone part → its own catalog model. Motor → just the motor (parts are never bundled).
-      // Air-freight applies only to this out-of-stock model's own line (never a standalone part).
+      // Air-freight applies to whichever line the sheet is adding — the motor or a standalone part.
+      const airBody = air ? { airFreight: true } : {};
       const body = a
-        ? { productId: a.modelId, qty: q, quoteId: targetId }
-        : { productId: model.id, qty: motorQty, quoteId: targetId, ...(air ? { airFreight: true } : {}) };
+        ? { productId: a.modelId, qty: q, quoteId: targetId, ...airBody }
+        : { productId: model.id, qty: motorQty, quoteId: targetId, ...airBody };
       const r = await fetch("/api/quote-items", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -441,6 +443,7 @@ function VariationPanel({
       setBusy(false);
       toast(`Added ${a ? a.name : model.name} to ${refOf(targetId)}`);
       setAlone(null);
+      setAir(false);
       router.refresh(); // refresh the draft list (item counts) without leaving the page
     } catch (e) {
       setError((e as Error).message);
@@ -451,10 +454,14 @@ function VariationPanel({
   // A part row's "Add on its own": buy just this part (its source catalog model), not the motor.
   // Opens the SAME add sheet as a normal add — with a qty stepper — so quantity is editable, and
   // carries the part's image/price/stock so the sheet's header card can show them.
-  const openAddAlone = (a: { name: string; modelId: string; stock: number | null; price: number | null; image: string | null }) => {
+  const openAddAlone = (
+    a: { name: string; modelId: string; stock: number | null; price: number | null; image: string | null },
+    asAir = false
+  ) => {
     setError(null);
     setCreating(false);
     setNewName("");
+    setAir(asAir);
     setAlone(a);
     setAloneQty(1);
     setMenuOpen(true);
@@ -478,16 +485,19 @@ function VariationPanel({
 
   // A related part's own "Add to quote": open the add sheet (qty stepper, + quote picker when
   // the target isn't already known) — the same flow as adding this product.
-  const addPart = (it: VariationType["items"][number]) => {
+  const addPart = (it: VariationType["items"][number], asAir = false) => {
     const modelId = itemModelMap[it.id];
     if (!modelId) return;
-    openAddAlone({
-      name: it.name,
-      modelId,
-      stock: stockOf(it.id),
-      price: it.price ?? null,
-      image: it.image ?? null,
-    });
+    openAddAlone(
+      {
+        name: it.name,
+        modelId,
+        stock: stockOf(it.id),
+        price: it.price ?? null,
+        image: it.image ?? null,
+      },
+      asAir
+    );
   };
 
   // Create a new (optionally named) empty draft, then silently refresh so it appears at the top of
@@ -526,7 +536,17 @@ function VariationPanel({
   // What the add-popover is adding — this product or a related part. Quantity is chosen at add
   // time (Taobao-style "add to cart"), so both share one qty block driven by these.
   const adding = alone
-    ? { name: alone.name, qty: aloneQty, setQty: setAloneQty, min: 1, max: alone.stock ?? 999, price: alone.price, image: alone.image, stock: alone.stock }
+    ? {
+        name: alone.name,
+        qty: aloneQty,
+        setQty: setAloneQty,
+        min: 1,
+        // Air-freight parts aren't capped by US stock; otherwise cap at the part's stock.
+        max: air ? Infinity : (alone.stock ?? 999),
+        price: alone.price,
+        image: alone.image,
+        stock: air ? null : alone.stock,
+      }
     : {
         name: model.name,
         qty: motorQty,
@@ -660,8 +680,10 @@ function VariationPanel({
                         noteModelId={itemModelAll[it.id]}
                         note={itemModelAll[it.id] ? notesMap[itemModelAll[it.id]] : undefined}
                         isAdmin={isAdmin}
+                        canAirFreight={canAirFreight}
                         onOpen={() => openPart(it.id)}
                         onAdd={() => addPart(it)}
+                        onAirFreight={() => addPart(it, true)}
                         onZoom={setZoom}
                       />
                     ))}
@@ -899,8 +921,10 @@ function OptionRow({
   noteModelId,
   note,
   isAdmin,
+  canAirFreight,
   onOpen,
   onAdd,
+  onAirFreight,
   onZoom,
 }: {
   item: VariationType["items"][number];
@@ -916,20 +940,26 @@ function OptionRow({
   note?: AccessoryModelNote;
   /** viewer is an admin → the fitment note is editable */
   isAdmin: boolean;
+  /** admin acting on a retailer's behalf → an out-of-stock part can still be air-freighted */
+  canAirFreight: boolean;
   /** open this part's own detail (deep-link to its model) */
   onOpen: () => void;
   /** add this part to a quote on its own */
   onAdd: () => void;
+  /** air-freight this out-of-stock part (from China; no US stock) */
+  onAirFreight: () => void;
   onZoom: (url: string) => void;
 }) {
   const outOfStock = stock !== null && stock <= 0;
+  // Out of stock but an admin (acting for a retailer) can still air-freight it → keep the row legible.
+  const airable = outOfStock && canOrder && canAirFreight;
   return (
     <div
       title={outOfStock ? "Out of stock" : canOrder ? "Open this part" : undefined}
       onClick={() => canOrder && !outOfStock && onOpen()}
       className={cx(
         "group flex items-center gap-3 rounded-lg px-2 py-1.5 transition-colors",
-        outOfStock ? "opacity-40" : canOrder ? "cursor-pointer hover:bg-[#faf9f5]" : ""
+        outOfStock ? (airable ? "" : "opacity-40") : canOrder ? "cursor-pointer hover:bg-[#faf9f5]" : ""
       )}
     >
       {item.image ? (
@@ -983,6 +1013,17 @@ function OptionRow({
             className="rounded-md border border-line px-2.5 py-1 text-[10.5px] font-medium text-muted transition-colors hover:border-ink hover:text-ink group-hover:text-ink-soft"
           >
             ＋ Add
+          </button>
+        )}
+        {/* Out of stock in the US but air-freightable (admin acting for a retailer) — order from China. */}
+        {airable && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onAirFreight(); }}
+            title="Air freight this part"
+            className="rounded-md border border-[#e0cfa8] bg-brass-soft px-2.5 py-1 text-[10.5px] font-medium text-[#8a6a39] transition-colors hover:border-[#8a6a39]"
+          >
+            ✈ Air freight
           </button>
         )}
       </div>
