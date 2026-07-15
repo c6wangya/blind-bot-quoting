@@ -84,10 +84,16 @@ export default async function AccessoriesPage({
   // orderable category — mirroring the server's orderable guard in POST /api/quote-items, so the
   // button never appears for a part that would 422 on click. (Full itemModelMap still drives stock.)
   const aloneableItemModelMap: Record<string, string> = {};
+  // item id → its source model's category id, so a related part row can deep-link to that part's
+  // own detail (?cat=<catId>&sel=<modelId>) even when the part lives in another category.
+  const itemModelCat: Record<string, string> = {};
   for (const [itemId, modelId] of Object.entries(itemModelMap)) {
     const model = catalog.model(modelId);
     const category = model ? catalog.category(model.categoryId) : undefined;
-    if (category?.orderable) aloneableItemModelMap[itemId] = modelId;
+    if (category?.orderable) {
+      aloneableItemModelMap[itemId] = modelId;
+      itemModelCat[itemId] = model!.categoryId;
+    }
   }
 
   // The current user's open (draft) quotes — offered in the in-page "Add to quote" picker so a
@@ -255,7 +261,7 @@ export default async function AccessoriesPage({
 
   // ---- Toolbar data: breadcrumb categories + active-filter chips ----
   const description =
-    "Motors, controls and power. Motors are orderable and add to the same quote as full products; other parts are reference for now.";
+    "Motors, controls and power — each sold separately and added to the same quote as full products. Open any product for its details and the parts it works with.";
   const attrName: Record<string, string> = {};
   for (const a of attributes) attrName[a.id] = a.name;
 
@@ -332,7 +338,7 @@ export default async function AccessoriesPage({
 
       {quoteId && (
         <div className="rise mb-3 flex items-center justify-between gap-3 rounded-xl border border-brass/40 bg-brass-soft/40 px-4 py-2.5 text-[13px] text-ink-soft">
-          <span>Adding to your quote — pick a motor to add.</span>
+          <span>Adding to your quote — pick a product to add.</span>
           <Link href={`/quotes/${quoteId}`} className="shrink-0 font-medium text-brass hover:underline">
             Back to quote →
           </Link>
@@ -360,6 +366,7 @@ export default async function AccessoriesPage({
           exclusionGroups={exclusionGroups}
           variationStock={variationStock}
           itemModelMap={aloneableItemModelMap}
+          itemModelCat={itemModelCat}
           itemCompat={itemCompat}
           quotes={draftQuotes}
           preselectedQuoteId={quoteId}
