@@ -27,6 +27,7 @@ export function QuoteDetailsDrawer({
   const [d, setD] = useState<QuoteDetails>(initial);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
   const [errors, setErrors] = useState<QuoteDetailsErrors>({});
 
   const openMode = (m: Mode) => {
@@ -35,16 +36,20 @@ export function QuoteDetailsDrawer({
     setD(initial);
     setErrors({});
     setError(null);
+    setSaved(false);
     setMode(m);
   };
 
   const update = (next: QuoteDetails) => {
     setD(next);
+    setSaved(false);
     if (Object.keys(errors).length) setErrors(validateQuoteDetails(next, { requireContact: true }));
   };
 
-  // PATCH the quote with the given details; closes + refreshes on success.
-  const persist = async (details: QuoteDetails) => {
+  // PATCH the quote with the given details. `keepOpen` (edit-mode Save) leaves the drawer open and
+  // silently re-fetches the page data (router.refresh() — no full reload) so the saved values show
+  // without a manual refresh; otherwise (address pick) it closes.
+  const persist = async (details: QuoteDetails, keepOpen = false) => {
     setBusy(true);
     setError(null);
     try {
@@ -57,8 +62,9 @@ export function QuoteDetailsDrawer({
         const data = await r.json().catch(() => ({}));
         throw new Error(data.error ?? "Could not save");
       }
-      setMode(null);
       router.refresh();
+      if (keepOpen) setSaved(true);
+      else setMode(null);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -87,7 +93,7 @@ export function QuoteDetailsDrawer({
       return;
     }
     setErrors({});
-    persist(d);
+    persist(d, true);
   };
 
   return (
@@ -146,6 +152,7 @@ export function QuoteDetailsDrawer({
             {mode === "edit" && (
               <div className="border-t border-line px-6 py-4">
                 {error && <p className="mb-2 text-xs text-red-500">{error}</p>}
+                {saved && !error && <p className="mb-2 text-xs text-green-600">✓ Saved</p>}
                 <Button variant="primary" onClick={save} busy={busy} className="w-full py-2.5">
                   Save changes
                 </Button>
