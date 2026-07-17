@@ -197,6 +197,7 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
     customerName: quote.customerName,
     customerPhone: quote.customerPhone,
     customerEmail: quote.customerEmail,
+    customerEmails: quote.customerEmails,
     shipAddress1: quote.shipAddress1,
     shipAddress2: quote.shipAddress2,
     shipCity: quote.shipCity,
@@ -296,10 +297,22 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
                       <div className="text-[13.5px] font-medium text-ink">{quote.customerName}</div>
                       {quote.customerPhone && <div className="text-[12px] text-muted">{quote.customerPhone}</div>}
                       {quote.customerEmail && <div className="text-[12px] text-muted">{quote.customerEmail}</div>}
+                      {(quote.customerEmails ?? []).map((em) => (
+                        <div key={em} className="text-[12px] text-muted">{em}</div>
+                      ))}
                     </>
                   ) : (
                     <span className="text-[12.5px] text-muted">—</span>
                   )}
+                  {(quote.contacts ?? []).map((c, i) => (
+                    <div key={i} className="mt-2 border-t border-line pt-2">
+                      {c.name && <div className="text-[12.5px] font-medium text-ink">{c.name}</div>}
+                      {c.phone && <div className="text-[12px] text-muted">{c.phone}</div>}
+                      {(c.emails ?? []).map((em) => (
+                        <div key={em} className="text-[12px] text-muted">{em}</div>
+                      ))}
+                    </div>
+                  ))}
                 </DetailBlock>
                 <DetailBlock label="Ship to">
                   {shipLines.length ? (
