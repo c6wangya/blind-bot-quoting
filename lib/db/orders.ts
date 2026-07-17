@@ -384,6 +384,8 @@ export async function markOrderPaymentFailed(orderId: number, reason: string, sb
 
 type OrderListRow = OrderRow & {
   quoteRef: string;
+  /** Source quote's user-given name (accessory quotes), so the list can show it beside the ref. */
+  quoteName: string | null;
   retailer: string;
   projectName: string | null;
   itemCount: number;
@@ -400,11 +402,11 @@ export async function getOrders(ownerId?: string, sb: SupabaseClient = admin()):
   const quoteIds = [...new Set(orderRows.map((o) => o.quoteId))];
   const { data: quotes } = await sb
     .from("quotes")
-    .select("id, ref, retailer, ownerId:owner_id, projectName:project_name")
+    .select("id, ref, retailer, ownerId:owner_id, projectName:project_name, quoteName:quote_name")
     .in("id", quoteIds);
   const { data: items } = await sb.from("quote_items").select("quoteId:quote_id, qty, computation").in("quote_id", quoteIds);
   const qById = new Map(
-    ((quotes ?? []) as unknown as { id: number; ref: string; retailer: string; ownerId: string | null; projectName: string | null }[]).map((q) => [q.id, q])
+    ((quotes ?? []) as unknown as { id: number; ref: string; retailer: string; ownerId: string | null; projectName: string | null; quoteName: string | null }[]).map((q) => [q.id, q])
   );
   const aggs = (items ?? []) as unknown as ItemAgg[];
 
@@ -433,6 +435,7 @@ export async function getOrders(ownerId?: string, sb: SupabaseClient = admin()):
       return {
         ...o,
         quoteRef: q?.ref ?? "",
+        quoteName: q?.quoteName ?? null,
         retailer: (q?.ownerId ? nameByOwner.get(q.ownerId) : "") || q?.retailer || "",
         projectName: q?.projectName ?? null,
         itemCount: its.length,

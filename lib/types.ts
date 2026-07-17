@@ -91,6 +91,13 @@ export interface ItemConfig {
 /** Config stored on an accessory (e.g. A-OK motor) quote line — no dimensions/options. */
 export interface AccessoryConfig {
   kind: "accessory";
+  /**
+   * The catalog model id this line was priced from — snapshotted so downstream lookups (e.g. the
+   * invoice "List" price) resolve the EXACT model. Required for robustness because sku is NOT unique
+   * across brand catalogs (the A-OK / B-OK trees reuse skus). Optional only for legacy lines created
+   * before this field existed; those fall back to a brand+category+sku match.
+   */
+  modelId?: string;
   sku: string;
   name: string;
   brand: string;
@@ -253,6 +260,16 @@ export function isAccessoryConfig(c: ItemConfig | AccessoryConfig | AdjustmentCo
 /** True for an admin-added ad-hoc surcharge/discount line. */
 export function isAdjustmentConfig(c: ItemConfig | AccessoryConfig | AdjustmentConfig): c is AdjustmentConfig {
   return (c as AdjustmentConfig).kind === "adjustment";
+}
+
+/**
+ * Composite lookup key for an accessory catalog price when the model id isn't known (legacy lines).
+ * sku alone is NOT unique — the A-OK / B-OK brand catalogs reuse skus — so a lookup must also carry
+ * the brand and category. Uses a control char separator that can't occur in a name. Prefer matching
+ * by `AccessoryConfig.modelId` when present; this is the fallback.
+ */
+export function accessoryListKey(brand: string, category: string, sku: string): string {
+  return `${brand} ${category} ${sku}`;
 }
 
 export interface QuoteRow {

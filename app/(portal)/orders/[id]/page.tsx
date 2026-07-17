@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Swatch } from "@/components/renders";
-import { BackLink, Badge, Card, cx, PageHeader, StatusBadge } from "@/components/ui";
+import { BackLink, Badge, Card, cx, LinkButton, PageHeader, StatusBadge } from "@/components/ui";
 import { OrderPayment } from "@/components/OrderPayment";
 import { RefundButton } from "@/components/RefundButton";
 import { CancelOrderButton } from "@/components/CancelOrderButton";
@@ -198,7 +198,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                 </span>
               )}
             </div>
-            <div className="mt-0.5 truncate text-xs text-muted">{cfg.category}</div>
+            <div className="mt-0.5 truncate text-xs text-muted">{[cfg.brand, cfg.category].filter(Boolean).join(" · ")}</div>
             <AccessoryVariations cfg={cfg} motorQty={item.qty} />
           </div>
           <div className="text-right">
@@ -284,7 +284,13 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
           <div className="flex items-center gap-2">
             {canCancel && <CancelOrderButton orderId={order.id} />}
             {canRefund && <RefundButton orderId={order.id} amountLabel={usd(order.amount ?? order.quote.total)} />}
-            <PurchaseOrderMenu orderId={order.id} brands={brandGroups.map((g) => g.brand)} />
+            {/* Invoice — same customer-facing document as the quote page, visible to everyone who can
+                view the order (owner retailer or admin); /invoices gates its own access. */}
+            <LinkButton href={`/invoices/${order.quoteId}`} variant="secondary" target="_blank">
+              Invoice
+            </LinkButton>
+            {/* Purchase order file is a supplier/back-office artifact — admin-only. */}
+            {adminUser && <PurchaseOrderMenu orderId={order.id} brands={brandGroups.map((g) => g.brand)} />}
           </div>
         }
       />

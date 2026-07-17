@@ -7,7 +7,7 @@
 import { BRAND } from "./brand";
 import { getLine, getProduct, getSellerInfo } from "./db";
 import { describeConfig } from "./describe";
-import { isAccessoryConfig, isAdjustmentConfig, type QuoteItemRow, type QuoteRow } from "./types";
+import { accessoryListKey, isAccessoryConfig, isAdjustmentConfig, type QuoteItemRow, type QuoteRow } from "./types";
 
 /** Bill-To fields an invoice requires (the reference invoice's customer address block). Returns the
  *  human labels of any that are blank — empty array means the quote has complete invoicing details. */
@@ -109,13 +109,15 @@ export type InvoiceLine = {
  * Build the printable line items from a quote's lines — products described in full, accessories
  * by their snapshotted name/brand/variations. Rate = unit price, amount = rate × qty.
  *
- * `defaultPriceBySku` (from getAccessoryDefaultPriceBySku) supplies the shared Default-tier motor
- * price for accessory lines; the line's List price is that default base + the SAME snapshotted
- * variation prices (variations have no per-retailer tier), matching how the actual rate is built.
+ * `defaultPrices` (from getAccessoryDefaultPrices) supplies the shared Default-tier motor price for
+ * accessory lines. It resolves by model id when the line snapshotted one (robust — sku is not unique
+ * across the A-OK / B-OK catalogs), else by a brand+category+sku key for legacy lines. The line's
+ * List price is that default base + the SAME snapshotted variation prices (variations have no
+ * per-retailer tier), matching how the actual rate is built.
  */
 export function buildInvoiceLines(
   items: QuoteItemRow[],
-  defaultPriceBySku: Record<string, number> = {},
+  defaultPrices: { byId: Record<string, number>; byKey: Record<string, number> } = { byId: {}, byKey: {} },
   itemDetailsById: Record<string, { image: string | null; price: number }> = {},
 ): InvoiceLine[] {
   return items.map((item, i) => {
@@ -130,7 +132,11 @@ export function buildInvoiceLines(
     if (isAccessoryConfig(cfg)) {
       // Variation labels are omitted here — each is rendered as its own priced breakdown row.
       const description = [cfg.brand, cfg.category].filter(Boolean).join(" · ");
-      const defBase = defaultPriceBySku[cfg.sku];
+      // Resolve the model's List price by id (robust) with a brand+category+sku fallback for legacy
+      // lines — sku alone collides across the A-OK / B-OK catalogs.
+      const defBase =
+        (cfg.modelId != null ? defaultPrices.byId[cfg.modelId] : undefined) ??
+        defaultPrices.byKey[accessoryListKey(cfg.brand, cfg.category, cfg.sku)];
       // Each add-on part becomes its own row: total count = per-motor qty × line qty.
       const parts: InvoiceLinePart[] = (cfg.variations ?? []).map((v) => {
         const partQty = (v.qty ?? 1) * qty;

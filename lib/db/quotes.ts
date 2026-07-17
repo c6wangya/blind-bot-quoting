@@ -259,6 +259,7 @@ async function buildAccessoryLine(
   );
   const config: AccessoryConfig = {
     kind: "accessory",
+    modelId: model.id,
     sku: model.sku,
     name: model.name,
     brand: brandName,

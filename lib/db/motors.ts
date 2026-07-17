@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { admin } from "@/lib/supabase/admin";
 import { loadCatalog } from "./accessory-catalog";
 import { getVariationItemModelMap } from "./variations";
-import { isAccessoryConfig, type AccessoryConfig } from "@/lib/types";
+import { accessoryListKey, isAccessoryConfig, type AccessoryConfig } from "@/lib/types";
 
 // Motor inventory + per-retailer pricing (admin-managed; see 0004_motor_inventory_pricing.sql).
 // Reads are best-effort: if the tables aren't present yet (migration not run) they fall back
@@ -169,16 +169,27 @@ export async function getBusinessPriceMap(sb: SupabaseClient = admin()): Promise
 }
 
 /**
- * sku → Default price (accessory_models.default_price, the catalog base price) — the same number
- * the Motor Management "Default" screen shows. Keyed by sku because quote/invoice accessory lines
- * snapshot only the sku (not the model id). Used as the struck-through "List" price on invoices,
- * which always shows the Default (retail) tier regardless of any Business-tier authorization.
+ * The Default (retail) catalog price for accessory lines — the struck-through "List" price on
+ * invoices. Returned as TWO lookups because sku is NOT unique (the A-OK / B-OK brand catalogs reuse
+ * skus): `byId` keyed by model id (the robust match for lines that snapshot their modelId) and
+ * `byKey` keyed by brand+category+sku (the fallback for legacy lines that only snapshot the sku).
+ * Always the Default tier, regardless of any Business-tier authorization.
  */
-export async function getAccessoryDefaultPriceBySku(): Promise<Record<string, number>> {
+export async function getAccessoryDefaultPrices(): Promise<{
+  byId: Record<string, number>;
+  byKey: Record<string, number>;
+}> {
   const cat = await loadCatalog();
-  const out: Record<string, number> = {};
-  for (const m of cat.models) out[m.sku] = m.price ?? 0;
-  return out;
+  const byId: Record<string, number> = {};
+  const byKey: Record<string, number> = {};
+  for (const m of cat.models) {
+    const price = m.price ?? 0;
+    byId[m.id] = price;
+    const category = cat.category(m.categoryId);
+    const brand = cat.brands.find((b) => b.id === category?.brandId)?.name ?? cat.brand.name;
+    byKey[accessoryListKey(brand, category?.name ?? m.categoryId, m.sku)] = price;
+  }
+  return { byId, byKey };
 }
 
 /** model_id → a single retailer's price rows for one tier ('default' = its overrides). */
