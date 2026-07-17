@@ -14,6 +14,7 @@ import type {
   VariationSnapshot,
 } from "@/lib/types";
 import { isAccessoryConfig } from "@/lib/types";
+import { sanitizeContacts } from "@/lib/contacts";
 import { ITEM_COLS, QUOTE_COLS, round2, insertWithRef } from "./internal";
 import { DEMO_RETAILER, ensureSeeded } from "./seed";
 import { getProfile, getRetailerDiscount, getShippingWaivers } from "./profile";
@@ -33,13 +34,13 @@ async function retailerNameFor(ownerId: string): Promise<string> {
 // Map camelCase QuoteDetails → snake_case columns; only keys actually present are written.
 const DETAIL_KEYS: (keyof QuoteDetails)[] = [
   "quoteType", "quoteName", "projectName", "customerName", "customerPhone", "customerEmail",
-  "shipAddress1", "shipAddress2", "shipCity", "shipState", "shipZip", "po", "sidemark",
+  "shipAddress1", "shipAddress2", "shipCity", "shipState", "shipZip", "po", "sidemark", "contacts",
 ];
 const COLUMN: Record<keyof QuoteDetails, string> = {
   quoteType: "quote_type", quoteName: "quote_name", projectName: "project_name", customerName: "customer_name",
   customerPhone: "customer_phone", customerEmail: "customer_email", shipAddress1: "ship_address1",
   shipAddress2: "ship_address2", shipCity: "ship_city", shipState: "ship_state", shipZip: "ship_zip",
-  po: "po", sidemark: "sidemark",
+  po: "po", sidemark: "sidemark", contacts: "contacts",
 };
 function detailColumns(d: QuoteDetails): Record<string, unknown> {
   const c: Record<string, unknown> = {};
@@ -53,11 +54,13 @@ export function sanitizeQuoteDetails(body: unknown): QuoteDetails {
   if (!body || typeof body !== "object") return out;
   const o = body as Record<string, unknown>;
   for (const k of DETAIL_KEYS) {
+    if (k === "contacts") continue; // jsonb array — sanitized separately below, never stringified
     if (k in o) {
       const v = o[k];
       (out as Record<string, unknown>)[k] = v == null || v === "" ? null : String(v).slice(0, 500);
     }
   }
+  if ("contacts" in o) out.contacts = sanitizeContacts(o.contacts);
   return out;
 }
 

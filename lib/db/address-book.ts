@@ -1,30 +1,35 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { admin } from "@/lib/supabase/admin";
 import type { QuoteDetails, SavedAddress } from "@/lib/types";
+import { sanitizeContacts } from "@/lib/contacts";
 
 // profile_addresses ↔ SavedAddress column aliases (snake → camel on read).
 const ADDRESS_COLS =
   "id, label, isDefault:is_default, customerName:customer_name, customerPhone:customer_phone, " +
   "customerEmail:customer_email, shipAddress1:ship_address1, shipAddress2:ship_address2, " +
-  "shipCity:ship_city, shipState:ship_state, shipZip:ship_zip, po, sidemark, projectName:project_name";
+  "shipCity:ship_city, shipState:ship_state, shipZip:ship_zip, po, sidemark, projectName:project_name, contacts";
 
 // The QuoteDetails keys an address row actually stores (everything but quoteType/quoteName).
 const ADDRESS_DETAIL_KEYS: (keyof QuoteDetails)[] = [
   "customerName", "customerPhone", "customerEmail", "shipAddress1", "shipAddress2",
-  "shipCity", "shipState", "shipZip", "po", "sidemark", "projectName",
+  "shipCity", "shipState", "shipZip", "po", "sidemark", "projectName", "contacts",
 ];
 const ADDRESS_COLUMN: Partial<Record<keyof QuoteDetails, string>> = {
   customerName: "customer_name", customerPhone: "customer_phone", customerEmail: "customer_email",
   shipAddress1: "ship_address1", shipAddress2: "ship_address2", shipCity: "ship_city",
   shipState: "ship_state", shipZip: "ship_zip", po: "po", sidemark: "sidemark",
-  projectName: "project_name",
+  projectName: "project_name", contacts: "contacts",
 };
 
-/** Map QuoteDetails → address columns (only keys present, clamped to 500 chars). */
+/** Map QuoteDetails → address columns (only keys present; strings clamped, contacts sanitized). */
 function addressColumns(d: QuoteDetails): Record<string, unknown> {
   const c: Record<string, unknown> = {};
   for (const k of ADDRESS_DETAIL_KEYS) {
     if (d[k] === undefined) continue;
+    if (k === "contacts") {
+      c.contacts = sanitizeContacts(d[k]); // jsonb array, never stringified
+      continue;
+    }
     const v = d[k];
     c[ADDRESS_COLUMN[k]!] = v == null || v === "" ? null : String(v).slice(0, 500);
   }
@@ -59,6 +64,7 @@ export async function getDefaultAddressDetails(
     po: a.po ?? null,
     sidemark: a.sidemark ?? null,
     projectName: a.projectName ?? null,
+    contacts: a.contacts ?? [],
   };
 }
 

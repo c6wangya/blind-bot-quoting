@@ -11,7 +11,7 @@ export const QUOTE_COLS =
   "id, ref, retailer, status, ownerId:owner_id, projectName:project_name, quoteName:quote_name, quoteType:quote_type, " +
   "customerName:customer_name, customerPhone:customer_phone, customerEmail:customer_email, " +
   "shipAddress1:ship_address1, shipAddress2:ship_address2, shipCity:ship_city, shipState:ship_state, shipZip:ship_zip, " +
-  "po, sidemark, createdAt:created_at, updatedAt:updated_at";
+  "po, sidemark, contacts, createdAt:created_at, updatedAt:updated_at";
 export const ITEM_COLS = "id, quoteId:quote_id, productId:product_id, lineId:line_id, qty, config, computation, createdAt:created_at";
 export const ORDER_COLS = "id, ref, quoteId:quote_id, status, supplierOrderNo:supplier_order_no, trackingNo:tracking_no, trackingNos:tracking_nos, carrier, accessoryOnly:accessory_only, etaDate:eta_date, paymentMethod:payment_method, paymentStatus:payment_status, paymentRef:payment_ref, amount, discountPct:discount_pct, paidAt:paid_at, paymentProofPath:payment_proof_path, refundReason:refund_reason, refundDocPaths:refund_doc_paths, refundedAt:refunded_at, createdAt:created_at, updatedAt:updated_at";
 export const EVENT_COLS = "id, orderId:order_id, status, note, actor, createdAt:created_at";

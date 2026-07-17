@@ -5,6 +5,7 @@
 import { Resend } from "resend";
 import { BRAND } from "./brand";
 import { buildInvoiceLines } from "./invoice";
+import { recipientEmails } from "./contacts";
 import { getOrder } from "./db";
 import type { PaymentMethod } from "./types";
 
@@ -165,16 +166,20 @@ export async function sendOrderPaidEmails(orderId: number): Promise<void> {
       ${shipBlock}
       <p style="font-size:13px;color:#888;margin-top:28px;line-height:1.5;">We'll email you again when your order ships. Questions? Just reply to this email.</p>`;
 
-    const customerTo = CUSTOMER_EMAIL_OVERRIDE || q.customerEmail;
-    if (customerTo) {
+    // Recipients = primary customer email + every additional contact (deduped). The test override,
+    // when set, replaces the whole list with a single safe address so nothing reaches real customers.
+    const customerTo = CUSTOMER_EMAIL_OVERRIDE
+      ? [CUSTOMER_EMAIL_OVERRIDE]
+      : recipientEmails(q.customerEmail, q.contacts);
+    if (customerTo.length) {
       const res = await resend.emails.send({
         from: EMAIL_FROM,
-        to: [customerTo],
+        to: customerTo,
         subject: `Order confirmed — ${order.ref}`,
         html: shell("#333", "Your order is confirmed", customerInner),
       });
       if (res.error) console.error("❌ Resend error (customer confirmation):", res.error);
-      else console.log(`✅ Order confirmation sent to ${customerTo} — ${order.ref}. ID: ${res.data?.id}`);
+      else console.log(`✅ Order confirmation sent to ${customerTo.join(", ")} — ${order.ref}. ID: ${res.data?.id}`);
     } else {
       console.warn(`⚠️ No customer email for order ${order.ref} — customer confirmation skipped.`);
     }
@@ -189,6 +194,7 @@ export async function sendOrderPaidEmails(orderId: number): Promise<void> {
         ${q.projectName ? metaRow("Project", esc(q.projectName)) : ""}
         ${metaRow("Customer", esc(q.customerName || "—"))}
         ${q.customerEmail ? metaRow("Customer email", esc(q.customerEmail)) : ""}
+        ${q.contacts?.length ? metaRow("Also notified", esc(q.contacts.map((c) => c.email).join(", "))) : ""}
         ${q.customerPhone ? metaRow("Customer phone", esc(q.customerPhone)) : ""}
         ${metaRow("Payment", esc(payMethod))}
         ${order.paymentRef ? metaRow("Payment ref", esc(order.paymentRef)) : ""}

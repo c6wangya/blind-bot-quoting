@@ -277,8 +277,16 @@ export interface QuoteRow {
   shipZip: string | null;
   po: string | null;
   sidemark: string | null;
+  /** Additional order-confirmation recipients beyond customerEmail. */
+  contacts: Contact[];
   createdAt: string;
   updatedAt: string;
+}
+
+/** An additional notification recipient (name optional, email required). */
+export interface Contact {
+  name: string | null;
+  email: string;
 }
 
 /** Editable quote header details — customer, ship-to, and references. All optional. */
@@ -296,6 +304,7 @@ export interface QuoteDetails {
   shipZip?: string | null;
   po?: string | null;
   sidemark?: string | null;
+  contacts?: Contact[];
 }
 
 /** A saved address-book entry — a reusable QuoteDetails preset owned by a retailer. */

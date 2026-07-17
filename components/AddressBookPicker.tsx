@@ -210,5 +210,6 @@ export function addressToDetails(a: SavedAddress) {
     po: a.po ?? null,
     sidemark: a.sidemark ?? null,
     projectName: a.projectName ?? null,
+    contacts: a.contacts ?? [],
   };
 }
