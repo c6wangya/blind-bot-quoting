@@ -20,15 +20,17 @@ export type PriceRow = {
   overridePrice: number | null;
   /** Seed for the single editable input on the Default / shared-Business screens. */
   currentPrice: number;
+  /** Internal purchase/cost price (admin-only). Editable on the Cost screen; NULL → 0 seed. */
+  costPrice: number;
   hasOverride: boolean;
 };
 export type Target =
-  | { kind: "default" }
-  | { kind: "business" }
+  // The shared pricing set — cost / default / business edited side by side on one screen.
+  | { kind: "set" }
   | { kind: "retailer"; retailerId: string; label: string };
 
 // A price column — either a read-only reference or an editable tier.
-type ColKey = "default" | "business" | "override";
+type ColKey = "default" | "business" | "override" | "cost";
 type Col = { key: ColKey; label: string };
 
 const REF_W = 96; // read-only reference column
@@ -44,16 +46,16 @@ const refColsFor = (t: Target): Col[] =>
         { key: "default", label: "Default" },
         { key: "business", label: "Global business" },
       ]
-    : t.kind === "business"
-      ? [{ key: "default", label: "Default" }]
-      : [];
+    : []; // the "set" screen makes all three tiers editable, so no read-only reference columns
 
 const editColsFor = (t: Target): Col[] =>
   t.kind === "retailer"
     ? [{ key: "override", label: "This retailer" }]
-    : t.kind === "business"
-      ? [{ key: "business", label: "Business" }]
-      : [{ key: "default", label: "Price" }];
+    : [
+        { key: "cost", label: "Cost" },
+        { key: "default", label: "Default" },
+        { key: "business", label: "Business" },
+      ];
 
 const cellKey = (modelId: string, col: ColKey) => `${modelId}::${col}`;
 
@@ -67,6 +69,8 @@ function seedFor(row: PriceRow, col: ColKey): number {
       return row.businessPrice;
     case "override":
       return row.overridePrice ?? row.defaultPrice;
+    case "cost":
+      return row.costPrice;
   }
 }
 
@@ -79,6 +83,8 @@ function bodyFor(col: ColKey, modelId: string, price: number, retailerId?: strin
       return { modelId, retailerId, price };
     case "business":
       return { modelId, price, tier: "business" };
+    case "cost":
+      return { modelId, price, tier: "cost" };
     case "default":
       return { modelId, price };
   }
@@ -94,9 +100,10 @@ const post = async (body: unknown) => {
 };
 
 /**
- * Admin: edit motor prices. The Default and shared-Business screens edit one tier. The per-retailer
- * screen shows Default / Global-business reference columns, a one-click "Sync business" button that
- * sets this retailer's price for a product to the Business price, and the editable This-retailer price.
+ * Admin: edit motor prices. The shared "set" screen edits Cost / Default / Business side by side for
+ * each product. The per-retailer screen shows Default / Global-business reference columns, a one-click
+ * "Sync business" button that sets this retailer's price to the Business price, and the editable
+ * This-retailer price.
  */
 export function MotorPriceEditor({ target, rows }: { target: Target; rows: PriceRow[] }) {
   const router = useRouter();
@@ -211,7 +218,9 @@ export function MotorPriceEditor({ target, rows }: { target: Target; rows: Price
             ? { retailerId, prices }
             : c.key === "business"
               ? { tier: "business", prices }
-              : { prices }
+              : c.key === "cost"
+                ? { tier: "cost", prices }
+                : { prices }
         );
       }
       setBaseline((b) => {

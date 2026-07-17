@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth/api";
-import { resetRetailerPrice, setBusinessPrice, setDefaultPrice, setPricesBatch, setRetailerPrice } from "@/lib/db";
+import { resetRetailerPrice, setBusinessPrice, setCostPrice, setCostPricesBatch, setDefaultPrice, setPricesBatch, setRetailerPrice } from "@/lib/db";
 
 /**
  * Set a motor price, or reset a retailer to default. Admin only. Body:
  *   { modelId, price }                     → set the DEFAULT price
+ *   { modelId, price, tier:"cost" }        → set the internal COST price (admin-only, per model)
  *   { modelId, price, tier:"business" }    → set the shared BUSINESS-tier price
  *   { modelId, retailerId, price }         → set this retailer's override
  *   { modelId, retailerId, price, tier:"business" } → set this retailer's PERSONAL business price
@@ -34,6 +35,11 @@ export async function POST(req: Request) {
         }
         clean.push({ modelId: p.modelId, price: p.price });
       }
+      // Cost is a global, admin-only field on the model (no retailer / tier rows).
+      if (tier === "cost") {
+        await setCostPricesBatch(clean);
+        return NextResponse.json({ ok: true });
+      }
       const rid = typeof retailerId === "string" && retailerId ? retailerId : null;
       await setPricesBatch(rid, clean, undefined, sharedTier);
       return NextResponse.json({ ok: true });
@@ -53,7 +59,9 @@ export async function POST(req: Request) {
     if (typeof price !== "number" || !Number.isFinite(price) || price < 0) {
       return NextResponse.json({ error: "price must be a non-negative number" }, { status: 400 });
     }
-    if (typeof retailerId === "string" && retailerId) {
+    if (tier === "cost") {
+      await setCostPrice(modelId, price);
+    } else if (typeof retailerId === "string" && retailerId) {
       await setRetailerPrice(modelId, retailerId, price, undefined, sharedTier);
     } else if (sharedTier === "business") {
       await setBusinessPrice(modelId, price);

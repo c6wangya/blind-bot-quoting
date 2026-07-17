@@ -17,6 +17,7 @@ import {
   getModelCompatVariations,
   getBusinessPriceMap,
   getCatalogCreatedAt,
+  getCostPriceMap,
   getEffectivePrices,
   getInventoryMap,
   getModelFilesMap,
@@ -260,20 +261,11 @@ async function PricingTab({ retailerParam }: { retailerParam?: string }) {
   if (!retailerParam) {
     return (
       <div className="max-w-4xl space-y-2">
-        <Link href="/motors?tab=pricing&retailer=default" className="block">
+        <Link href="/motors?tab=pricing&retailer=set" className="block">
           <Card className="flex items-center justify-between px-5 py-4 transition-colors hover:bg-[#faf9f5]">
             <div>
-              <div className="text-[14px] font-semibold text-ink">Default pricing</div>
-              <div className="text-[12px] text-muted">The retail baseline every self-serve customer sees</div>
-            </div>
-            <span className="text-brass">→</span>
-          </Card>
-        </Link>
-        <Link href="/motors?tab=pricing&retailer=business" className="block">
-          <Card className="flex items-center justify-between px-5 py-4 transition-colors hover:bg-[#faf9f5]">
-            <div>
-              <div className="text-[14px] font-semibold text-ink">Business pricing</div>
-              <div className="text-[12px] text-muted">The shared wholesale tier for authorized customers</div>
+              <div className="text-[14px] font-semibold text-ink">Pricing set</div>
+              <div className="text-[12px] text-muted">Cost, default &amp; business price for every product — side by side</div>
             </div>
             <span className="text-brass">→</span>
           </Card>
@@ -286,13 +278,12 @@ async function PricingTab({ retailerParam }: { retailerParam?: string }) {
   let target: Target;
   let overrideMap: Record<string, number> = {};
   let businessMap: Record<string, number> = {};
+  let costMap: Record<string, number> = {};
   let discountPct = 0;
   let waivers = { ground: false, expedite: false };
-  if (retailerParam === "default") {
-    target = { kind: "default" };
-  } else if (retailerParam === "business") {
-    target = { kind: "business" };
-    businessMap = await getBusinessPriceMap();
+  if (retailerParam === "set") {
+    target = { kind: "set" };
+    [businessMap, costMap] = await Promise.all([getBusinessPriceMap(), getCostPriceMap()]);
   } else {
     const r = retailers.find((x) => x.id === retailerParam);
     if (!r) {
@@ -324,9 +315,10 @@ async function PricingTab({ retailerParam }: { retailerParam?: string }) {
       businessPrice: businessMap[m.id] ?? defaultPrice,
       // The per-retailer override (null = not set → the row inherits Default). Synced via the button.
       overridePrice: m.id in overrideMap ? overrideMap[m.id] : null,
-      // Single-column screens (Default / shared Business) seed the one editable input from here.
-      currentPrice:
-        target.kind === "business" ? businessMap[m.id] ?? defaultPrice : defaultPrice,
+      // Vestigial single-column seed; the editor now seeds each column from its own tier field.
+      currentPrice: defaultPrice,
+      // Internal cost (admin-only) — seeds the Cost column on the set screen.
+      costPrice: costMap[m.id] ?? 0,
       hasOverride: m.id in overrideMap,
     };
   });
@@ -338,11 +330,9 @@ async function PricingTab({ retailerParam }: { retailerParam?: string }) {
           ← All retailers
         </Link>
         <span className="text-muted">
-          {target.kind === "default"
-            ? "Editing the shared Default tier"
-            : target.kind === "business"
-              ? "Editing the shared Business tier"
-              : `Overrides for ${target.label}`}
+          {target.kind === "set"
+            ? "Editing the shared pricing set — cost / default / business"
+            : `Overrides for ${target.label}`}
         </span>
       </div>
       {target.kind === "retailer" && (

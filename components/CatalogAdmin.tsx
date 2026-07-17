@@ -154,7 +154,6 @@ function CategoryBlock({ category, catalog, models, files, compatVariations }: {
   // add-model draft
   const [mSku, setMSku] = useState("");
   const [mName, setMName] = useState("");
-  const [mPrice, setMPrice] = useState("");
   const [mDesc, setMDesc] = useState("");
   const [mImage, setMImage] = useState("");
   const dirty = name !== category.name || blurb !== (category.blurb ?? "") || orderable !== category.orderable;
@@ -217,11 +216,8 @@ function CategoryBlock({ category, catalog, models, files, compatVariations }: {
             <div className="flex items-end gap-2">
               <input value={mSku} onChange={(e) => setMSku(e.target.value)} placeholder="SKU" className={cx(INPUT, "w-32")} />
               <input value={mName} onChange={(e) => setMName(e.target.value)} placeholder="Model name" className={cx(INPUT, "flex-1")} />
-              <div className="flex items-center rounded-lg border border-line px-2">
-                <span className="text-xs text-muted">$</span>
-                <input type="number" min={0} step="0.01" value={mPrice} onChange={(e) => setMPrice(e.target.value)} placeholder="—" className="w-16 bg-transparent px-1 py-1.5 text-sm text-ink outline-none" />
-              </div>
-              <Button variant="secondary" busy={busy} className="py-1 text-[12px]" onClick={() => mSku.trim() && mName.trim() && run(async () => { await call("POST", { entity: "model", categoryId: category.id, sku: mSku, name: mName, price: mPrice === "" ? null : Number(mPrice), description: mDesc, image: mImage }); setMSku(""); setMName(""); setMPrice(""); setMDesc(""); setMImage(""); })}>
+              {/* No price here — new models are priced on the Pricing → Default screen. */}
+              <Button variant="secondary" busy={busy} className="py-1 text-[12px]" onClick={() => mSku.trim() && mName.trim() && run(async () => { await call("POST", { entity: "model", categoryId: category.id, sku: mSku, name: mName, description: mDesc, image: mImage }); setMSku(""); setMName(""); setMDesc(""); setMImage(""); })}>
                 + Model
               </Button>
             </div>
@@ -250,7 +246,6 @@ function ModelRow({ model, catalog, files, compatInitial }: { model: AdminModel;
   const router = useRouter();
   const [name, setName] = useState(model.name);
   const [sku, setSku] = useState(model.sku);
-  const [price, setPrice] = useState(model.price == null ? "" : String(model.price));
   const [active, setActive] = useState(model.active);
   const [details, setDetails] = useState(false);
   const [description, setDescription] = useState(model.description ?? "");
@@ -273,7 +268,6 @@ function ModelRow({ model, catalog, files, compatInitial }: { model: AdminModel;
 
   const dirty =
     name !== model.name || sku !== model.sku || active !== model.active ||
-    (price === "" ? model.price != null : Number(price) !== model.price) ||
     description !== (model.description ?? "") || image !== (model.imageUrl ?? "");
 
   const run = async (fn: () => Promise<unknown>) => {
@@ -298,10 +292,7 @@ function ModelRow({ model, catalog, files, compatInitial }: { model: AdminModel;
       <div className="flex flex-wrap items-center gap-2">
         <input value={name} onChange={(e) => setName(e.target.value)} className={cx(INPUT, "min-w-[160px] flex-1 font-medium", !active && "text-muted")} />
         <input value={sku} onChange={(e) => setSku(e.target.value)} className={cx(INPUT, "w-36 font-mono text-[12px]")} />
-        <div className="flex items-center rounded-lg border border-line px-2">
-          <span className="text-xs text-muted">$</span>
-          <input type="number" min={0} step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="—" className="w-16 bg-transparent px-1 py-1.5 text-sm text-ink outline-none" />
-        </div>
+        {/* Price is managed entirely on the Pricing → Default screen, not shown here. */}
         {!active && (
           <span className="rounded-full bg-[#efece4] px-1.5 py-0.5 text-[10px] font-medium text-muted">Inactive</span>
         )}
@@ -309,7 +300,7 @@ function ModelRow({ model, catalog, files, compatInitial }: { model: AdminModel;
           <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} /> active
         </label>
         <button onClick={() => setDetails((d) => !d)} className="text-[11px] text-muted hover:text-ink">{details ? "less" : "details"}</button>
-        <Button variant="primary" busy={busy} disabled={!dirty} className="py-1 text-[12px]" onClick={() => run(() => call("PATCH", { entity: "model", id: model.id, name, sku, price: price === "" ? null : Number(price), active, description, image }))}>
+        <Button variant="primary" busy={busy} disabled={!dirty} className="py-1 text-[12px]" onClick={() => run(() => call("PATCH", { entity: "model", id: model.id, name, sku, active, description, image }))}>
           Save
         </Button>
         <button
