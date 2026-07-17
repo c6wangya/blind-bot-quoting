@@ -98,53 +98,14 @@ function shell(headerColor: string, headerTitle: string, inner: string): string 
   </div>`;
 }
 
-/** Strip an HTML email body down to readable plain text for logging: drop <style>/<script>,
- *  turn block-level tags and <br> into line breaks, remove remaining tags, decode the few common
- *  entities, then collapse runs of blank lines and trailing spaces. */
-function htmlToText(html: string): string {
-  return html
-    .replace(/<(style|script)[\s\S]*?<\/\1>/gi, "")
-    .replace(/<\/(p|div|tr|table|h[1-6]|li|ul|ol|dl|dt|dd)>/gi, "\n")
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<[^>]+>/g, "")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
-    .replace(/[ \t]+\n/g, "\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .split("\n")
-    .map((l) => l.trim())
-    .join("\n")
-    .trim();
-}
-
-/** Send one email through Resend with a uniform, greppable log line on both sides of the call
- *  (Render captures stdout/stderr). Logs: ISO timestamp, kind, recipients, subject, a content
- *  summary, and the outcome (Resend id on success, the error otherwise). Returns success. */
+/** Send one email through Resend, then log a single greppable RESULT line (Render captures
+ *  stdout/stderr): outcome, kind, recipients, Resend id (success) or error, and a timestamp.
+ *  Returns success. */
 async function sendAndLog(
   kind: string,
   payload: { from: string; to: string[]; subject: string; html: string; replyTo?: string },
-  summary: string
+  _summary: string
 ): Promise<boolean> {
-  const recipients =
-    payload.to.length === 1
-      ? payload.to[0]
-      : "\n" + payload.to.map((e, i) => `             ${i + 1}. ${e}`).join("\n");
-  console.log(
-    `\n[order-email] ▶ SENDING · ${kind}\n` +
-      `  time     : ${new Date().toISOString()}\n` +
-      `  from     : ${payload.from}\n` +
-      (payload.replyTo ? `  reply-to : ${payload.replyTo}\n` : "") +
-      `  subject  : ${payload.subject}\n` +
-      `  to (${payload.to.length}) : ${recipients}\n` +
-      `  details  : ${summary}\n` +
-      `  body (text):\n` +
-      `  ──────────────────────────────────────────\n` +
-      htmlToText(payload.html) +
-      `\n  ──────────────────────────────────────────`
-  );
   const toShort = payload.to.join(", ");
   try {
     const res = await resend!.emails.send(payload);
