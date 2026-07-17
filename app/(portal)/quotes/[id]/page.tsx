@@ -204,6 +204,7 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
     shipZip: quote.shipZip,
     po: quote.po,
     sidemark: quote.sidemark,
+    contacts: quote.contacts,
   };
   const shipLines = [
     quote.shipAddress1,
@@ -281,7 +282,11 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
                   </span>
                 )}
                 {editable && (
-                  <QuoteDetailsDrawer quoteId={quote.id} initial={details} accessory={allAccessory} />
+                  <QuoteDetailsDrawer
+                    quoteId={quote.id}
+                    initial={details}
+                    accessory={allAccessory}
+                  />
                 )}
               </div>
               <div className="grid gap-x-8 gap-y-4 sm:grid-cols-3">

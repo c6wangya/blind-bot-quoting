@@ -30,6 +30,8 @@ export function QuoteDetailsDrawer({
   const [errors, setErrors] = useState<QuoteDetailsErrors>({});
 
   const openMode = (m: Mode) => {
+    // Contacts start empty — the customer email above always receives the confirmation; contacts
+    // are optional additional recipients the retailer adds explicitly.
     setD(initial);
     setErrors({});
     setError(null);
@@ -38,7 +40,7 @@ export function QuoteDetailsDrawer({
 
   const update = (next: QuoteDetails) => {
     setD(next);
-    if (Object.keys(errors).length) setErrors(validateQuoteDetails(next));
+    if (Object.keys(errors).length) setErrors(validateQuoteDetails(next, { requireContact: true }));
   };
 
   // PATCH the quote with the given details; closes + refreshes on success.
@@ -66,8 +68,10 @@ export function QuoteDetailsDrawer({
 
   // Change mode: picking a saved address applies it to the quote immediately (no Save step).
   const pickAndSave = (a: SavedAddress) => {
-    const next = { ...d, ...addressToDetails(a) };
-    if (Object.keys(validateQuoteDetails(next)).length) {
+    const applied = addressToDetails(a);
+    // Keep the current contacts if the picked address carries none of its own.
+    const next = { ...d, ...applied, contacts: applied.contacts?.length ? applied.contacts : d.contacts };
+    if (Object.keys(validateQuoteDetails(next, { requireContact: true })).length) {
       setError("This address is missing required fields — edit it to add them first.");
       return;
     }
@@ -76,7 +80,7 @@ export function QuoteDetailsDrawer({
 
   // Edit mode: validate the form, then save.
   const save = () => {
-    const errs = validateQuoteDetails(d);
+    const errs = validateQuoteDetails(d, { requireContact: true });
     if (Object.keys(errs).length) {
       setErrors(errs);
       setError("Please complete the required fields.");

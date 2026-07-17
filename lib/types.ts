@@ -269,7 +269,7 @@ export function isAdjustmentConfig(c: ItemConfig | AccessoryConfig | AdjustmentC
  * by `AccessoryConfig.modelId` when present; this is the fallback.
  */
 export function accessoryListKey(brand: string, category: string, sku: string): string {
-  return `${brand} ${category} ${sku}`;
+  return `${brand}${category}${sku}`;
 }
 
 export interface QuoteRow {
@@ -294,16 +294,20 @@ export interface QuoteRow {
   shipZip: string | null;
   po: string | null;
   sidemark: string | null;
+  /** Extra emails for the primary customer (all also receive the order confirmation). */
+  customerEmails: string[];
   /** Additional order-confirmation recipients beyond customerEmail. */
   contacts: Contact[];
   createdAt: string;
   updatedAt: string;
 }
 
-/** An additional notification recipient (name optional, email required). */
+/** A customer contact / notification recipient. Name, phone, and ≥1 email are all required.
+ *  A single contact (one person/unit) can carry several email addresses. */
 export interface Contact {
-  name: string | null;
-  email: string;
+  name: string;
+  phone: string;
+  emails: string[];
 }
 
 /** Editable quote header details — customer, ship-to, and references. All optional. */
@@ -314,6 +318,7 @@ export interface QuoteDetails {
   customerName?: string | null;
   customerPhone?: string | null;
   customerEmail?: string | null;
+  customerEmails?: string[];
   shipAddress1?: string | null;
   shipAddress2?: string | null;
   shipCity?: string | null;

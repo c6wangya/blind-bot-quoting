@@ -1,23 +1,23 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { admin } from "@/lib/supabase/admin";
 import type { QuoteDetails, SavedAddress } from "@/lib/types";
-import { sanitizeContacts } from "@/lib/contacts";
+import { sanitizeContacts, sanitizeEmails } from "@/lib/contacts";
 
 // profile_addresses ↔ SavedAddress column aliases (snake → camel on read).
 const ADDRESS_COLS =
   "id, label, isDefault:is_default, customerName:customer_name, customerPhone:customer_phone, " +
-  "customerEmail:customer_email, shipAddress1:ship_address1, shipAddress2:ship_address2, " +
+  "customerEmail:customer_email, customerEmails:customer_emails, shipAddress1:ship_address1, shipAddress2:ship_address2, " +
   "shipCity:ship_city, shipState:ship_state, shipZip:ship_zip, po, sidemark, projectName:project_name, contacts";
 
 // The QuoteDetails keys an address row actually stores (everything but quoteType/quoteName).
 const ADDRESS_DETAIL_KEYS: (keyof QuoteDetails)[] = [
-  "customerName", "customerPhone", "customerEmail", "shipAddress1", "shipAddress2",
+  "customerName", "customerPhone", "customerEmail", "customerEmails", "shipAddress1", "shipAddress2",
   "shipCity", "shipState", "shipZip", "po", "sidemark", "projectName", "contacts",
 ];
 const ADDRESS_COLUMN: Partial<Record<keyof QuoteDetails, string>> = {
   customerName: "customer_name", customerPhone: "customer_phone", customerEmail: "customer_email",
-  shipAddress1: "ship_address1", shipAddress2: "ship_address2", shipCity: "ship_city",
-  shipState: "ship_state", shipZip: "ship_zip", po: "po", sidemark: "sidemark",
+  customerEmails: "customer_emails", shipAddress1: "ship_address1", shipAddress2: "ship_address2",
+  shipCity: "ship_city", shipState: "ship_state", shipZip: "ship_zip", po: "po", sidemark: "sidemark",
   projectName: "project_name", contacts: "contacts",
 };
 
@@ -28,6 +28,10 @@ function addressColumns(d: QuoteDetails): Record<string, unknown> {
     if (d[k] === undefined) continue;
     if (k === "contacts") {
       c.contacts = sanitizeContacts(d[k]); // jsonb array, never stringified
+      continue;
+    }
+    if (k === "customerEmails") {
+      c.customer_emails = sanitizeEmails(d[k]); // jsonb array, never stringified
       continue;
     }
     const v = d[k];
@@ -56,6 +60,7 @@ export async function getDefaultAddressDetails(
     customerName: a.customerName ?? null,
     customerPhone: a.customerPhone ?? null,
     customerEmail: a.customerEmail ?? null,
+    customerEmails: a.customerEmails ?? [],
     shipAddress1: a.shipAddress1 ?? null,
     shipAddress2: a.shipAddress2 ?? null,
     shipCity: a.shipCity ?? null,

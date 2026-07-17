@@ -9,7 +9,7 @@ export const round2 = (n: number) => Math.round(n * 100) / 100;
 export const PRICING_COLS = "id, lineId:line_id, version, active, note, config, createdAt:created_at";
 export const QUOTE_COLS =
   "id, ref, retailer, status, ownerId:owner_id, projectName:project_name, quoteName:quote_name, quoteType:quote_type, " +
-  "customerName:customer_name, customerPhone:customer_phone, customerEmail:customer_email, " +
+  "customerName:customer_name, customerPhone:customer_phone, customerEmail:customer_email, customerEmails:customer_emails, " +
   "shipAddress1:ship_address1, shipAddress2:ship_address2, shipCity:ship_city, shipState:ship_state, shipZip:ship_zip, " +
   "po, sidemark, contacts, createdAt:created_at, updatedAt:updated_at";
 export const ITEM_COLS = "id, quoteId:quote_id, productId:product_id, lineId:line_id, qty, config, computation, createdAt:created_at";

@@ -202,6 +202,7 @@ export function addressToDetails(a: SavedAddress) {
     customerName: a.customerName ?? null,
     customerPhone: a.customerPhone ?? null,
     customerEmail: a.customerEmail ?? null,
+    customerEmails: a.customerEmails ?? [],
     shipAddress1: a.shipAddress1 ?? null,
     shipAddress2: a.shipAddress2 ?? null,
     shipCity: a.shipCity ?? null,

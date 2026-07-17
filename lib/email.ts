@@ -15,7 +15,7 @@ const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KE
 const EMAIL_FROM = process.env.EMAIL_FROM_ORDERS || `${BRAND.name} <orders@no-reply.theblindbots.com>`;
 
 // Internal recipient that gets a copy of every paid order.
-const ADMIN_ORDER_EMAIL = process.env.ADMIN_ORDER_EMAIL || "internatewr@gmail.com";
+const ADMIN_ORDER_EMAIL = process.env.ADMIN_ORDER_EMAIL || "rob.wen@theblindbots.com";
 
 // While testing, force every customer confirmation to this address instead of the real customer.
 // Set to an empty string in env to send to the actual customer once the flow is verified.
@@ -98,6 +98,38 @@ function shell(headerColor: string, headerTitle: string, inner: string): string 
   </div>`;
 }
 
+/** Send one email through Resend with a uniform, greppable log line on both sides of the call
+ *  (Render captures stdout/stderr). Logs: ISO timestamp, kind, recipients, subject, a content
+ *  summary, and the outcome (Resend id on success, the error otherwise). Returns success. */
+async function sendAndLog(
+  kind: string,
+  payload: { from: string; to: string[]; subject: string; html: string; replyTo?: string },
+  summary: string
+): Promise<boolean> {
+  const to = payload.to.join(", ");
+  console.log(
+    `[order-email] ${new Date().toISOString()} ▶ sending ${kind} | to=[${to}] | subject="${payload.subject}" | ${summary}`
+  );
+  try {
+    const res = await resend!.emails.send(payload);
+    if (res.error) {
+      console.error(
+        `[order-email] ${new Date().toISOString()} ✗ FAILED ${kind} | to=[${to}] | subject="${payload.subject}" | error=${JSON.stringify(res.error)}`
+      );
+      return false;
+    }
+    console.log(
+      `[order-email] ${new Date().toISOString()} ✓ SENT ${kind} | to=[${to}] | subject="${payload.subject}" | id=${res.data?.id ?? "?"}`
+    );
+    return true;
+  } catch (e) {
+    console.error(
+      `[order-email] ${new Date().toISOString()} ✗ THREW ${kind} | to=[${to}] | subject="${payload.subject}" | error=${(e as Error).message}`
+    );
+    return false;
+  }
+}
+
 /**
  * On payment, notify (a) the internal ops inbox and (b) the customer — both with a clear,
  * itemized breakdown (product, qty, unit price, line total, subtotal/discount/total). Best-effort:
@@ -168,20 +200,26 @@ export async function sendOrderPaidEmails(orderId: number): Promise<void> {
 
     // Recipients = primary customer email + every additional contact (deduped). The test override,
     // when set, replaces the whole list with a single safe address so nothing reaches real customers.
-    const customerTo = CUSTOMER_EMAIL_OVERRIDE
-      ? [CUSTOMER_EMAIL_OVERRIDE]
-      : recipientEmails(q.customerEmail, q.contacts);
+    const realCustomerTo = recipientEmails(q.customerEmail, q.customerEmails, q.contacts);
+    const customerTo = CUSTOMER_EMAIL_OVERRIDE ? [CUSTOMER_EMAIL_OVERRIDE] : realCustomerTo;
     if (customerTo.length) {
-      const res = await resend.emails.send({
-        from: EMAIL_FROM,
-        to: customerTo,
-        subject: `Order confirmed — ${order.ref}`,
-        html: shell("#333", "Your order is confirmed", customerInner),
-      });
-      if (res.error) console.error("❌ Resend error (customer confirmation):", res.error);
-      else console.log(`✅ Order confirmation sent to ${customerTo.join(", ")} — ${order.ref}. ID: ${res.data?.id}`);
+      const overrideNote = CUSTOMER_EMAIL_OVERRIDE
+        ? ` | ⚠️TEST-OVERRIDE (real=[${realCustomerTo.join(", ")}])`
+        : "";
+      await sendAndLog(
+        "customer-confirmation",
+        {
+          from: EMAIL_FROM,
+          to: customerTo,
+          subject: `Order confirmed — ${order.ref}`,
+          html: shell("#333", "Your order is confirmed", customerInner),
+        },
+        `order=${order.ref} retailer=${q.retailer} items=${rows.length} total=${money(total)}${overrideNote}`
+      );
     } else {
-      console.warn(`⚠️ No customer email for order ${order.ref} — customer confirmation skipped.`);
+      console.warn(
+        `[order-email] ${new Date().toISOString()} ⚠️ SKIPPED customer-confirmation | order=${order.ref} | reason=no customer email on quote`
+      );
     }
 
     // ---- Internal ops notification ----
@@ -193,8 +231,8 @@ export async function sendOrderPaidEmails(orderId: number): Promise<void> {
         ${metaRow("Retailer", esc(q.retailer))}
         ${q.projectName ? metaRow("Project", esc(q.projectName)) : ""}
         ${metaRow("Customer", esc(q.customerName || "—"))}
-        ${q.customerEmail ? metaRow("Customer email", esc(q.customerEmail)) : ""}
-        ${q.contacts?.length ? metaRow("Also notified", esc(q.contacts.map((c) => c.email).join(", "))) : ""}
+        ${q.customerEmail ? metaRow("Customer email", esc([q.customerEmail, ...(q.customerEmails ?? [])].join(", "))) : ""}
+        ${q.contacts?.length ? metaRow("Also notified", esc(q.contacts.flatMap((c) => c.emails).join(", "))) : ""}
         ${q.customerPhone ? metaRow("Customer phone", esc(q.customerPhone)) : ""}
         ${metaRow("Payment", esc(payMethod))}
         ${order.paymentRef ? metaRow("Payment ref", esc(order.paymentRef)) : ""}
@@ -204,15 +242,17 @@ export async function sendOrderPaidEmails(orderId: number): Promise<void> {
       ${totals}
       ${shipBlock}`;
 
-    const adminRes = await resend.emails.send({
-      from: EMAIL_FROM,
-      to: [ADMIN_ORDER_EMAIL],
-      subject: `💰 Paid order ${order.ref} — ${money(total)} (${q.retailer})`,
-      html: shell("#111", "🔔 New paid order", adminInner),
-      replyTo: q.customerEmail || undefined,
-    });
-    if (adminRes.error) console.error("❌ Resend error (admin notification):", adminRes.error);
-    else console.log(`✅ Admin order notification sent to ${ADMIN_ORDER_EMAIL} — ${order.ref}. ID: ${adminRes.data?.id}`);
+    await sendAndLog(
+      "admin-notification",
+      {
+        from: EMAIL_FROM,
+        to: [ADMIN_ORDER_EMAIL],
+        subject: `💰 Paid order ${order.ref} — ${money(total)} (${q.retailer})`,
+        html: shell("#111", "🔔 New paid order", adminInner),
+        replyTo: q.customerEmail || undefined,
+      },
+      `order=${order.ref} quote=${q.ref} retailer=${q.retailer} customer=${q.customerName || "—"} payment=${payMethod} total=${money(total)}`
+    );
   } catch (err) {
     console.error("❌ sendOrderPaidEmails failed:", (err as Error).message);
   }
