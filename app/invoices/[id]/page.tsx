@@ -12,7 +12,7 @@ import { admin } from "@/lib/supabase/admin";
 import { BRAND } from "@/lib/brand";
 import { isAccessoryConfig } from "@/lib/types";
 import {
-  getAccessoryDefaultPriceBySku,
+  getAccessoryDefaultPrices,
   getVariationItemDetails,
   getBankInfo,
   getOrAssignInvoiceRef,
@@ -98,15 +98,14 @@ export default async function InvoicePage({
   const bank = await getBankInfo();
   const seller = await getSeller();
 
-  // "List" is always the shared Default tier (the retail catalog reference), struck through so the
-  // customer sees the deal vs their actual Rate — regardless of any Business-tier authorization.
-  const [defaultPriceBySku, variationDetails] = await Promise.all([
-    getAccessoryDefaultPriceBySku(),
+  // The Default tier (shared retail catalog reference) is shown struck-through right after the
+  // customer's actual Unit Price, so they see the deal — regardless of any Business-tier authorization.
+  // It's omitted per line when it equals the Unit Price (no discount to show).
+  const [defaultPrices, variationDetails] = await Promise.all([
+    getAccessoryDefaultPrices(),
     getVariationItemDetails(),
   ]);
-  const lines = buildInvoiceLines(quote.items, defaultPriceBySku, variationDetails);
-  // Show the struck-through "List" column only if at least one line actually has a Default-tier price.
-  const hasListPrice = lines.some((l) => l.listRate != null);
+  const lines = buildInvoiceLines(quote.items, defaultPrices, variationDetails);
   const discountPct = await getRetailerDiscount(ownerId);
   const subtotal = round2(quote.total);
   const discountAmt = round2((subtotal * discountPct) / 100);
@@ -270,8 +269,7 @@ export default async function InvoicePage({
             <col className="w-10" />
             <col />
             <col className="w-20" />
-            {hasListPrice && <col className="w-24" />}
-            <col className="w-24" />
+            <col className="w-32" />
             <col className="w-28" />
           </colgroup>
           <thead>
@@ -279,8 +277,7 @@ export default async function InvoicePage({
               <th className="px-4 py-2.5 text-center font-normal">#</th>
               <th className="px-4 py-2.5 font-normal">Item &amp; Description</th>
               <th className="px-4 py-2.5 text-right font-normal">Qty</th>
-              {hasListPrice && <th className="px-4 py-2.5 text-right font-normal">List</th>}
-              <th className="px-4 py-2.5 text-right font-normal">Rate</th>
+              <th className="px-4 py-2.5 text-right font-normal">Unit Price</th>
               <th className="px-4 py-2.5 text-right font-normal">Amount</th>
             </tr>
           </thead>
@@ -343,13 +340,13 @@ export default async function InvoicePage({
                           {r.qty}
                           {isHead && <div className="text-[12px] text-[#8a8a8a]">Each</div>}
                         </td>
-                        {hasListPrice && (
-                          <td className={`${pad} text-right tabular-nums text-[#8a8a8a]`}>
-                            {r.listUnit != null ? <span className="line-through">{num2(r.listUnit)}</span> : ""}
-                          </td>
-                        )}
                         <td className={`${pad} text-right tabular-nums ${isHead ? "text-ink" : "text-[#6a6a6a]"}`}>
                           {num2(r.unit)}
+                          {/* Default (catalog) price struck-through below the Unit Price in a smaller
+                              font, shown only when it differs — the discount off list. */}
+                          {r.listUnit != null && num2(r.listUnit) !== num2(r.unit) && (
+                            <div className="text-[11px] text-[#8a8a8a] line-through">{num2(r.listUnit)}</div>
+                          )}
                         </td>
                         <td className={`${pad} text-right tabular-nums ${isHead ? "text-ink" : "text-[#6a6a6a]"}`}>
                           {num2(r.amount)}

@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { admin } from "@/lib/supabase/admin";
 import { loadCatalog } from "./accessory-catalog";
 import { getVariationItemModelMap } from "./variations";
-import { isAccessoryConfig, type AccessoryConfig } from "@/lib/types";
+import { accessoryListKey, isAccessoryConfig, type AccessoryConfig } from "@/lib/types";
 
 // Motor inventory + per-retailer pricing (admin-managed; see 0004_motor_inventory_pricing.sql).
 // Reads are best-effort: if the tables aren't present yet (migration not run) they fall back
@@ -163,30 +163,33 @@ async function getSharedPriceMap(
   return map;
 }
 
-/** model_id → default price (shared rows with retailer_id NULL, Default tier). */
-export async function getDefaultPriceMap(sb: SupabaseClient = admin()): Promise<Record<string, number>> {
-  return getSharedPriceMap("default", sb);
-}
-
 /** model_id → shared Business-tier price (retailer_id NULL, tier='business'). */
 export async function getBusinessPriceMap(sb: SupabaseClient = admin()): Promise<Record<string, number>> {
   return getSharedPriceMap("business", sb);
 }
 
 /**
- * sku → shared Default-tier price (default tier ?? static catalog price) — the same number the
- * Motor Management "Default tier" screen shows. Keyed by sku because quote/invoice accessory lines
- * snapshot only the sku (not the model id). Used as the struck-through "List" price on invoices,
- * which always shows the Default (retail) tier regardless of any Business-tier authorization.
+ * The Default (retail) catalog price for accessory lines — the struck-through "List" price on
+ * invoices. Returned as TWO lookups because sku is NOT unique (the A-OK / B-OK brand catalogs reuse
+ * skus): `byId` keyed by model id (the robust match for lines that snapshot their modelId) and
+ * `byKey` keyed by brand+category+sku (the fallback for legacy lines that only snapshot the sku).
+ * Always the Default tier, regardless of any Business-tier authorization.
  */
-export async function getAccessoryDefaultPriceBySku(
-  sb: SupabaseClient = admin()
-): Promise<Record<string, number>> {
+export async function getAccessoryDefaultPrices(): Promise<{
+  byId: Record<string, number>;
+  byKey: Record<string, number>;
+}> {
   const cat = await loadCatalog();
-  const def = await getDefaultPriceMap(sb);
-  const out: Record<string, number> = {};
-  for (const m of cat.models) out[m.sku] = def[m.id] ?? m.price ?? 0;
-  return out;
+  const byId: Record<string, number> = {};
+  const byKey: Record<string, number> = {};
+  for (const m of cat.models) {
+    const price = m.price ?? 0;
+    byId[m.id] = price;
+    const category = cat.category(m.categoryId);
+    const brand = cat.brands.find((b) => b.id === category?.brandId)?.name ?? cat.brand.name;
+    byKey[accessoryListKey(brand, category?.name ?? m.categoryId, m.sku)] = price;
+  }
+  return { byId, byKey };
 }
 
 /** model_id → a single retailer's price rows for one tier ('default' = its overrides). */
@@ -234,19 +237,18 @@ export async function getEffectivePrices(
   sb: SupabaseClient = admin()
 ): Promise<Record<string, number>> {
   const cat = await loadCatalog();
-  const def = await getDefaultPriceMap(sb);
   const override = retailerId ? await getRetailerOverrideMap(retailerId, sb) : {};
   const out: Record<string, number> = {};
   for (const c of cat.categories.filter((x) => x.orderable)) {
     for (const m of cat.modelsIn(c.id))
-      out[m.id] = override[m.id] ?? def[m.id] ?? m.price ?? 0;
+      out[m.id] = override[m.id] ?? m.price ?? 0;
   }
   return out;
 }
 
 /**
  * Effective price for one motor for one retailer — the trusted server-side re-price:
- *   per-retailer override (This retailer / synced Business)  ??  Default  ??  static
+ *   per-retailer override (This retailer / synced Business)  ??  Default (default_price)
  */
 export async function resolveMotorPrice(
   modelId: string,
@@ -264,14 +266,7 @@ export async function resolveMotorPrice(
       .maybeSingle();
     if (data) return Number((data as { price: number }).price);
   }
-  const { data: def } = await sb
-    .from("accessory_prices")
-    .select("price")
-    .eq("model_id", modelId)
-    .is("retailer_id", null)
-    .eq("tier", "default")
-    .maybeSingle();
-  if (def) return Number((def as { price: number }).price);
+  // Default price is the catalog base price (accessory_models.default_price).
   const cat = await loadCatalog();
   return cat.model(modelId)?.price ?? 0;
 }
@@ -287,6 +282,14 @@ async function setPrice(
   tier: "default" | "business" = "default"
 ): Promise<void> {
   const updated_at = new Date().toISOString();
+  if (retailerId === null && tier === "default") {
+    // The shared Default price IS the catalog base price — a single source of truth backing both
+    // the Catalog tab and the Pricing → Default screen. Write it to accessory_models.default_price
+    // (there is no shared retailer_id-NULL/tier='default' row in accessory_prices anymore).
+    const { error } = await sb.from("accessory_models").update({ default_price: price }).eq("id", modelId);
+    if (error) throw error;
+    return;
+  }
   if (retailerId === null) {
     // Shared row keyed by (model_id, tier) among the retailer_id-NULL rows.
     const { data } = await sb
@@ -343,6 +346,33 @@ export async function setDefaultPrice(modelId: string, price: number, sb: Supaba
 /** Set the shared Business-tier price for a model (retailer_id NULL, tier='business'). */
 export async function setBusinessPrice(modelId: string, price: number, sb: SupabaseClient = admin()): Promise<void> {
   await setPrice(modelId, null, price, sb, "business");
+}
+
+/**
+ * model_id → internal purchase/cost price (accessory_models.cost_price). Admin-only — never shown to
+ * customers and never part of the effective-price chain. NULL cost is omitted (treated as "not set").
+ */
+export async function getCostPriceMap(sb: SupabaseClient = admin()): Promise<Record<string, number>> {
+  const { data, error } = await sb.from("accessory_models").select("id, cost_price");
+  if (error) return {};
+  const map: Record<string, number> = {};
+  for (const r of (data ?? []) as { id: string; cost_price: number | null }[])
+    if (r.cost_price != null) map[r.id] = Number(r.cost_price);
+  return map;
+}
+
+/** Set a model's internal purchase/cost price (accessory_models.cost_price). Admin-only. */
+export async function setCostPrice(modelId: string, price: number, sb: SupabaseClient = admin()): Promise<void> {
+  const { error } = await sb.from("accessory_models").update({ cost_price: price }).eq("id", modelId);
+  if (error) throw error;
+}
+
+/** Batch-set internal cost prices ("Save all" on the Cost price screen). Admin-only. */
+export async function setCostPricesBatch(
+  prices: { modelId: string; price: number }[],
+  sb: SupabaseClient = admin()
+): Promise<void> {
+  for (const { modelId, price } of prices) await setCostPrice(modelId, price, sb);
 }
 
 /** Set a single retailer's price for a model — its override (default tier) or personal Business price. */

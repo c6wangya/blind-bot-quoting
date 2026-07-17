@@ -1,10 +1,20 @@
 // THE-772 — supplier-facing Purchase Order document, rendered per brand from an order's lines.
 // Unlike the customer invoice (lib/invoice.ts) this is for reconciling GOODS with the supplier:
 // no payment, no shipping, no discount — just the physical parts (main motor + each accessory
-// sub-part broken out) with their counts and unit prices. The issuing party (buyer) is our own
-// white-label brand; the vendor is just the brand string (A-OK / B-OK …).
+// sub-part broken out) with their counts and OUR COST (进价, accessory_models.cost_price) as the
+// unit price, since this is what we pay the supplier — never the customer-facing selling price. The
+// issuing party (buyer) is our own white-label brand; the vendor is just the brand string (A-OK …).
 import { BRAND } from "./brand";
-import { getBuyerInfo, getLine, getProduct, getSupplierInfo, type BuyerInfo, type SupplierInfo } from "./db";
+import {
+  getBuyerInfo,
+  getCostPriceMap,
+  getLine,
+  getProduct,
+  getSupplierInfo,
+  getVariationItemModelMap,
+  type BuyerInfo,
+  type SupplierInfo,
+} from "./db";
 import { loadCatalog } from "./db/accessory-catalog";
 import { describeConfig } from "./describe";
 import { fmtDate } from "./format";
@@ -26,23 +36,32 @@ export type PurchaseOrderRow = {
 
 /**
  * Break an order's (brand-filtered) lines into supplier reconciliation rows. An accessory motor is
- * split into the motor itself (priced net of its sub-parts) plus one row per variation sub-part,
- * each with its real physical count (motorQty × per-motor qty). A plain product is a single row.
- * The rows' amounts always sum back to Σ(unitPrice × qty) — i.e. the brand's goods subtotal.
+ * split into the motor itself plus one row per variation sub-part, each with its real physical count
+ * (motorQty × per-motor qty). A plain product is a single row.
+ *
+ * Unit price is OUR COST (进价), faithful to the stored data: each physical model carries its own
+ * `accessory_models.cost_price`, so the motor is priced directly at its model's cost (NOT netted of
+ * sub-parts, unlike the all-in selling price) and each sub-part at its own model's cost. A model with
+ * no cost set shows 0 — never a fallback to the selling price. Cost is resolved via `cost.costMap`
+ * (model id → cost); sub-parts map their variation `itemId` → source model id via `cost.itemModelMap`.
+ * Full products / ad-hoc adjustments have no supplier cost and show 0.
  */
-export function buildPurchaseOrderRows(items: QuoteItemRow[]): PurchaseOrderRow[] {
+export function buildPurchaseOrderRows(
+  items: QuoteItemRow[],
+  cost: { costMap: Record<string, number>; itemModelMap: Record<string, string> } = { costMap: {}, itemModelMap: {} },
+): PurchaseOrderRow[] {
+  const costOf = (modelId: string | null | undefined) => (modelId ? cost.costMap[modelId] ?? 0 : 0);
   const rows: PurchaseOrderRow[] = [];
   for (const item of items) {
     const cfg = item.config;
     if (isAdjustmentConfig(cfg)) {
-      const rate = item.computation.unitPrice;
-      rows.push({ qty: item.qty, rate, amount: round2(rate * item.qty), sku: null, name: cfg.label, detail: cfg.note ?? "" });
+      // Ad-hoc money line — not a physical good, has no supplier cost.
+      rows.push({ qty: item.qty, rate: 0, amount: 0, sku: null, name: cfg.label, detail: cfg.note ?? "" });
       continue;
     }
     if (isAccessoryConfig(cfg)) {
       const variations = cfg.variations ?? [];
-      const subTotalPerMotor = variations.reduce((s, v) => s + (v.price ?? 0) * (v.qty ?? 1), 0);
-      const motorRate = round2(item.computation.unitPrice - subTotalPerMotor);
+      const motorRate = costOf(cfg.modelId);
       rows.push({
         name: cfg.name,
         sku: cfg.sku,
@@ -53,13 +72,14 @@ export function buildPurchaseOrderRows(items: QuoteItemRow[]): PurchaseOrderRow[
       });
       for (const v of variations) {
         const qty = item.qty * (v.qty ?? 1);
+        const rate = costOf(cost.itemModelMap[v.itemId]);
         rows.push({
           name: v.itemLabel,
           sku: null,
           detail: `${cfg.name} · ${v.variationName}`,
           qty,
-          rate: v.price ?? 0,
-          amount: round2((v.price ?? 0) * qty),
+          rate,
+          amount: round2(rate * qty),
           sub: true,
         });
       }
@@ -67,7 +87,8 @@ export function buildPurchaseOrderRows(items: QuoteItemRow[]): PurchaseOrderRow[
     }
     const product = getProduct(item.productId);
     const line = product ? getLine(item.lineId) : null;
-    const rate = item.computation.unitPrice;
+    // Full products have no cost_price — faithful to the data, cost is 0.
+    const rate = costOf(item.productId);
     const base = { qty: item.qty, rate, amount: round2(rate * item.qty), sku: product?.sku ?? null };
     if (!product || !line) {
       rows.push({ ...base, name: "Custom product", detail: "" });
@@ -132,13 +153,15 @@ export async function buildPurchaseOrderDoc(
   // Resolve this brand's supplier profile (keyed by brand id) + our buyer profile.
   const catalog = await loadCatalog();
   const brandId = catalog.brands.find((b) => b.name === brand)?.id ?? "";
-  const [buyer, supplier] = await Promise.all([
+  const [buyer, supplier, costMap, itemModelMap] = await Promise.all([
     getBuyerInfo(),
     brandId ? getSupplierInfo(brandId) : Promise.resolve(null),
+    getCostPriceMap(),
+    getVariationItemModelMap(),
   ]);
   const hasSupplier = !!supplier && !!supplier.name;
 
-  const rows = buildPurchaseOrderRows(items);
+  const rows = buildPurchaseOrderRows(items, { costMap, itemModelMap });
   const total = round2(rows.reduce((s, r) => s + r.amount, 0));
 
   const q = order.quote;

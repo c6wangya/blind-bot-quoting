@@ -428,9 +428,14 @@ function VariationPanel({
       // Standalone part → its own catalog model. Motor → just the motor (parts are never bundled).
       // Air-freight applies to whichever line the sheet is adding — the motor or a standalone part.
       const airBody = air ? { airFreight: true } : {};
+      // Carry the browsed brand so the server's one-brand-per-quote guard judges by the brand the
+      // user chose — a sub-part ("Add alone") resolves to a brand-agnostic source model, so
+      // productId alone would lose it and let a cross-brand add merge into the existing line.
+      const brand = searchParams.get("brand");
+      const brandBody = brand ? { brand } : {};
       const body = a
-        ? { productId: a.modelId, qty: q, quoteId: targetId, ...airBody }
-        : { productId: model.id, qty: motorQty, quoteId: targetId, ...airBody };
+        ? { productId: a.modelId, qty: q, quoteId: targetId, ...airBody, ...brandBody }
+        : { productId: model.id, qty: motorQty, quoteId: targetId, ...airBody, ...brandBody };
       const r = await fetch("/api/quote-items", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -448,7 +453,11 @@ function VariationPanel({
       setAir(false);
       router.refresh(); // refresh the draft list (item counts) without leaving the page
     } catch (e) {
-      setError((e as Error).message);
+      // The add sheet is already closed here, so surface the failure (e.g. the one-brand-per-quote
+      // guard's 409) as a toast — otherwise the error would render into a sheet nobody can see.
+      const message = (e as Error).message;
+      setError(message);
+      toast(message, "error");
       setBusy(false);
     }
   };

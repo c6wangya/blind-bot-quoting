@@ -60,7 +60,10 @@ export default async function OrdersPage({
                 <span className="font-semibold text-ink">{o.ref}</span>
                 <StatusBadge status={o.status} />
               </div>
-              {o.projectName && <div className="mt-1 truncate text-[13px] text-muted">{o.projectName}</div>}
+              <div className="mt-1 truncate text-[13px] text-muted">
+                {o.quoteName ? `${o.quoteName} · ${o.quoteRef}` : o.quoteRef}
+              </div>
+              {o.projectName && <div className="mt-0.5 truncate text-[13px] text-muted">{o.projectName}</div>}
               <div className="mt-2 flex items-center justify-between text-[13px]">
                 <span className="text-muted">{fmtDate(o.updatedAt)}</span>
                 <span className="font-semibold tabular-nums text-ink">{usd(o.amount ?? o.total)}</span>
@@ -76,6 +79,7 @@ export default async function OrdersPage({
             <thead>
               <tr className="border-b border-line bg-[#fafaf7] text-left text-[11px] font-semibold uppercase tracking-wider text-muted">
                 <th className="px-5 py-3">Order</th>
+                <th className="px-5 py-3">Quote</th>
                 <th className="px-5 py-3">Project</th>
                 <th className="px-5 py-3">Status</th>
                 <th className="px-5 py-3">Purchase order №</th>
@@ -91,6 +95,12 @@ export default async function OrdersPage({
                     <Link href={`/orders/${o.id}`} className="font-semibold text-ink group-hover:text-brass">
                       {o.ref}
                     </Link>
+                  </td>
+                  <td className="max-w-44 truncate px-5 py-3.5">
+                    <Link href={`/quotes/${o.quoteId}`} className="font-medium text-ink-soft hover:text-brass">
+                      {o.quoteName || o.quoteRef}
+                    </Link>
+                    {o.quoteName && <div className="text-[11px] text-muted">{o.quoteRef}</div>}
                   </td>
                   <td className="max-w-44 truncate px-5 py-3.5 text-ink-soft">{o.projectName ?? "—"}</td>
                   <td className="px-5 py-3.5">

@@ -172,6 +172,10 @@ export async function POST(req: Request) {
       adjustment?: { label: string; amount: number; note?: string };
       /** Admin-acting-on-behalf: place an air-freight (from China) line for an out-of-stock model. */
       airFreight?: boolean;
+      /** Brand id the user was browsing when they added this (a-ok / b-ok). Sub-parts ("Add alone")
+       *  resolve to a brand-agnostic source model, so productId alone loses the browsed brand — this
+       *  carries it through so the one-brand-per-quote guard fires on the brand the user chose. */
+      brand?: string;
     };
     const qty = Math.max(1, Math.min(500, Math.round(body.qty || 1)));
     const quoteId = typeof body.quoteId === "number" && Number.isInteger(body.quoteId) ? body.quoteId : undefined;
@@ -195,8 +199,22 @@ export async function POST(req: Request) {
     const catalog = await loadCatalog();
 
     // Accessory (e.g. A-OK motor): fixed price, no configuration. Only orderable categories.
-    const accessory = catalog.model(body.productId);
-    if (accessory) {
+    const rawAccessory = catalog.model(body.productId);
+    if (rawAccessory) {
+      // Remap to the browsed brand's same-SKU twin. A variation sub-part ("Add alone") points at a
+      // single brand-agnostic source model (A-OK), so adding it while browsing B-OK would otherwise
+      // land the A-OK model in the quote. The same SKU exists under each brand — swap to the twin so
+      // the line's brand, price and stock all match what the user was looking at.
+      const accessory = ((): typeof rawAccessory => {
+        if (!body.brand) return rawAccessory;
+        const curBrand = catalog.category(rawAccessory.categoryId)?.brandId;
+        if (!curBrand || curBrand === body.brand) return rawAccessory;
+        return (
+          catalog.models.find(
+            (m) => m.sku === rawAccessory.sku && catalog.category(m.categoryId)?.brandId === body.brand,
+          ) ?? rawAccessory
+        );
+      })();
       const category = catalog.category(accessory.categoryId);
       if (!category?.orderable) {
         return NextResponse.json({ error: "This accessory isn't available to order" }, { status: 422 });
@@ -243,10 +261,13 @@ export async function POST(req: Request) {
       const unitPrice = eff[accessory.id] ?? (await resolveMotorPrice(accessory.id, userId));
       const newUnit = round2(unitPrice + variations.reduce((s, v) => s + v.price * (v.qty ?? 1), 0));
       const existingLines = await loadQuoteLines(quote.id, sb);
-      // One-brand-per-quote guard: a quote may only contain accessories from a single brand. Resolve
-      // this model's brand (via its category, same as buildAccessoryLine) and block the add if the
-      // quote already holds another brand — the retailer removes them or starts a new quote.
-      const newBrand = catalog.brands.find((b) => b.id === category?.brandId)?.name ?? catalog.brand.name;
+      // One-brand-per-quote guard: a quote may only contain accessories from a single brand. Prefer
+      // the brand the user was browsing (body.brand) — a sub-part "Add alone" resolves to a
+      // brand-agnostic source model, so the resolved model's own brand would silently coerce a
+      // cross-brand add into the existing brand and merge it. Fall back to the model's own brand
+      // (via its category, same as buildAccessoryLine) when the client didn't declare one.
+      const declaredBrand = body.brand ? catalog.brands.find((b) => b.id === body.brand)?.name : undefined;
+      const newBrand = declaredBrand ?? catalog.brands.find((b) => b.id === category?.brandId)?.name ?? catalog.brand.name;
       const otherBrand = existingLines
         .map((l) => (isAccessoryConfig(l.config) ? (l.config as AccessoryConfig).brand : null))
         .find((b): b is string => !!b && b !== newBrand);
