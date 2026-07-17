@@ -17,10 +17,10 @@ const EMAIL_FROM = process.env.EMAIL_FROM_ORDERS || `${BRAND.name} <orders@no-re
 // Internal recipient that gets a copy of every paid order.
 const ADMIN_ORDER_EMAIL = process.env.ADMIN_ORDER_EMAIL || "rob.wen@theblindbots.com";
 
-// While testing, force every customer confirmation to this address instead of the real customer.
-// Set to an empty string in env to send to the actual customer once the flow is verified.
-const CUSTOMER_EMAIL_OVERRIDE =
-  process.env.ORDER_EMAIL_TEST_OVERRIDE ?? "rui.wang@theblindbots.com";
+// Optional testing safety-valve: set ORDER_EMAIL_TEST_OVERRIDE to a single address to force EVERY
+// customer confirmation there instead of the real recipients. Unset or empty (the default) sends
+// to the real recipients from the quote (customer email + extra emails + contacts).
+const CUSTOMER_EMAIL_OVERRIDE = (process.env.ORDER_EMAIL_TEST_OVERRIDE ?? "").trim();
 
 const PAYMENT_LABEL: Record<PaymentMethod, string> = {
   stripe: "Card (Stripe)",
@@ -98,6 +98,28 @@ function shell(headerColor: string, headerTitle: string, inner: string): string 
   </div>`;
 }
 
+/** Strip an HTML email body down to readable plain text for logging: drop <style>/<script>,
+ *  turn block-level tags and <br> into line breaks, remove remaining tags, decode the few common
+ *  entities, then collapse runs of blank lines and trailing spaces. */
+function htmlToText(html: string): string {
+  return html
+    .replace(/<(style|script)[\s\S]*?<\/\1>/gi, "")
+    .replace(/<\/(p|div|tr|table|h[1-6]|li|ul|ol|dl|dt|dd)>/gi, "\n")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .split("\n")
+    .map((l) => l.trim())
+    .join("\n")
+    .trim();
+}
+
 /** Send one email through Resend with a uniform, greppable log line on both sides of the call
  *  (Render captures stdout/stderr). Logs: ISO timestamp, kind, recipients, subject, a content
  *  summary, and the outcome (Resend id on success, the error otherwise). Returns success. */
@@ -106,25 +128,39 @@ async function sendAndLog(
   payload: { from: string; to: string[]; subject: string; html: string; replyTo?: string },
   summary: string
 ): Promise<boolean> {
-  const to = payload.to.join(", ");
+  const recipients =
+    payload.to.length === 1
+      ? payload.to[0]
+      : "\n" + payload.to.map((e, i) => `             ${i + 1}. ${e}`).join("\n");
   console.log(
-    `[order-email] ${new Date().toISOString()} ▶ sending ${kind} | to=[${to}] | subject="${payload.subject}" | ${summary}`
+    `\n[order-email] ▶ SENDING · ${kind}\n` +
+      `  time     : ${new Date().toISOString()}\n` +
+      `  from     : ${payload.from}\n` +
+      (payload.replyTo ? `  reply-to : ${payload.replyTo}\n` : "") +
+      `  subject  : ${payload.subject}\n` +
+      `  to (${payload.to.length}) : ${recipients}\n` +
+      `  details  : ${summary}\n` +
+      `  body (text):\n` +
+      `  ──────────────────────────────────────────\n` +
+      htmlToText(payload.html) +
+      `\n  ──────────────────────────────────────────`
   );
+  const toShort = payload.to.join(", ");
   try {
     const res = await resend!.emails.send(payload);
     if (res.error) {
       console.error(
-        `[order-email] ${new Date().toISOString()} ✗ FAILED ${kind} | to=[${to}] | subject="${payload.subject}" | error=${JSON.stringify(res.error)}`
+        `[order-email] ❌ RESULT: FAILED · ${kind} · to=[${toShort}] · ${new Date().toISOString()} · error=${JSON.stringify(res.error)}`
       );
       return false;
     }
     console.log(
-      `[order-email] ${new Date().toISOString()} ✓ SENT ${kind} | to=[${to}] | subject="${payload.subject}" | id=${res.data?.id ?? "?"}`
+      `[order-email] ✅ RESULT: SUCCESS · ${kind} · to=[${toShort}] · id=${res.data?.id ?? "?"} · ${new Date().toISOString()}`
     );
     return true;
   } catch (e) {
     console.error(
-      `[order-email] ${new Date().toISOString()} ✗ THREW ${kind} | to=[${to}] | subject="${payload.subject}" | error=${(e as Error).message}`
+      `[order-email] ❌ RESULT: FAILED (threw) · ${kind} · to=[${toShort}] · ${new Date().toISOString()} · error=${(e as Error).message}`
     );
     return false;
   }
