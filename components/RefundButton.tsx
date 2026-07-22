@@ -94,7 +94,9 @@ export function RefundButton({
         : lines
             .filter((l) => !l.exchange && (qtyById[l.itemId] ?? 0) > 0)
             .map((l) => ({ itemId: l.itemId, qty: qtyById[l.itemId] }));
-      const reps = full ? [] : replacements.map((r) => ({ productId: r.productId, qty: r.qty, variationItemIds: r.variationItemIds }));
+      const reps = full
+        ? []
+        : replacements.map((r) => ({ productId: r.productId, qty: r.qty, variationItemIds: r.variationItemIds, airFreight: r.airFreight }));
       const fd = new FormData();
       fd.set("reason", reason.trim());
       fd.set("full", full ? "true" : "false");
@@ -248,6 +250,11 @@ export function RefundButton({
                     <li key={`${r.productId}-${i}`} className="flex items-center justify-between gap-3 rounded-lg border border-line bg-[#faf9f5] px-3 py-2">
                       <span className="min-w-0 flex-1 truncate text-[13px] text-ink">
                         {r.name} <span className="text-muted">×{r.qty}</span>
+                        {r.airFreight && (
+                          <span className="ml-1.5 rounded-full border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-[10px] font-semibold text-sky-700">
+                            Air freight
+                          </span>
+                        )}
                       </span>
                       <span className="shrink-0 text-[12.5px] font-semibold tabular-nums text-ink">{usd(r.value)}</span>
                       <button

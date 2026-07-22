@@ -227,6 +227,8 @@ export interface ExchangeReplacementInput {
   productId: string;
   qty: number;
   variationItemIds?: string[];
+  /** Procure from China — the replacement ships by air and never reserves/deducts US stock. */
+  airFreight?: boolean;
 }
 
 /** A quote line is refundable (returnable) if it's real goods — not an adjustment, not itself an
@@ -311,7 +313,7 @@ export async function refundOrderLines(
     .find((b): b is string => !!b);
   const brandNameOf = (categoryId: string) =>
     catalog.brands.find((b) => b.id === catalog.category(categoryId)?.brandId)?.name ?? catalog.brand.name;
-  type Resolved = { model: AccessoryModel; qty: number; unitPrice: number; variations: VariationSnapshot[] };
+  type Resolved = { model: AccessoryModel; qty: number; unitPrice: number; variations: VariationSnapshot[]; airFreight: boolean };
   const resolved: Resolved[] = [];
   for (const rep of opts.replacements ?? []) {
     const model = catalog.model(rep.productId);
@@ -326,11 +328,17 @@ export async function refundOrderLines(
     const requested = (rep.variationItemIds ?? []).map((itemId) => ({ itemId, qty: 1 }));
     const variations = (await resolveVariationSelections(model.id, requested, sb, eff)) as VariationSnapshot[];
     const unitPrice = eff[model.id] ?? (await resolveMotorPrice(model.id, ownerId));
-    resolved.push({ model, qty, unitPrice, variations });
+    resolved.push({ model, qty, unitPrice, variations, airFreight: !!rep.airFreight });
   }
   if (resolved.length) {
+    // Air-freight replacements are procured from China — motorNeedsOf filters them out, so they
+    // never deduct US stock. In-stock replacements deduct atomically (throws if short).
     const needs = await motorNeedsOf(
-      resolved.map((r) => ({ config: { kind: "accessory", variations: r.variations }, productId: r.model.id, qty: r.qty })),
+      resolved.map((r) => ({
+        config: { kind: "accessory", variations: r.variations, ...(r.airFreight ? { airFreight: true } : {}) },
+        productId: r.model.id,
+        qty: r.qty,
+      })),
     );
     if (needs.length) await deductMotorStock(needs, admin());
   }
@@ -339,7 +347,7 @@ export async function refundOrderLines(
   const replacementItems: RefundReplacementItem[] = [];
   let replacementValue = 0;
   for (const r of resolved) {
-    const { item, unitValue } = await addExchangeReplacement(order.quoteId, r.model, r.qty, r.unitPrice, r.variations, sb);
+    const { item, unitValue } = await addExchangeReplacement(order.quoteId, r.model, r.qty, r.unitPrice, r.variations, sb, r.airFreight);
     const value = round2(unitValue * r.qty);
     replacementItems.push({ itemId: item.id, productId: r.model.id, name: r.model.name, qty: r.qty, value });
     replacementValue += value;

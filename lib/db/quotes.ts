@@ -341,10 +341,12 @@ export async function addExchangeReplacement(
   qty: number,
   unitPrice: number | undefined,
   variations: VariationSnapshot[],
-  sb: SupabaseClient = admin()
+  sb: SupabaseClient = admin(),
+  airFreight = false
 ): Promise<{ item: QuoteItemRow; unitValue: number }> {
   // Build the line at REAL prices first, to capture the true per-unit value (base + variations).
-  const real = await buildAccessoryLine(model, unitPrice, variations, undefined, false);
+  // Air-freight replacements are procured from China and never touch US stock (config carries the flag).
+  const real = await buildAccessoryLine(model, unitPrice, variations, undefined, airFreight);
   const unitValue = real.computation.unitPrice;
   // Zero the customer-facing price: strip every variation price and flatten the computation to $0,
   // and mark the line as an exchange with its real value preserved for the refund record.

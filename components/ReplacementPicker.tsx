@@ -37,6 +37,8 @@ export type ReplacementDraft = {
   name: string;
   /** Client-side value estimate (base price × qty) — the server computes the authoritative P. */
   value: number;
+  /** Out-of-stock item procured from China — ships by air, never touches US stock. */
+  airFreight?: boolean;
 };
 
 /**
@@ -198,9 +200,10 @@ function ReplacementDetail({
 function ProductTab({ model, onConfirm }: { model: PickerModel; onConfirm: (draft: ReplacementDraft) => void }) {
   const minQty = Math.max(1, model.moq);
   const tracked = model.stock !== null;
-  const max = tracked ? (model.stock as number) : Infinity;
-  const [qty, setQty] = useState(minQty);
   const out = model.stock === 0;
+  // Out of stock → admin can air-freight it from China (qty unbounded by US stock).
+  const max = out ? Infinity : tracked ? (model.stock as number) : Infinity;
+  const [qty, setQty] = useState(minQty);
   const lineValue = Math.round((model.price ?? 0) * qty * 100) / 100;
 
   return (
@@ -217,7 +220,11 @@ function ProductTab({ model, onConfirm }: { model: PickerModel; onConfirm: (draf
           </button>
         </div>
       </div>
-      {tracked && <p className="mt-1 text-right text-[10.5px] text-muted">{model.stock} in stock</p>}
+      {tracked && (
+        <p className="mt-1 text-right text-[10.5px] text-muted">
+          {out ? <span className="font-medium text-red-500">Out of stock — air freight</span> : `${model.stock} in stock`}
+        </p>
+      )}
 
       <div className="mt-5 flex items-center justify-between border-t border-line pt-4">
         <span className="text-[13px] text-ink-soft">
@@ -226,10 +233,9 @@ function ProductTab({ model, onConfirm }: { model: PickerModel; onConfirm: (draf
         <Button
           variant="primary"
           className="py-2"
-          disabled={out}
-          onClick={() => onConfirm({ productId: model.id, qty, variationItemIds: [], name: model.name, value: lineValue })}
+          onClick={() => onConfirm({ productId: model.id, qty, variationItemIds: [], name: model.name, value: lineValue, airFreight: out })}
         >
-          {out ? "Out of stock" : "Add replacement"}
+          {out ? "Air freight" : "Add replacement"}
         </Button>
       </div>
     </>
@@ -261,9 +267,10 @@ function AccessoriesTab({
         const out = a.stock === 0;
         const q = qtyOf(a);
         const minQty = Math.max(1, a.moq);
-        const max = a.stock ?? Infinity;
+        // Out of stock → admin can air-freight it from China (qty unbounded by US stock).
+        const max = out ? Infinity : a.stock ?? Infinity;
         return (
-          <div key={a.productId} className={cx("flex items-center gap-3 rounded-xl border border-line px-3 py-2.5", out && "opacity-50")}>
+          <div key={a.productId} className="flex items-center gap-3 rounded-xl border border-line px-3 py-2.5">
             {a.image ? (
               /* eslint-disable-next-line @next/next/no-img-element */
               <img src={a.image} alt="" className="size-9 shrink-0 rounded-lg bg-[#0e0e10] object-contain p-1" />
@@ -276,37 +283,34 @@ function AccessoriesTab({
               </div>
               <div className="text-[11px] text-muted">
                 {a.price != null ? usd(a.price) : "—"}
-                {out && <span className="ml-1 font-medium text-red-500">· Out of stock</span>}
+                {out && <span className="ml-1 font-medium text-red-500">· Out of stock — air freight</span>}
               </div>
             </div>
-            {!out && (
-              <>
-                <div className="flex shrink-0 items-center rounded-lg border border-line">
-                  <button onClick={() => setQty(a, q - 1)} disabled={q <= minQty} className="px-2 py-0.5 text-ink-soft hover:text-ink disabled:opacity-30">
-                    −
-                  </button>
-                  <span className="w-7 text-center text-[13px] font-semibold tabular-nums">{q}</span>
-                  <button onClick={() => setQty(a, q + 1)} disabled={q >= max} className="px-2 py-0.5 text-ink-soft hover:text-ink disabled:opacity-30">
-                    +
-                  </button>
-                </div>
-                <Button
-                  variant="primary"
-                  className="shrink-0 px-3 py-1.5 text-[12.5px]"
-                  onClick={() =>
-                    onConfirm({
-                      productId: a.productId,
-                      qty: q,
-                      variationItemIds: [],
-                      name: a.name,
-                      value: Math.round((a.price ?? 0) * q * 100) / 100,
-                    })
-                  }
-                >
-                  Add
-                </Button>
-              </>
-            )}
+            <div className="flex shrink-0 items-center rounded-lg border border-line">
+              <button onClick={() => setQty(a, q - 1)} disabled={q <= minQty} className="px-2 py-0.5 text-ink-soft hover:text-ink disabled:opacity-30">
+                −
+              </button>
+              <span className="w-7 text-center text-[13px] font-semibold tabular-nums">{q}</span>
+              <button onClick={() => setQty(a, q + 1)} disabled={q >= max} className="px-2 py-0.5 text-ink-soft hover:text-ink disabled:opacity-30">
+                +
+              </button>
+            </div>
+            <Button
+              variant="primary"
+              className="shrink-0 px-3 py-1.5 text-[12.5px]"
+              onClick={() =>
+                onConfirm({
+                  productId: a.productId,
+                  qty: q,
+                  variationItemIds: [],
+                  name: a.name,
+                  value: Math.round((a.price ?? 0) * q * 100) / 100,
+                  airFreight: out,
+                })
+              }
+            >
+              {out ? "Air freight" : "Add"}
+            </Button>
           </div>
         );
       })}
