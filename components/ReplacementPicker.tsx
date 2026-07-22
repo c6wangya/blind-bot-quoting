@@ -2,13 +2,21 @@
 
 import { useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import type { VariationType } from "@/lib/db";
 import { usd } from "@/lib/format";
-import { availableTypes, buildBlockedFromGroups, buildItemNames, disabledFor } from "@/lib/variation-logic";
-import { VariationPicker } from "./AccessoryActions";
 import { Button, cx } from "./ui";
 
-/** A catalog accessory offered as an exchange replacement (a slim, serialisable slice of the model). */
+/** A standalone accessory compatible with a motor (its own orderable catalog model). */
+export type PickerAccessory = {
+  productId: string;
+  name: string;
+  sku: string;
+  image: string | null;
+  price: number | null;
+  stock: number | null;
+  moq: number;
+};
+
+/** A catalog motor (main product) offered as a replacement, plus its compatible accessories. */
 export type PickerModel = {
   id: string;
   name: string;
@@ -18,8 +26,7 @@ export type PickerModel = {
   stock: number | null;
   moq: number;
   categoryName: string;
-  availableItemIds: string[];
-  defaultItemIds: string[];
+  accessories: PickerAccessory[];
 };
 
 /** A replacement the admin has queued in the refund dialog (client estimate of value; server re-prices). */
@@ -28,37 +35,26 @@ export type ReplacementDraft = {
   qty: number;
   variationItemIds: string[];
   name: string;
-  /** Client-side value estimate (base + variations) × qty — the server computes the authoritative P. */
+  /** Client-side value estimate (base price × qty) — the server computes the authoritative P. */
   value: number;
 };
 
 /**
- * Full exchange-replacement configurator, portaled above the refund dialog: search the orderable
- * accessory catalog, pick a model, choose its variations (exclusion groups grey out conflicts),
- * set a quantity, and queue it. Mirrors the catalog's AddAccessoryButton options flow.
+ * Exchange-replacement picker, portaled above the refund dialog: search the orderable motor
+ * catalog, pick one, then either add the motor itself or one of its compatible accessories (a
+ * second tab). Products are sold standalone — the motor and each accessory are separate lines.
  */
 export function ReplacementPicker({
   models,
-  variations,
-  exclusionGroups,
   onAdd,
   onClose,
 }: {
   models: PickerModel[];
-  variations: VariationType[];
-  exclusionGroups: Record<string, string[][]>;
   onAdd: (draft: ReplacementDraft) => void;
   onClose: () => void;
 }) {
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [zoom, setZoom] = useState<string | null>(null);
-
-  const itemPrice = useMemo(() => {
-    const m: Record<string, number> = {};
-    for (const t of variations) for (const it of t.items) m[it.id] = it.price ?? 0;
-    return m;
-  }, [variations]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -68,6 +64,11 @@ export function ReplacementPicker({
 
   const model = selectedId ? models.find((m) => m.id === selectedId) ?? null : null;
 
+  const add = (draft: ReplacementDraft) => {
+    onAdd(draft);
+    onClose();
+  };
+
   return createPortal(
     <div className="fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto p-6 text-left">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} aria-hidden />
@@ -75,7 +76,7 @@ export function ReplacementPicker({
         {!model ? (
           <>
             <h2 className="text-base font-semibold tracking-tight text-ink">Choose a replacement</h2>
-            <p className="mt-1 text-[12.5px] text-muted">Ship a different accessory in place of the returned goods.</p>
+            <p className="mt-1 text-[12.5px] text-muted">Ship a different product in place of the returned goods.</p>
             <input
               autoFocus
               value={query}
@@ -84,19 +85,15 @@ export function ReplacementPicker({
               className="mt-3 w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-ink"
             />
             <div className="mt-3 min-h-0 flex-1 space-y-1.5 overflow-y-auto">
-              {filtered.length === 0 && <p className="py-6 text-center text-[13px] text-muted">No accessories match.</p>}
+              {filtered.length === 0 && <p className="py-6 text-center text-[13px] text-muted">No products match.</p>}
               {filtered.map((m) => {
                 const out = m.stock === 0;
                 return (
                   <button
                     key={m.id}
                     type="button"
-                    disabled={out}
                     onClick={() => setSelectedId(m.id)}
-                    className={cx(
-                      "flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors",
-                      out ? "cursor-not-allowed border-line opacity-50" : "border-line hover:border-ink"
-                    )}
+                    className="flex w-full items-center gap-3 rounded-xl border border-line px-3 py-2.5 text-left transition-colors hover:border-ink"
                   >
                     {m.image ? (
                       /* eslint-disable-next-line @next/next/no-img-element */
@@ -108,7 +105,10 @@ export function ReplacementPicker({
                       <div className="truncate text-[13px] font-semibold text-ink">
                         {m.name} <span className="font-normal text-muted">{m.sku}</span>
                       </div>
-                      <div className="truncate text-[11px] text-muted">{m.categoryName}</div>
+                      <div className="truncate text-[11px] text-muted">
+                        {m.categoryName}
+                        {m.accessories.length > 0 && ` · ${m.accessories.length} accessories`}
+                      </div>
                     </div>
                     <div className="shrink-0 text-right">
                       <div className="text-[13px] font-semibold tabular-nums text-ink">{m.price != null ? usd(m.price) : "—"}</div>
@@ -125,25 +125,7 @@ export function ReplacementPicker({
             </div>
           </>
         ) : (
-          <ReplacementOptions
-            model={model}
-            variations={variations}
-            exclusionGroups={exclusionGroups}
-            itemPrice={itemPrice}
-            onZoom={setZoom}
-            onBack={() => setSelectedId(null)}
-            onConfirm={(draft) => {
-              onAdd(draft);
-              onClose();
-            }}
-          />
-        )}
-
-        {zoom && (
-          <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/75 p-8" onClick={() => setZoom(null)}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={zoom} alt="" className="max-h-full max-w-full rounded-xl bg-[#0e0e10] object-contain p-2" />
-          </div>
+          <ReplacementDetail model={model} onBack={() => setSelectedId(null)} onConfirm={add} />
         )}
       </div>
     </div>,
@@ -151,80 +133,79 @@ export function ReplacementPicker({
   );
 }
 
-/** Options step: qty + variation multi-selects for the chosen model, then confirm. */
-function ReplacementOptions({
+/** Detail step: tab 1 = the motor itself (qty + add); tab 2 = its compatible accessories (add each). */
+function ReplacementDetail({
   model,
-  variations,
-  exclusionGroups,
-  itemPrice,
-  onZoom,
   onBack,
   onConfirm,
 }: {
   model: PickerModel;
-  variations: VariationType[];
-  exclusionGroups: Record<string, string[][]>;
-  itemPrice: Record<string, number>;
-  onZoom: (url: string) => void;
   onBack: () => void;
   onConfirm: (draft: ReplacementDraft) => void;
 }) {
-  const minQty = Math.max(1, model.moq);
-  const tracked = model.stock !== null;
-  const max = tracked ? (model.stock as number) : Infinity;
-  const [qty, setQty] = useState(minQty);
-
-  const avail = useMemo(() => availableTypes(variations, model.availableItemIds), [variations, model.availableItemIds]);
-  const blocked = useMemo(() => buildBlockedFromGroups(exclusionGroups[model.id] ?? []), [exclusionGroups, model.id]);
-  const itemName = useMemo(() => buildItemNames(avail), [avail]);
-
-  const [pick, setPick] = useState<Record<string, string[]>>(() => {
-    const p: Record<string, string[]> = {};
-    const chosen = new Set<string>();
-    const compatible = (id: string) => {
-      const c = blocked.get(id);
-      if (!c) return true;
-      for (const x of chosen) if (c.has(x)) return false;
-      return true;
-    };
-    for (const t of avail) {
-      const ids: string[] = [];
-      for (const i of t.items)
-        if (model.defaultItemIds.includes(i.id) && compatible(i.id)) {
-          ids.push(i.id);
-          chosen.add(i.id);
-        }
-      p[t.id] = ids;
-    }
-    return p;
-  });
-
-  const selectedIds = avail.flatMap((t) => pick[t.id] ?? []);
-  const selectedSet = new Set(selectedIds);
-  const choose = (typeId: string, itemId: string) =>
-    setPick((prev) => {
-      const cur = prev[typeId] ?? [];
-      if (cur.includes(itemId)) return { ...prev, [typeId]: cur.filter((x) => x !== itemId) };
-      const conflicts = blocked.get(itemId);
-      const next: Record<string, string[]> = {};
-      for (const [tid, ids] of Object.entries(prev)) next[tid] = conflicts ? ids.filter((id) => !conflicts.has(id)) : ids;
-      next[typeId] = [...(next[typeId] ?? []), itemId];
-      return next;
-    });
-
-  const unitValue = (model.price ?? 0) + selectedIds.reduce((s, id) => s + (itemPrice[id] ?? 0), 0);
-  const lineValue = Math.round(unitValue * qty * 100) / 100;
+  const [tab, setTab] = useState<"product" | "accessories">("product");
 
   return (
     <>
       <button type="button" onClick={onBack} className="mb-2 self-start text-[12px] font-medium text-brass hover:underline">
-        ← All accessories
+        ← All products
       </button>
-      <h2 className="text-base font-semibold tracking-tight text-ink">
-        {model.name} <span className="font-normal text-muted">{model.sku}</span>
-      </h2>
+      <div className="flex items-start gap-3">
+        {model.image ? (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img src={model.image} alt="" className="size-12 shrink-0 rounded-lg bg-[#0e0e10] object-contain p-1" />
+        ) : (
+          <div className="size-12 shrink-0 rounded-lg bg-[#f1efe9]" />
+        )}
+        <div className="min-w-0">
+          <h2 className="text-base font-semibold tracking-tight text-ink">
+            {model.name} <span className="font-normal text-muted">{model.sku}</span>
+          </h2>
+          <p className="text-[11.5px] text-muted">{model.categoryName}</p>
+        </div>
+      </div>
 
-      <div className="mt-4 flex items-center justify-between">
+      {/* Tabs: the product itself vs its compatible accessories (each added as a separate line). */}
+      <div className="mt-4 flex gap-1 rounded-xl bg-[#f1efe9] p-1">
+        {([
+          { id: "product" as const, label: "This product" },
+          { id: "accessories" as const, label: `Accessories (${model.accessories.length})` },
+        ]).map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => setTab(t.id)}
+            className={cx(
+              "flex-1 rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors",
+              tab === t.id ? "bg-surface text-ink shadow-sm" : "text-muted hover:text-ink"
+            )}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "product" ? (
+        <ProductTab model={model} onConfirm={onConfirm} />
+      ) : (
+        <AccessoriesTab accessories={model.accessories} onConfirm={onConfirm} />
+      )}
+    </>
+  );
+}
+
+/** The motor itself: quantity + value + add. Value = base price × qty. */
+function ProductTab({ model, onConfirm }: { model: PickerModel; onConfirm: (draft: ReplacementDraft) => void }) {
+  const minQty = Math.max(1, model.moq);
+  const tracked = model.stock !== null;
+  const max = tracked ? (model.stock as number) : Infinity;
+  const [qty, setQty] = useState(minQty);
+  const out = model.stock === 0;
+  const lineValue = Math.round((model.price ?? 0) * qty * 100) / 100;
+
+  return (
+    <>
+      <div className="mt-5 flex items-center justify-between">
         <span className="text-[12px] font-semibold uppercase tracking-wide text-muted">Quantity</span>
         <div className="flex items-center rounded-lg border border-line">
           <button onClick={() => setQty((q) => Math.max(minQty, q - 1))} disabled={qty <= minQty} className="px-2.5 py-1 text-ink-soft hover:text-ink disabled:opacity-30">
@@ -238,20 +219,6 @@ function ReplacementOptions({
       </div>
       {tracked && <p className="mt-1 text-right text-[10.5px] text-muted">{model.stock} in stock</p>}
 
-      {avail.length > 0 && (
-        <div className="mt-4 max-h-[40vh] space-y-4 overflow-y-auto">
-          {avail.map((t) => {
-            const d = disabledFor(t, selectedSet, blocked, itemName);
-            return (
-              <div key={t.id}>
-                <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-muted">{t.name}</span>
-                <VariationPicker type={t} values={pick[t.id] ?? []} onToggle={(v) => choose(t.id, v)} onZoom={onZoom} disabled={d.ids} disabledReason={d.reason} />
-              </div>
-            );
-          })}
-        </div>
-      )}
-
       <div className="mt-5 flex items-center justify-between border-t border-line pt-4">
         <span className="text-[13px] text-ink-soft">
           Replacement value <span className="font-semibold tabular-nums text-ink">{usd(lineValue)}</span>
@@ -259,13 +226,90 @@ function ReplacementOptions({
         <Button
           variant="primary"
           className="py-2"
-          onClick={() =>
-            onConfirm({ productId: model.id, qty, variationItemIds: selectedIds, name: model.name, value: lineValue })
-          }
+          disabled={out}
+          onClick={() => onConfirm({ productId: model.id, qty, variationItemIds: [], name: model.name, value: lineValue })}
         >
-          Add replacement
+          {out ? "Out of stock" : "Add replacement"}
         </Button>
       </div>
     </>
+  );
+}
+
+/** The motor's compatible accessories — each with its own qty stepper and Add button. */
+function AccessoriesTab({
+  accessories,
+  onConfirm,
+}: {
+  accessories: PickerAccessory[];
+  onConfirm: (draft: ReplacementDraft) => void;
+}) {
+  const [qtyById, setQtyById] = useState<Record<string, number>>({});
+  const qtyOf = (a: PickerAccessory) => qtyById[a.productId] ?? Math.max(1, a.moq);
+  const setQty = (a: PickerAccessory, next: number) => {
+    const max = a.stock ?? Infinity;
+    setQtyById((prev) => ({ ...prev, [a.productId]: Math.max(Math.max(1, a.moq), Math.min(max, next)) }));
+  };
+
+  if (accessories.length === 0) {
+    return <p className="mt-6 py-6 text-center text-[13px] text-muted">No accessories are linked to this product.</p>;
+  }
+
+  return (
+    <div className="mt-4 max-h-[46vh] space-y-1.5 overflow-y-auto">
+      {accessories.map((a) => {
+        const out = a.stock === 0;
+        const q = qtyOf(a);
+        const minQty = Math.max(1, a.moq);
+        const max = a.stock ?? Infinity;
+        return (
+          <div key={a.productId} className={cx("flex items-center gap-3 rounded-xl border border-line px-3 py-2.5", out && "opacity-50")}>
+            {a.image ? (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img src={a.image} alt="" className="size-9 shrink-0 rounded-lg bg-[#0e0e10] object-contain p-1" />
+            ) : (
+              <div className="size-9 shrink-0 rounded-lg bg-[#f1efe9]" />
+            )}
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-[12.5px] font-semibold text-ink">
+                {a.name} <span className="font-normal text-muted">{a.sku}</span>
+              </div>
+              <div className="text-[11px] text-muted">
+                {a.price != null ? usd(a.price) : "—"}
+                {out && <span className="ml-1 font-medium text-red-500">· Out of stock</span>}
+              </div>
+            </div>
+            {!out && (
+              <>
+                <div className="flex shrink-0 items-center rounded-lg border border-line">
+                  <button onClick={() => setQty(a, q - 1)} disabled={q <= minQty} className="px-2 py-0.5 text-ink-soft hover:text-ink disabled:opacity-30">
+                    −
+                  </button>
+                  <span className="w-7 text-center text-[13px] font-semibold tabular-nums">{q}</span>
+                  <button onClick={() => setQty(a, q + 1)} disabled={q >= max} className="px-2 py-0.5 text-ink-soft hover:text-ink disabled:opacity-30">
+                    +
+                  </button>
+                </div>
+                <Button
+                  variant="primary"
+                  className="shrink-0 px-3 py-1.5 text-[12.5px]"
+                  onClick={() =>
+                    onConfirm({
+                      productId: a.productId,
+                      qty: q,
+                      variationItemIds: [],
+                      name: a.name,
+                      value: Math.round((a.price ?? 0) * q * 100) / 100,
+                    })
+                  }
+                >
+                  Add
+                </Button>
+              </>
+            )}
+          </div>
+        );
+      })}
+    </div>
   );
 }

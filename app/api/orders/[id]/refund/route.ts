@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { admin } from "@/lib/supabase/admin";
 import { requireAdmin } from "@/lib/auth/api";
-import { refundOrderLines, type ExchangeReplacementInput, type RefundLineInput } from "@/lib/db";
+import { refundOrderFull, refundOrderLines, type ExchangeReplacementInput, type RefundLineInput } from "@/lib/db";
 
 const BUCKET = "payment-proofs";
 const MAX_BYTES = 10 * 1024 * 1024;
@@ -24,6 +24,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     const reason = String(form.get("reason") ?? "").trim().slice(0, 2000);
     if (!reason) return NextResponse.json({ error: "A refund reason is required" }, { status: 400 });
 
+    // A full-order refund returns the whole order (ignores per-line selection + exchange).
+    const full = String(form.get("full") ?? "") === "true";
+
     // Returned lines + optional exchange replacements arrive as JSON strings alongside the files.
     let returns: RefundLineInput[];
     let replacements: ExchangeReplacementInput[];
@@ -33,7 +36,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     } catch {
       return NextResponse.json({ error: "Malformed refund payload" }, { status: 400 });
     }
-    if (!Array.isArray(returns) || !returns.length) {
+    if (!full && (!Array.isArray(returns) || !returns.length)) {
       return NextResponse.json({ error: "Select at least one line to refund" }, { status: 400 });
     }
     if (!Array.isArray(replacements)) replacements = [];
@@ -60,7 +63,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       docPaths.push(path);
     }
 
-    const result = await refundOrderLines(id, { reason, docPaths, returns, replacements, restock });
+    const result = full
+      ? await refundOrderFull(id, { reason, docPaths })
+      : await refundOrderLines(id, { reason, docPaths, returns, replacements, restock });
     return NextResponse.json({ ok: true, ...result });
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 400 });

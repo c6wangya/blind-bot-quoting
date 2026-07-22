@@ -8,7 +8,7 @@ import { CancelOrderButton } from "@/components/CancelOrderButton";
 import { PurchaseOrderMenu } from "@/components/PurchaseOrderMenu";
 import { canAccessOwned, isAdmin, requireUserId, userClient } from "@/lib/auth/user";
 import { admin } from "@/lib/supabase/admin";
-import { getBankInfo, getConversationForRetailer, getExclusionGroupsMap, getInventoryMap, getLine, getMessages, getOrder, getOrderOwnerId, getOrderShipping, getProduct, getProductDefaultsMap, getProductVariationMap, getRetailerDefaultsMap, getEffectivePrices, getUnreadCount, getVariationItemModelMap, getVariations, loadCatalog } from "@/lib/db";
+import { getBankInfo, getConversationForRetailer, getInventoryMap, getLine, getMessages, getOrder, getOrderOwnerId, getOrderShipping, getProduct, getProductVariationMap, getEffectivePrices, getUnreadCount, getVariationItemModelMap, getVariations, loadCatalog } from "@/lib/db";
 import { QuoteChatLauncher } from "@/components/QuoteChatLauncher";
 import { quoteItemsToRefs } from "@/lib/message-items";
 import type { MotorRate } from "@/lib/shipping";
@@ -52,7 +52,8 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   const adminUser = await isAdmin(userId);
 
   // --- Refunds (partial or full) + exchanges. A line is returnable if it's real goods — not an
-  // adjustment, not itself an exchange replacement (those are $0 and shipped, never returned).
+  // adjustment, not itself an exchange replacement (those were shipped in place of returned goods,
+  // so they're shown for reference in the dialog but can't be returned again).
   const isReturnable = (it: (typeof order.quote.items)[number]) =>
     !isAdjustmentConfig(it.config) && !(isAccessoryConfig(it.config) && it.config.exchange);
   const refunds = order.refunds ?? [];
@@ -248,7 +249,13 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
           </div>
           <div className="text-right">
             {cfg.exchange ? (
-              <div className="text-sm font-semibold text-muted">No charge</div>
+              <>
+                {/* Real value struck through — it's covered by the returned goods ("多退少补"). */}
+                <div className="text-sm font-semibold tabular-nums text-muted line-through">
+                  {usd((cfg.exchangeValue ?? 0) * item.qty)}
+                </div>
+                <div className="text-[11px] font-medium text-brass">No charge · exchange</div>
+              </>
             ) : (
               <>
                 <div className="text-sm font-semibold tabular-nums text-ink">{usd(item.computation.unitPrice * item.qty)}</div>
@@ -325,6 +332,23 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
     </div>
   );
 
+  // Refund adjustment rows for a totals footer (Shopify-style): the Total above is what was
+  // originally charged; break out the cash refunded and the net the customer is left paying.
+  const netTotal = Math.max(0, r2(orderTotal - refundedTotal));
+  const refundFooterRows =
+    refundedTotal > 0 ? (
+      <>
+        <div className="flex justify-between text-brass">
+          <span>Refunded</span>
+          <span className="tabular-nums">−{usd(refundedTotal)}</span>
+        </div>
+        <div className="flex justify-between border-t border-line pt-1.5 font-semibold text-ink">
+          <span>Net total{ship.mode !== "ground" ? " · FOB" : ""}</span>
+          <span className="tabular-nums">{usd(netTotal)}</span>
+        </div>
+      </>
+    ) : null;
+
   // --- Refund dialog inputs (admin only). Returnable lines carry a display name + how many units
   // remain refundable; the picker exposes the orderable accessory catalog (scoped to the order's
   // accessory brand, to keep the one-brand-per-quote invariant) for exchanges.
@@ -339,51 +363,87 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
     }
     return { name: "Item", sub: "" };
   };
+  // Every non-adjustment line is shown in the dialog. Exchange replacements are flagged so the
+  // dialog renders them as read-only reference rows (shipped in place of a return; not returnable);
+  // their `unitPrice` carries the real worth (exchangeValue) purely for display.
   const returnableLines = canRefund
-    ? order.quote.items.filter(isReturnable).map((it) => ({
-        itemId: it.id,
-        ...lineLabel(it),
-        unitPrice: it.computation.unitPrice,
-        orderedQty: it.qty,
-        refundedQty: returnedQtyByItem.get(it.id) ?? 0,
-      }))
+    ? order.quote.items
+        .filter((it) => !isAdjustmentConfig(it.config))
+        .map((it) => {
+          const base = lineLabel(it);
+          const exchange = isAccessoryConfig(it.config) && it.config.exchange ? it.config : null;
+          return {
+            itemId: it.id,
+            name: base.name,
+            sub: base.sub,
+            unitPrice: exchange ? exchange.exchangeValue ?? 0 : it.computation.unitPrice,
+            orderedQty: it.qty,
+            refundedQty: returnedQtyByItem.get(it.id) ?? 0,
+            exchange: !!exchange,
+          };
+        })
     : [];
 
   let pickerData: {
     models: Parameters<typeof RefundButton>[0]["picker"]["models"];
-    variations: Parameters<typeof RefundButton>[0]["picker"]["variations"];
-    exclusionGroups: Record<string, string[][]>;
-  } = { models: [], variations: [], exclusionGroups: {} };
+  } = { models: [] };
   if (canRefund) {
     const ownerId = order.quote.ownerId ?? "";
-    const [inventory, variationMap, exclusionGroups, rawVariations, effPrices, itemModelMap2, defaultsMap, retailerDefaults] =
-      await Promise.all([
-        getInventoryMap(),
-        getProductVariationMap(),
-        getExclusionGroupsMap(),
-        getVariations(),
-        getEffectivePrices(ownerId),
-        getVariationItemModelMap(),
-        getProductDefaultsMap(),
-        ownerId ? getRetailerDefaultsMap(ownerId) : Promise.resolve<Record<string, string[]>>({}),
-      ]);
-    // Sub-part prices follow their source model's tiered price, same as the catalog browser.
-    const pricedVariations = rawVariations.map((v) => ({
-      ...v,
-      items: v.items.map((it) => {
-        const src = itemModelMap2[it.id];
-        const tiered = src != null ? effPrices[src] : undefined;
-        return tiered != null ? { ...it, price: tiered } : it;
-      }),
-    }));
-    // Scope to the order's accessory brand (if it already has one) so an exchange never mixes brands.
+    // Products are sold standalone, but each motor (main product) still carries a list of compatible
+    // accessories (crowns, drives, remotes, brackets…) surfaced in a second tab of its picker detail.
+    // Those relationships come from variation_product_items (motor → variation items), and every
+    // variation item is backed by a real orderable source model we add on its own.
+    const [inventory, effPrices, variationMap, rawVariations, itemModelMap] = await Promise.all([
+      getInventoryMap(),
+      getEffectivePrices(ownerId),
+      getProductVariationMap(),
+      getVariations(),
+      getVariationItemModelMap(),
+    ]);
+    const itemById = new Map(rawVariations.flatMap((v) => v.items.map((it) => [it.id, it] as const)));
     const existingBrand = order.quote.items
       .map((it) => (isAccessoryConfig(it.config) && !it.config.exchange ? it.config.brand : null))
       .find((b): b is string => !!b);
     const brandNameOf = (catId: string) =>
       catalog.brands.find((b) => b.id === catalog.category(catId)?.brandId)?.name ?? catalog.brand.name;
+    const inBrand = (catId: string | undefined) => !!catId && (!existingBrand || brandNameOf(catId) === existingBrand);
+
+    // A motor's compatible accessories: each linked variation item → its orderable source model.
+    const accessoriesOf = (motorId: string) => {
+      const seen = new Set<string>();
+      const out: {
+        productId: string;
+        name: string;
+        sku: string;
+        image: string | null;
+        price: number | null;
+        stock: number | null;
+        moq: number;
+      }[] = [];
+      for (const itemId of variationMap[motorId] ?? []) {
+        const srcId = itemModelMap[itemId];
+        if (!srcId || seen.has(srcId)) continue;
+        const src = catalog.model(srcId);
+        const cat = src ? catalog.category(src.categoryId) : undefined;
+        if (!src || !cat?.orderable || !inBrand(src.categoryId)) continue;
+        seen.add(srcId);
+        const item = itemById.get(itemId);
+        out.push({
+          productId: src.id,
+          name: src.name,
+          sku: src.sku,
+          image: catalog.image(src) || item?.image || null,
+          price: effPrices[src.id] ?? src.price ?? null,
+          stock: src.id in inventory ? inventory[src.id] : null,
+          moq: src.moq ?? 0,
+        });
+      }
+      return out;
+    };
+
+    // Top-level list is main products (motors); each carries its accessories for the second tab.
     const models = catalog.categories
-      .filter((c) => c.orderable && (!existingBrand || brandNameOf(c.id) === existingBrand))
+      .filter((c) => c.orderable && inBrand(c.id) && /motor/i.test(c.name))
       .flatMap((c) => catalog.modelsIn(c.id).map((m) => ({ m, catName: c.name })))
       .map(({ m, catName }) => ({
         id: m.id,
@@ -394,10 +454,9 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         stock: m.id in inventory ? inventory[m.id] : null,
         moq: m.moq ?? 0,
         categoryName: catName,
-        availableItemIds: variationMap[m.id] ?? [],
-        defaultItemIds: retailerDefaults[m.id] ?? defaultsMap[m.id] ?? [],
+        accessories: accessoriesOf(m.id),
       }));
-    pickerData = { models, variations: pricedVariations, exclusionGroups };
+    pickerData = { models };
   }
 
   // Signed doc URLs grouped per refund record, for the Refunds card.
@@ -424,6 +483,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                 orderId={order.id}
                 paidLabel={paidLabel}
                 alreadyRefunded={refundedTotal}
+                netOutstanding={Math.max(0, Math.round(((order.amount ?? order.quote.total) - refundedTotal) * 100) / 100)}
                 lines={returnableLines}
                 preShipment={preShipment}
                 picker={pickerData}
@@ -465,82 +525,76 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
             transferReported={transferReported}
             refundedLabel={refundedTotal > 0 ? usd(refundedTotal) : undefined}
             netLabel={refundedTotal > 0 ? netLabel : undefined}
-          />
+          >
+            {/* Refunds — one entry per refund event (partial or full), newest first. Covers returned
+                lines, any exchange replacements, the net cash, reason + documents. Merged into the
+                Payment card (the status pill above already reflects refunded / partially refunded). */}
+            {(refundViews.length > 0 || legacyDocUrls.length > 0 || (order.status === "refunded" && order.refundReason)) && (
+              <div className="mt-4 border-t border-line pt-3">
+                <h4 className="text-[11px] font-semibold uppercase tracking-wide text-muted">
+                  {order.status === "refunded" ? "Refund" : "Refunds"}
+                </h4>
+                <ul className="mt-2 space-y-3">
+                  {refundViews.map(({ refund: r, docUrls }) => (
+                    <li key={r.id} className="rounded-xl border border-line bg-surface px-4 py-3">
+                      <div className="flex items-baseline justify-between gap-3">
+                        <span className="text-[13px] font-semibold text-ink">
+                          {usd(r.amount)} refunded
+                          {r.replacementItems.length > 0 && <span className="font-normal text-muted"> · exchange</span>}
+                        </span>
+                        <span className="text-[11.5px] text-muted">{fmtDate(r.createdAt)}</span>
+                      </div>
+                      <div className="mt-1.5 space-y-0.5 text-[12px] text-ink-soft">
+                        {r.lineItems.map((li, i) => (
+                          <div key={`r-${i}`}>Returned ×{li.qty} · {usd(li.amount)}</div>
+                        ))}
+                        {r.replacementItems.map((rep, i) => (
+                          <div key={`x-${i}`} className="text-brass">Exchanged for {rep.name} ×{rep.qty} · value {usd(rep.value)}</div>
+                        ))}
+                        {r.restocked && <div className="text-muted">Reserved stock released</div>}
+                      </div>
+                      {r.reason && (
+                        <p className="mt-1.5 text-[12px] text-ink-soft">
+                          <span className="font-semibold text-ink">Reason: </span>{r.reason}
+                        </p>
+                      )}
+                      {docUrls.length > 0 && (
+                        <div className="mt-1.5 flex flex-col gap-1">
+                          {docUrls.map((u, i) => (
+                            <a key={u} href={u} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-[12px] font-medium text-brass hover:underline">
+                              📎 Supporting document{docUrls.length > 1 ? ` ${i + 1}` : ""}
+                            </a>
+                          ))}
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                  {/* Legacy fully-refunded orders (pre-order_refunds): show the single reason + docs. */}
+                  {refundViews.length === 0 && (legacyDocUrls.length > 0 || order.refundReason) && (
+                    <li className="rounded-xl border border-line bg-surface px-4 py-3">
+                      {order.refundedAt && (
+                        <p className="text-[12px] font-semibold text-ink">
+                          Full refund{order.amount != null ? ` · ${usd(order.amount)}` : ""} on {fmtDate(order.refundedAt)}
+                        </p>
+                      )}
+                      {order.refundReason && (
+                        <p className="mt-1 text-[12px] text-ink-soft"><span className="font-semibold text-ink">Reason: </span>{order.refundReason}</p>
+                      )}
+                      <div className="mt-1.5 flex flex-col gap-1">
+                        {legacyDocUrls.map((u, i) => (
+                          <a key={u} href={u} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-[12px] font-medium text-brass hover:underline">
+                            📎 Supporting document{legacyDocUrls.length > 1 ? ` ${i + 1}` : ""}
+                          </a>
+                        ))}
+                      </div>
+                    </li>
+                  )}
+                </ul>
+              </div>
+            )}
+          </OrderPayment>
         )}
       </div>
-
-      {/* Refunds — one entry per refund event (partial or full), newest first. Covers returned lines,
-          any exchange replacements shipped in their place, the net cash, reason + documents. */}
-      {(refundViews.length > 0 || legacyDocUrls.length > 0 || (order.status === "refunded" && order.refundReason)) && (
-        <Card className="rise mb-6 border-line bg-[#faf9f5] px-5 py-5">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-ink">
-              {order.status === "refunded" ? "Order refunded" : "Refunds"}
-            </h3>
-            {order.status === "refunded" ? (
-              <StatusBadge status="refunded" />
-            ) : (
-              <Badge tone="amber">Partially refunded</Badge>
-            )}
-          </div>
-          <ul className="mt-3 space-y-3">
-            {refundViews.map(({ refund: r, docUrls }) => (
-              <li key={r.id} className="rounded-xl border border-line bg-surface px-4 py-3">
-                <div className="flex items-baseline justify-between gap-3">
-                  <span className="text-[13px] font-semibold text-ink">
-                    {usd(r.amount)} refunded
-                    {r.replacementItems.length > 0 && <span className="font-normal text-muted"> · exchange</span>}
-                  </span>
-                  <span className="text-[11.5px] text-muted">{fmtDate(r.createdAt)}</span>
-                </div>
-                <div className="mt-1.5 space-y-0.5 text-[12px] text-ink-soft">
-                  {r.lineItems.map((li, i) => (
-                    <div key={`r-${i}`}>Returned ×{li.qty} · {usd(li.amount)}</div>
-                  ))}
-                  {r.replacementItems.map((rep, i) => (
-                    <div key={`x-${i}`} className="text-brass">Exchanged for {rep.name} ×{rep.qty} · value {usd(rep.value)}</div>
-                  ))}
-                  {r.restocked && <div className="text-muted">Reserved stock released</div>}
-                </div>
-                {r.reason && (
-                  <p className="mt-1.5 text-[12px] text-ink-soft">
-                    <span className="font-semibold text-ink">Reason: </span>{r.reason}
-                  </p>
-                )}
-                {docUrls.length > 0 && (
-                  <div className="mt-1.5 flex flex-col gap-1">
-                    {docUrls.map((u, i) => (
-                      <a key={u} href={u} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-[12px] font-medium text-brass hover:underline">
-                        📎 Supporting document{docUrls.length > 1 ? ` ${i + 1}` : ""}
-                      </a>
-                    ))}
-                  </div>
-                )}
-              </li>
-            ))}
-            {/* Legacy fully-refunded orders (pre-order_refunds): show the single reason + docs. */}
-            {refundViews.length === 0 && (legacyDocUrls.length > 0 || order.refundReason) && (
-              <li className="rounded-xl border border-line bg-surface px-4 py-3">
-                {order.refundedAt && (
-                  <p className="text-[12px] font-semibold text-ink">
-                    Full refund{order.amount != null ? ` · ${usd(order.amount)}` : ""} on {fmtDate(order.refundedAt)}
-                  </p>
-                )}
-                {order.refundReason && (
-                  <p className="mt-1 text-[12px] text-ink-soft"><span className="font-semibold text-ink">Reason: </span>{order.refundReason}</p>
-                )}
-                <div className="mt-1.5 flex flex-col gap-1">
-                  {legacyDocUrls.map((u, i) => (
-                    <a key={u} href={u} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-[12px] font-medium text-brass hover:underline">
-                      📎 Supporting document{legacyDocUrls.length > 1 ? ` ${i + 1}` : ""}
-                    </a>
-                  ))}
-                </div>
-              </li>
-            )}
-          </ul>
-        </Card>
-      )}
 
       {/* status stepper — once the order is in the fulfilment pipeline */}
       {stageIdx >= 0 && (
@@ -605,6 +659,15 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                   {brandFooter(brandFooters[gi], brandShipDetail[gi])}
                 </Card>
               ))}
+              {refundFooterRows && (
+                <Card className="space-y-1.5 px-5 py-3.5 text-sm">
+                  <div className="flex justify-between text-muted">
+                    <span>Order total</span>
+                    <span className="tabular-nums">{usd(orderTotal)}</span>
+                  </div>
+                  {refundFooterRows}
+                </Card>
+              )}
             </div>
           ) : (
             <Card className="overflow-hidden">
@@ -617,7 +680,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                 </div>
               </div>
               <ul className="divide-y divide-line/70">{order.quote.items.map(renderItem)}</ul>
-              {showBreakdown ? (
+              {showBreakdown || refundFooterRows ? (
                 <div className="space-y-1.5 border-t border-line bg-[#fafaf7] px-5 py-3.5 text-sm">
                   <div className="flex justify-between text-muted">
                     <span>Subtotal · FOB</span>
@@ -639,6 +702,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                     <span>Total{ship.mode !== "ground" ? " · FOB" : ""}</span>
                     <span className="tabular-nums">{usd(orderTotal)}</span>
                   </div>
+                  {refundFooterRows}
                 </div>
               ) : (
                 <div className="flex justify-between border-t border-line bg-[#fafaf7] px-5 py-3.5 text-sm">
@@ -656,7 +720,17 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
               Pushed in real time from the supplier system and logistics layer
             </p>
             <ol className="mt-4 space-y-0">
-              {order.events.map((e, i) => (
+              {order.events.map((e, i) => {
+                // Refund/exchange notes get a dedicated badge (from the note's leading phrase)
+                // instead of the generic "System" actor tag.
+                const refundLabel = e.status === "note"
+                  ? e.note.startsWith("Partial refund")
+                    ? "Partial refund"
+                    : /^Order (fully )?refunded/.test(e.note)
+                      ? "Refund"
+                      : null
+                  : null;
+                return (
                 <li key={e.id} className="relative flex gap-4 pb-5 last:pb-0">
                   {i < order.events.length - 1 && (
                     <span className="absolute left-[7px] top-5 h-full w-0.5 bg-line" />
@@ -670,13 +744,18 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       {e.status !== "note" && <StatusBadge status={e.status as (typeof ORDER_STATUSES)[number]} />}
-                      <Badge tone="slate">{ACTOR_LABEL[e.actor]}</Badge>
+                      {refundLabel ? (
+                        <Badge tone="amber">{refundLabel}</Badge>
+                      ) : (
+                        <Badge tone="slate">{ACTOR_LABEL[e.actor]}</Badge>
+                      )}
                       <span className="text-[11px] text-muted">{fmtDateTime(e.createdAt)}</span>
                     </div>
                     <p className="mt-1 text-[13px] leading-relaxed text-ink-soft">{e.note}</p>
                   </div>
                 </li>
-              ))}
+                );
+              })}
             </ol>
           </Card>
         </div>

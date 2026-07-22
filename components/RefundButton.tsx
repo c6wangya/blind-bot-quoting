@@ -3,7 +3,6 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import type { VariationType } from "@/lib/db";
 import { usd } from "@/lib/format";
 import { ReplacementPicker, type PickerModel, type ReplacementDraft } from "./ReplacementPicker";
 import { Button, Spinner, cx } from "./ui";
@@ -16,6 +15,8 @@ export type ReturnableLine = {
   unitPrice: number;
   orderedQty: number;
   refundedQty: number;
+  /** An exchange replacement shipped in place of a prior return — shown for reference, not returnable. */
+  exchange?: boolean;
 };
 
 /**
@@ -29,6 +30,7 @@ export function RefundButton({
   orderId,
   paidLabel,
   alreadyRefunded,
+  netOutstanding,
   lines,
   preShipment,
   picker,
@@ -36,9 +38,11 @@ export function RefundButton({
   orderId: number;
   paidLabel: string;
   alreadyRefunded: number;
+  /** Cash still owed to the customer (amount paid − already refunded) — the full-order refund total. */
+  netOutstanding: number;
   lines: ReturnableLine[];
   preShipment: boolean;
-  picker: { models: PickerModel[]; variations: VariationType[]; exclusionGroups: Record<string, string[][]> };
+  picker: { models: PickerModel[] };
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -47,6 +51,8 @@ export function RefundButton({
   const [files, setFiles] = useState<File[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  // Full-order refund mode: return the whole order and close it (ignores per-line selection).
+  const [full, setFull] = useState(false);
   // itemId → return qty (absent / 0 = not selected).
   const [qtyById, setQtyById] = useState<Record<number, number>>({});
   const [replacements, setReplacements] = useState<ReplacementDraft[]>([]);
@@ -55,11 +61,12 @@ export function RefundButton({
   useEffect(() => setMounted(true), []);
 
   const remainingOf = (l: ReturnableLine) => l.orderedQty - l.refundedQty;
-  const returnedValue = lines.reduce((s, l) => s + l.unitPrice * (qtyById[l.itemId] ?? 0), 0);
+  // Exchange rows are reference-only — never contribute to the return, even if a stale qty lingers.
+  const returnedValue = lines.reduce((s, l) => s + (l.exchange ? 0 : l.unitPrice * (qtyById[l.itemId] ?? 0)), 0);
   const replacementValue = replacements.reduce((s, r) => s + r.value, 0);
   const cash = Math.max(0, Math.round((returnedValue - replacementValue) * 100) / 100);
   const waived = Math.max(0, Math.round((replacementValue - returnedValue) * 100) / 100);
-  const anyReturn = lines.some((l) => (qtyById[l.itemId] ?? 0) > 0);
+  const anyReturn = lines.some((l) => !l.exchange && (qtyById[l.itemId] ?? 0) > 0);
 
   const reset = () => {
     setQtyById({});
@@ -67,6 +74,7 @@ export function RefundButton({
     setReason("");
     setFiles([]);
     setError(null);
+    setFull(false);
   };
 
   const setQty = (l: ReturnableLine, next: number) => {
@@ -74,25 +82,22 @@ export function RefundButton({
     setQtyById((prev) => ({ ...prev, [l.itemId]: clamped }));
   };
 
-  // "Refund everything" shortcut: max out every line that still has refundable units (or clear all).
-  const selectableLines = lines.filter((l) => remainingOf(l) > 0);
-  const allSelected = selectableLines.length > 0 && selectableLines.every((l) => (qtyById[l.itemId] ?? 0) === remainingOf(l));
-  const toggleSelectAll = () =>
-    setQtyById(allSelected ? {} : Object.fromEntries(selectableLines.map((l) => [l.itemId, remainingOf(l)])));
-
   const submit = async () => {
-    if (!anyReturn) return setError("Select at least one line to refund.");
+    if (!full && !anyReturn) return setError("Select at least one line to refund.");
     if (!reason.trim()) return setError("Please enter a reason.");
     if (!files.length) return setError("Please attach at least one supporting document.");
     setBusy(true);
     setError(null);
     try {
-      const returns = lines
-        .filter((l) => (qtyById[l.itemId] ?? 0) > 0)
-        .map((l) => ({ itemId: l.itemId, qty: qtyById[l.itemId] }));
-      const reps = replacements.map((r) => ({ productId: r.productId, qty: r.qty, variationItemIds: r.variationItemIds }));
+      const returns = full
+        ? []
+        : lines
+            .filter((l) => !l.exchange && (qtyById[l.itemId] ?? 0) > 0)
+            .map((l) => ({ itemId: l.itemId, qty: qtyById[l.itemId] }));
+      const reps = full ? [] : replacements.map((r) => ({ productId: r.productId, qty: r.qty, variationItemIds: r.variationItemIds }));
       const fd = new FormData();
       fd.set("reason", reason.trim());
+      fd.set("full", full ? "true" : "false");
       fd.set("returns", JSON.stringify(returns));
       fd.set("replacements", JSON.stringify(reps));
       // Returned goods always release their reservation pre-shipment (the server ignores this once
@@ -135,22 +140,59 @@ export function RefundButton({
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
-            {/* ① Items to return */}
-            <div>
+            {/* Full-order refund toggle: returns the whole order and closes it on `refunded`. */}
+            <button
+              type="button"
+              onClick={() => setFull((v) => !v)}
+              className={cx(
+                "flex w-full items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition-colors",
+                full ? "border-red-300 bg-red-50/60" : "border-line hover:border-ink"
+              )}
+            >
+              <span className="min-w-0">
+                <span className="block text-[13px] font-semibold text-ink">Refund entire order</span>
+                <span className="block text-[11.5px] text-muted">
+                  Return every item and close the order as refunded · {usd(netOutstanding)}
+                </span>
+              </span>
+              <span
+                className={cx(
+                  "flex size-5 shrink-0 items-center justify-center rounded-full border-2",
+                  full ? "border-red-500 bg-red-500 text-white" : "border-line text-transparent"
+                )}
+                aria-hidden
+              >
+                ✓
+              </span>
+            </button>
+
+            {/* ① Items to return — hidden in full-order mode (everything is returned). */}
+            <div className={cx("mt-4", full && "pointer-events-none opacity-40")}>
               <div className="flex items-center justify-between">
                 <span className="text-[12px] font-semibold uppercase tracking-wide text-muted">Items to return</span>
-                {selectableLines.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={toggleSelectAll}
-                    className="text-[12px] font-medium text-brass hover:underline"
-                  >
-                    {allSelected ? "Clear all" : "Select all (full refund)"}
-                  </button>
-                )}
               </div>
               <ul className="mt-2 divide-y divide-line rounded-xl border border-line">
                 {lines.map((l) => {
+                  // Exchange replacements: reference-only — shown so the admin sees the full order,
+                  // but they were shipped in place of an earlier return and can't be refunded again.
+                  if (l.exchange) {
+                    return (
+                      <li key={l.itemId} className="flex items-center gap-3 px-3 py-2.5">
+                        <span className="size-4 shrink-0" aria-hidden />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 truncate text-[13px] font-semibold text-ink-soft">
+                            {l.name}
+                            <span className="shrink-0 rounded-full border border-[#e0cfa8] bg-brass-soft px-2 py-0.5 text-[10px] font-semibold text-[#8a6a39]">
+                              Exchange
+                            </span>
+                          </div>
+                          <div className="truncate text-[11px] text-muted">
+                            {l.sub} · value {usd(l.unitPrice)} · shipped as an exchange — not returnable
+                          </div>
+                        </div>
+                      </li>
+                    );
+                  }
                   const remaining = remainingOf(l);
                   const done = remaining <= 0;
                   const q = qtyById[l.itemId] ?? 0;
@@ -188,8 +230,8 @@ export function RefundButton({
               </ul>
             </div>
 
-            {/* ② Exchange replacement (optional) */}
-            <div className="mt-4">
+            {/* ② Exchange replacement (optional) — not available for a full-order refund. */}
+            <div className={cx("mt-4", full && "pointer-events-none opacity-40")}>
               <div className="flex items-center justify-between">
                 <span className="text-[12px] font-semibold uppercase tracking-wide text-muted">Replacement (optional)</span>
                 <button
@@ -288,24 +330,33 @@ export function RefundButton({
             {/* Footer — totals + actions, always visible while the body scrolls */}
             <div className="shrink-0 border-t border-line px-6 py-4">
               <div className="space-y-1 text-[13px]">
-                <div className="flex justify-between text-ink-soft">
-                  <span>Returned</span>
-                  <span className="tabular-nums">{usd(Math.round(returnedValue * 100) / 100)}</span>
-                </div>
-                {replacementValue > 0 && (
-                  <div className="flex justify-between text-ink-soft">
-                    <span>Replacement</span>
-                    <span className="tabular-nums">−{usd(Math.round(replacementValue * 100) / 100)}</span>
+                {full ? (
+                  <div className="flex justify-between pt-0.5 text-[15px] font-semibold text-ink">
+                    <span>Cash refund · entire order</span>
+                    <span className="tabular-nums">{usd(netOutstanding)}</span>
                   </div>
-                )}
-                <div className="flex justify-between pt-0.5 text-[15px] font-semibold text-ink">
-                  <span>Cash refund</span>
-                  <span className="tabular-nums">{usd(cash)}</span>
-                </div>
-                {waived > 0 && (
-                  <p className="pt-0.5 text-[11.5px] text-muted">
-                    Replacement exceeds the returned value — the {usd(waived)} balance is waived (not charged).
-                  </p>
+                ) : (
+                  <>
+                    <div className="flex justify-between text-ink-soft">
+                      <span>Returned</span>
+                      <span className="tabular-nums">{usd(Math.round(returnedValue * 100) / 100)}</span>
+                    </div>
+                    {replacementValue > 0 && (
+                      <div className="flex justify-between text-ink-soft">
+                        <span>Replacement</span>
+                        <span className="tabular-nums">−{usd(Math.round(replacementValue * 100) / 100)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between pt-0.5 text-[15px] font-semibold text-ink">
+                      <span>Cash refund</span>
+                      <span className="tabular-nums">{usd(cash)}</span>
+                    </div>
+                    {waived > 0 && (
+                      <p className="pt-0.5 text-[11.5px] text-muted">
+                        Replacement exceeds the returned value — the {usd(waived)} balance is waived (not charged).
+                      </p>
+                    )}
+                  </>
                 )}
               </div>
 
@@ -315,9 +366,13 @@ export function RefundButton({
                 <Button variant="secondary" onClick={() => setOpen(false)} disabled={busy} className="py-2">
                   Cancel
                 </Button>
-                <Button variant="danger" onClick={submit} busy={busy} disabled={!anyReturn} className="gap-2 py-2">
+                <Button variant="danger" onClick={submit} busy={busy} disabled={!full && !anyReturn} className="gap-2 py-2">
                   {busy && <Spinner />}
-                  {busy ? "Processing…" : `Refund ${usd(cash)}${replacements.length ? " & exchange" : ""}`}
+                  {busy
+                    ? "Processing…"
+                    : full
+                      ? `Refund entire order · ${usd(netOutstanding)}`
+                      : `Refund ${usd(cash)}${replacements.length ? " & exchange" : ""}`}
                 </Button>
               </div>
             </div>
@@ -326,8 +381,6 @@ export function RefundButton({
           {pickerOpen && (
             <ReplacementPicker
               models={picker.models}
-              variations={picker.variations}
-              exclusionGroups={picker.exclusionGroups}
               onAdd={(draft) => setReplacements((prev) => [...prev, draft])}
               onClose={() => setPickerOpen(false)}
             />

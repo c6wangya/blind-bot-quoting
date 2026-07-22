@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import type { BankInfo } from "@/lib/db";
 import type { PaymentMethod, PaymentStatus } from "@/lib/types";
 import { useToast } from "./Toast";
@@ -53,6 +53,7 @@ export function OrderPayment({
   transferReported = false,
   refundedLabel,
   netLabel,
+  children,
 }: {
   orderId: number;
   method: PaymentMethod | null;
@@ -64,6 +65,8 @@ export function OrderPayment({
   /** Total refunded so far (formatted); when present, shows a "Refunded −X · Net Y" breakdown. */
   refundedLabel?: string;
   netLabel?: string;
+  /** Refund records list, rendered inside this card (merges the former separate Refunds card). */
+  children?: ReactNode;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -179,6 +182,8 @@ export function OrderPayment({
           </div>
         </div>
       )}
+
+      {children}
 
       {/* Awaiting payment — bank transfer shows wire instructions; gateways show a Pay button that
           opens the method chooser (same pattern as the initial submit flow). */}

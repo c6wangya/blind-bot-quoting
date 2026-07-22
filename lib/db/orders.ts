@@ -230,7 +230,8 @@ export interface ExchangeReplacementInput {
 }
 
 /** A quote line is refundable (returnable) if it's real goods — not an adjustment, not itself an
- *  exchange replacement (those are $0 and can't be returned for cash). */
+ *  exchange replacement (those are $0 and were themselves shipped in place of returned goods, so
+ *  they're shown for reference but can't be returned again). */
 function isReturnable(item: { config: unknown }): boolean {
   const cfg = item.config as { kind?: string; exchange?: boolean };
   if (isAdjustmentConfig(cfg as never)) return false;
@@ -373,11 +374,15 @@ export async function refundOrderLines(
   });
   if (insErr) throw insErr;
 
-  // Fully refunded once every returnable unit across the order has been returned (this refund + prior).
+  // Fully refunded once every returnable unit across the order has been returned (this refund +
+  // prior) AND no exchange was ever issued: an exchange means the customer kept goods and net cash
+  // was retained ("多退少不补"), so such an order can never be fully refunded — it stays partial.
   const totalReturnable = items.filter(isReturnable).reduce((s, it) => s + it.qty, 0);
   const totalReturnedNow =
     lineItems.reduce((s, li) => s + li.qty, 0) + [...priorQty.values()].reduce((s, q) => s + q, 0);
-  const fullyRefunded = totalReturnable > 0 && totalReturnedNow >= totalReturnable;
+  const priorReplacementValue = (order.refunds ?? []).reduce((s, r) => s + r.replacementValue, 0);
+  const anyExchange = round2(priorReplacementValue + replacementValue) > 0;
+  const fullyRefunded = !anyExchange && totalReturnable > 0 && totalReturnedNow >= totalReturnable;
 
   await sb
     .from("orders")
@@ -402,6 +407,97 @@ export async function refundOrderLines(
   });
 
   return { amount, fullyRefunded };
+}
+
+/**
+ * Full-order refund. Refunds the entire remaining paid amount (everything still owed to the
+ * customer — shipping included), releases every unit of stock still reserved for the order
+ * (pre-shipment only), and closes the order on the terminal `refunded` status. Unlike
+ * refundOrderLines this ignores per-line selection and any exchange: the whole order is returned.
+ * Admin-only.
+ */
+export async function refundOrderFull(
+  orderId: number,
+  opts: { reason: string; docPaths?: string[] },
+  sb: SupabaseClient = admin(),
+): Promise<{ amount: number; fullyRefunded: true }> {
+  const order = await getOrder(orderId, admin());
+  if (!order) throw new Error("Order not found");
+  if (order.paymentStatus !== "paid" && order.paymentStatus !== "partially_refunded") {
+    throw new Error("Only a paid order can be refunded");
+  }
+  if (!(REFUNDABLE_STATUSES as readonly string[]).includes(order.status)) {
+    throw new Error("This order can no longer be refunded — it is already closed.");
+  }
+
+  const items = order.quote.items;
+  // Units already returned per line, across every prior refund.
+  const priorQty = new Map<number, number>();
+  for (const r of order.refunds ?? [])
+    for (const li of r.lineItems) priorQty.set(li.itemId, (priorQty.get(li.itemId) ?? 0) + li.qty);
+
+  // Return every returnable unit not yet returned (for the line-item record + goods value).
+  const lineItems: RefundLineItem[] = [];
+  let returnedValue = 0;
+  for (const it of items) {
+    if (!isReturnable(it)) continue;
+    const remaining = it.qty - (priorQty.get(it.id) ?? 0);
+    if (remaining <= 0) continue;
+    const amount = round2(it.computation.unitPrice * remaining);
+    lineItems.push({ itemId: it.id, qty: remaining, amount });
+    returnedValue += amount;
+  }
+  returnedValue = round2(returnedValue);
+
+  // Cash = everything still owed: amount paid minus what's already been refunded (covers shipping).
+  const amountPaid = order.amount ?? order.quote.total;
+  const priorCash = round2((order.refunds ?? []).reduce((s, r) => s + r.amount, 0));
+  const amount = round2(Math.max(0, amountPaid - priorCash));
+
+  // Release all stock still reserved: the returnable remainder plus any exchange goods (which were
+  // never "returned" but won't ship now). Pre-shipment only — shipped goods have already left.
+  const preShipment = (PRE_SHIPMENT_STATUSES as readonly string[]).includes(order.status);
+  let restocked = false;
+  if (preShipment) {
+    const live = items
+      .map((it) => ({ it, qty: it.qty - (isReturnable(it) ? priorQty.get(it.id) ?? 0 : 0) }))
+      .filter((x) => x.qty > 0);
+    const needs = await motorNeedsOf(live.map((x) => ({ config: x.it.config, productId: x.it.productId, qty: x.qty })));
+    if (needs.length) {
+      await restoreMotorStock(needs, admin());
+      restocked = true;
+    }
+  }
+
+  const now = new Date().toISOString();
+  const { error: insErr } = await sb.from("order_refunds").insert({
+    order_id: orderId,
+    amount,
+    returned_value: returnedValue,
+    replacement_value: 0,
+    reason: opts.reason,
+    doc_paths: opts.docPaths ?? [],
+    line_items: lineItems,
+    replacement_items: [],
+    restocked,
+  });
+  if (insErr) throw insErr;
+
+  await sb
+    .from("orders")
+    .update({ status: "refunded", payment_status: "refunded", refund_reason: opts.reason, refunded_at: now, updated_at: now })
+    .eq("id", orderId);
+
+  const parts = ["Order fully refunded", `$${amount.toFixed(2)}`];
+  if (restocked) parts.push("reserved stock released");
+  await sb.from("order_events").insert({
+    order_id: orderId,
+    status: "note",
+    actor: "system",
+    note: `${parts.join(" · ")}. Reason: ${opts.reason}`,
+  });
+
+  return { amount, fullyRefunded: true };
 }
 
 /** Hours an unpaid order may sit before it's auto-cancelled and its stock released. */
