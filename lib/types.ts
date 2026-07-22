@@ -114,6 +114,16 @@ export interface AccessoryConfig {
    * set by the server (see `POST /api/quote-items`); never trust a client-supplied flag.
    */
   airFreight?: boolean;
+  /**
+   * Exchange replacement line: added to the order's quote when an admin refunds some goods and ships
+   * a different accessory in their place ("多退少不补"). The customer is NOT charged for it (its
+   * `computation.unitPrice` is 0 — the returned goods' credit covers it), so it folds through every
+   * `Σ unitPrice × qty` total as $0 and never inflates the order. The real per-unit value it was
+   * worth is snapshotted in `exchangeValue` for the refund record / audit. Set only by the server.
+   */
+  exchange?: boolean;
+  /** Real per-unit value of an exchange replacement line (customer price is 0). See `exchange`. */
+  exchangeValue?: number;
 }
 
 /**
@@ -359,7 +369,9 @@ export type OrderStatus =
   | "refunded";
 
 export type PaymentMethod = "stripe" | "paypal" | "bank_transfer";
-export type PaymentStatus = "pending" | "paid" | "failed" | "refunded";
+// 'partially_refunded' = at least one line/qty refunded but refundable units remain (the order keeps
+// its fulfilment status and stepper). Once every unit is returned it becomes the terminal 'refunded'.
+export type PaymentStatus = "pending" | "paid" | "failed" | "refunded" | "partially_refunded";
 
 // A paid order can be refunded at any fulfilment stage (full amount).
 export const REFUNDABLE_STATUSES = ORDER_STATUSES;
@@ -393,8 +405,47 @@ export interface OrderRow {
   /** Optional supporting documents for the refund (private bucket paths). */
   refundDocPaths: string[] | null;
   refundedAt: string | null;
+  /** Refund records (partial or full), newest first — populated by getOrder. Empty if never refunded. */
+  refunds?: OrderRefundRow[];
   createdAt: string;
   updatedAt: string;
+}
+
+/** One returned line within a refund: which order line, how many units, and the value refunded. */
+export interface RefundLineItem {
+  itemId: number;
+  qty: number;
+  amount: number;
+}
+
+/** One exchange replacement shipped as part of a refund (real value, not what the customer paid). */
+export interface RefundReplacementItem {
+  /** The quote_items id of the $0 exchange line added to the order. */
+  itemId: number;
+  productId: string;
+  name: string;
+  qty: number;
+  /** Real per-line value (unit value × qty) — the P that offsets the returned value R. */
+  value: number;
+}
+
+/**
+ * A Shopify-style refund record. One row per refund event (an order may have several). `amount` is
+ * the net cash refunded = max(0, returnedValue − replacementValue). `lineItems` are the returned
+ * quantities; `replacementItems` are exchange goods shipped in the same order.
+ */
+export interface OrderRefundRow {
+  id: number;
+  orderId: number;
+  amount: number;
+  returnedValue: number;
+  replacementValue: number;
+  reason: string;
+  docPaths: string[];
+  lineItems: RefundLineItem[];
+  replacementItems: RefundReplacementItem[];
+  restocked: boolean;
+  createdAt: string;
 }
 
 export interface OrderEventRow {

@@ -24,8 +24,14 @@ const PAYMENT_OPTIONS: { id: PaymentMethod; icon: string; label: string; desc: s
 ];
 
 function StatusPill({ status }: { status: PaymentStatus }) {
-  const map = { paid: "green", failed: "amber", pending: "slate", refunded: "slate" } as const;
-  const label = { paid: "Paid", failed: "Payment failed", pending: "Awaiting payment", refunded: "Refunded" }[status];
+  const map = { paid: "green", failed: "amber", pending: "slate", refunded: "slate", partially_refunded: "amber" } as const;
+  const label = {
+    paid: "Paid",
+    failed: "Payment failed",
+    pending: "Awaiting payment",
+    refunded: "Refunded",
+    partially_refunded: "Partially refunded",
+  }[status];
   return <Badge tone={map[status]}>{label}</Badge>;
 }
 
@@ -45,6 +51,8 @@ export function OrderPayment({
   bankInfo,
   proofUrl,
   transferReported = false,
+  refundedLabel,
+  netLabel,
 }: {
   orderId: number;
   method: PaymentMethod | null;
@@ -53,6 +61,9 @@ export function OrderPayment({
   bankInfo: BankInfo | null;
   proofUrl: string | null;
   transferReported?: boolean;
+  /** Total refunded so far (formatted); when present, shows a "Refunded −X · Net Y" breakdown. */
+  refundedLabel?: string;
+  netLabel?: string;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -137,7 +148,8 @@ export function OrderPayment({
     }
   };
 
-  const awaiting = paymentStatus !== "paid";
+  // Only pending/failed orders are still "awaiting" — a (partially) refunded order has been paid.
+  const awaiting = paymentStatus === "pending" || paymentStatus === "failed";
   const isBank = method === "bank_transfer";
   const bankReady = !!(bankInfo && bankInfo.bankName && bankInfo.accountNumber);
 
@@ -155,6 +167,18 @@ export function OrderPayment({
           Amount: <span className="font-semibold tabular-nums text-ink">{amountLabel}</span>
         </span>
       </div>
+      {refundedLabel && netLabel && (
+        <div className="mt-2 flex flex-col gap-0.5 border-t border-line pt-2 text-[13px]">
+          <div className="flex justify-between text-ink-soft">
+            <span>Refunded</span>
+            <span className="tabular-nums text-emerald-600">−{refundedLabel}</span>
+          </div>
+          <div className="flex justify-between font-semibold text-ink">
+            <span>Net paid</span>
+            <span className="tabular-nums">{netLabel}</span>
+          </div>
+        </div>
+      )}
 
       {/* Awaiting payment — bank transfer shows wire instructions; gateways show a Pay button that
           opens the method chooser (same pattern as the initial submit flow). */}

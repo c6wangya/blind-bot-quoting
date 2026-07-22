@@ -1,14 +1,25 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { admin } from "@/lib/supabase/admin";
-import type { OrderEventRow, OrderRow, OrderStatus, PaymentMethod } from "@/lib/types";
-import { EVENT_COLS, ORDER_COLS, round2, type ItemAgg, insertWithRef } from "./internal";
+import type {
+  OrderEventRow,
+  OrderRefundRow,
+  OrderRow,
+  OrderStatus,
+  PaymentMethod,
+  RefundLineItem,
+  RefundReplacementItem,
+  VariationSnapshot,
+} from "@/lib/types";
+import { EVENT_COLS, ORDER_COLS, REFUND_COLS, round2, type ItemAgg, insertWithRef } from "./internal";
 import { ensureSeeded } from "./seed";
 import { getQuote, getQuoteExpedite, getQuoteExpediteState, expediteSignature } from "./quotes";
 import { getQuoteOwnerId } from "./ownership";
 import { getRetailerDiscount, getShippingWaivers } from "./profile";
-import { deductMotorStock, restoreMotorStock, motorNeedsOf } from "./motors";
+import { deductMotorStock, restoreMotorStock, motorNeedsOf, getEffectivePrices, resolveMotorPrice } from "./motors";
 import { loadCatalog } from "./accessory-catalog";
-import { getVariationItemModelMap } from "./variations";
+import type { AccessoryModel } from "@/lib/accessories-data";
+import { getVariationItemModelMap, resolveVariationSelections } from "./variations";
+import { addExchangeReplacement } from "./quotes";
 import { computeShipping, DEFAULT_SHIPPING, type MotorRate, type ShippingMode, type ShippingState } from "@/lib/shipping";
 import { isAccessoryConfig, isAdjustmentConfig, PRE_SHIPMENT_STATUSES, REFUNDABLE_STATUSES } from "@/lib/types";
 
@@ -206,57 +217,191 @@ export async function cancelOrder(
   return { quoteId };
 }
 
+/** A returned line in a refund request: which order line + how many units. */
+export interface RefundLineInput {
+  itemId: number;
+  qty: number;
+}
+/** An exchange replacement accessory to ship in place of the returned goods. */
+export interface ExchangeReplacementInput {
+  productId: string;
+  qty: number;
+  variationItemIds?: string[];
+}
+
+/** A quote line is refundable (returnable) if it's real goods — not an adjustment, not itself an
+ *  exchange replacement (those are $0 and can't be returned for cash). */
+function isReturnable(item: { config: unknown }): boolean {
+  const cfg = item.config as { kind?: string; exchange?: boolean };
+  if (isAdjustmentConfig(cfg as never)) return false;
+  if (isAccessoryConfig(cfg as never) && (cfg as { exchange?: boolean }).exchange) return false;
+  return true;
+}
+
 /**
- * Refund a PAID order in full, at any fulfilment stage. Admin-initiated: snapshots the admin's
- * reason + an optional supporting document and moves the order to the terminal `refunded` status.
- * Reserved motor stock is returned ONLY when refunding pre-shipment (PRE_SHIPMENT_STATUSES) — once
- * shipped the goods have already left, so stock is left untouched. The quote is left as-is (still
- * "converted") — it's shown as Refunded via the order's status, not reopened.
+ * Refund PART (or all) of a PAID order — a chosen quantity of chosen lines — with an optional
+ * exchange: ship different accessories in the same order in place of the returned goods. Admin-only.
+ *
+ * "多退少不补": returned value R (returned qty × snapshot unit price), replacement value P (real
+ * value of the exchange goods). Net cash refunded = max(0, R − P); when P > R the balance is waived
+ * (never charged). Replacement lines are added to the order's quote as $0-to-customer accessory
+ * lines (see addExchangeReplacement), so the order's charged total never changes.
+ *
+ * Stock: returned lines release reserved motor stock only pre-shipment AND only when `restock` is
+ * set; replacement goods always DEDUCT stock (they ship). Once every returnable unit has been
+ * returned the order lands on the terminal `refunded` status; otherwise payment_status becomes
+ * `partially_refunded` and the fulfilment status/stepper are left untouched.
+ *
+ * Returns the net cash refunded and whether the order is now fully refunded.
  */
-export async function refundOrder(
+export async function refundOrderLines(
   orderId: number,
-  opts: { reason: string; docPaths?: string[] },
+  opts: {
+    reason: string;
+    docPaths?: string[];
+    returns: RefundLineInput[];
+    replacements?: ExchangeReplacementInput[];
+    restock: boolean;
+  },
   sb: SupabaseClient = admin()
-): Promise<void> {
-  const order = await getOrder(orderId, admin()); // need the line items (stock) + amount
+): Promise<{ amount: number; fullyRefunded: boolean }> {
+  const order = await getOrder(orderId, admin()); // need line items (stock) + prior refunds
   if (!order) throw new Error("Order not found");
-  if (order.paymentStatus !== "paid") throw new Error("Only a paid order can be refunded");
+  if (order.paymentStatus !== "paid" && order.paymentStatus !== "partially_refunded") {
+    throw new Error("Only a paid order can be refunded");
+  }
   if (!(REFUNDABLE_STATUSES as readonly string[]).includes(order.status)) {
     throw new Error("This order can no longer be refunded — it is already closed.");
   }
-  // Only return stock if the goods never shipped; a shipped/in-transit/delivered refund leaves it.
-  const preShipment = (PRE_SHIPMENT_STATUSES as readonly string[]).includes(order.status);
+  if (!opts.returns.length) throw new Error("Select at least one line to refund");
 
-  const now = new Date().toISOString();
-  // Atomically CLAIM the refund: only flip a row that is STILL `paid`. A second concurrent refund
-  // (e.g. an admin double-click) matches 0 rows and returns before touching stock — so the reserved
-  // stock is restored exactly once, never doubled. (After this the row is `payment_status=refunded`.)
-  const { data: claimed, error } = await sb
-    .from("orders")
-    .update({
-      status: "refunded",
-      payment_status: "refunded",
-      refund_reason: opts.reason,
-      refund_doc_paths: opts.docPaths && opts.docPaths.length ? opts.docPaths : null,
-      refunded_at: now,
-      updated_at: now,
-    })
-    .eq("id", orderId)
-    .eq("payment_status", "paid")
-    .select("id");
-  if (error) throw error;
-  if (!(claimed ?? []).length) return; // lost the race / already refunded — idempotent no-op
+  const items = order.quote.items;
+  const byId = new Map(items.map((it) => [it.id, it]));
+  // Units already refunded per line, summed across every prior refund record.
+  const priorQty = new Map<number, number>();
+  for (const r of order.refunds ?? [])
+    for (const li of r.lineItems) priorQty.set(li.itemId, (priorQty.get(li.itemId) ?? 0) + li.qty);
 
-  if (preShipment) {
-    const motorNeeds = await motorNeedsOf(order.quote.items);
-    if (motorNeeds.length > 0) await restoreMotorStock(motorNeeds, admin());
+  // ---- Validate + price the returned lines (server-side; the client's numbers are never trusted).
+  const lineItems: RefundLineItem[] = [];
+  let returnedValue = 0;
+  for (const req of opts.returns) {
+    const item = byId.get(req.itemId);
+    if (!item) throw new Error("A selected line is no longer on this order");
+    if (!isReturnable(item)) throw new Error("That line can't be refunded");
+    const qty = Math.floor(req.qty);
+    const remaining = item.qty - (priorQty.get(item.id) ?? 0);
+    if (!Number.isInteger(qty) || qty <= 0) throw new Error("Refund quantity must be a positive whole number");
+    if (qty > remaining) throw new Error(`Only ${remaining} of that line remain refundable`);
+    const amount = round2(item.computation.unitPrice * qty);
+    lineItems.push({ itemId: item.id, qty, amount });
+    returnedValue += amount;
   }
+  returnedValue = round2(returnedValue);
+
+  // ---- Resolve + price the exchange replacements. Deduct their stock FIRST (atomic; throws if
+  // short) so we never insert an exchange line we can't fulfil.
+  const catalog = await loadCatalog();
+  const ownerId = order.quote.ownerId ?? "";
+  const eff = await getEffectivePrices(ownerId);
+  // One brand per quote: an exchange replacement must match the order's existing accessory brand.
+  const existingBrand = items
+    .map((it) => (isAccessoryConfig(it.config) && !(it.config as { exchange?: boolean }).exchange ? it.config.brand : null))
+    .find((b): b is string => !!b);
+  const brandNameOf = (categoryId: string) =>
+    catalog.brands.find((b) => b.id === catalog.category(categoryId)?.brandId)?.name ?? catalog.brand.name;
+  type Resolved = { model: AccessoryModel; qty: number; unitPrice: number; variations: VariationSnapshot[] };
+  const resolved: Resolved[] = [];
+  for (const rep of opts.replacements ?? []) {
+    const model = catalog.model(rep.productId);
+    if (!model) throw new Error("A replacement accessory is no longer in the catalog");
+    const category = catalog.category(model.categoryId);
+    if (!category?.orderable) throw new Error(`"${model.name}" isn't available to order`);
+    if (existingBrand && brandNameOf(model.categoryId) !== existingBrand) {
+      throw new Error(`A replacement must be a ${existingBrand} accessory (one brand per order)`);
+    }
+    const qty = Math.floor(rep.qty);
+    if (!Number.isInteger(qty) || qty <= 0) throw new Error("Replacement quantity must be a positive whole number");
+    const requested = (rep.variationItemIds ?? []).map((itemId) => ({ itemId, qty: 1 }));
+    const variations = (await resolveVariationSelections(model.id, requested, sb, eff)) as VariationSnapshot[];
+    const unitPrice = eff[model.id] ?? (await resolveMotorPrice(model.id, ownerId));
+    resolved.push({ model, qty, unitPrice, variations });
+  }
+  if (resolved.length) {
+    const needs = await motorNeedsOf(
+      resolved.map((r) => ({ config: { kind: "accessory", variations: r.variations }, productId: r.model.id, qty: r.qty })),
+    );
+    if (needs.length) await deductMotorStock(needs, admin());
+  }
+
+  // Insert the exchange lines (now that their stock is reserved) and tally the replacement value P.
+  const replacementItems: RefundReplacementItem[] = [];
+  let replacementValue = 0;
+  for (const r of resolved) {
+    const { item, unitValue } = await addExchangeReplacement(order.quoteId, r.model, r.qty, r.unitPrice, r.variations, sb);
+    const value = round2(unitValue * r.qty);
+    replacementItems.push({ itemId: item.id, productId: r.model.id, name: r.model.name, qty: r.qty, value });
+    replacementValue += value;
+  }
+  replacementValue = round2(replacementValue);
+
+  const amount = round2(Math.max(0, returnedValue - replacementValue));
+
+  // ---- Release reserved stock for the returned lines (pre-shipment only, and only if asked).
+  const preShipment = (PRE_SHIPMENT_STATUSES as readonly string[]).includes(order.status);
+  const restocked = opts.restock && preShipment;
+  if (restocked) {
+    const returnedGoods = lineItems
+      .map((li) => ({ item: byId.get(li.itemId)!, qty: li.qty }))
+      .filter((x) => x.item);
+    const needs = await motorNeedsOf(returnedGoods.map((x) => ({ config: x.item.config, productId: x.item.productId, qty: x.qty })));
+    if (needs.length) await restoreMotorStock(needs, admin());
+  }
+
+  // ---- Record the refund + advance the order's payment status.
+  const now = new Date().toISOString();
+  const { error: insErr } = await sb.from("order_refunds").insert({
+    order_id: orderId,
+    amount,
+    returned_value: returnedValue,
+    replacement_value: replacementValue,
+    reason: opts.reason,
+    doc_paths: opts.docPaths ?? [],
+    line_items: lineItems,
+    replacement_items: replacementItems,
+    restocked,
+  });
+  if (insErr) throw insErr;
+
+  // Fully refunded once every returnable unit across the order has been returned (this refund + prior).
+  const totalReturnable = items.filter(isReturnable).reduce((s, it) => s + it.qty, 0);
+  const totalReturnedNow =
+    lineItems.reduce((s, li) => s + li.qty, 0) + [...priorQty.values()].reduce((s, q) => s + q, 0);
+  const fullyRefunded = totalReturnable > 0 && totalReturnedNow >= totalReturnable;
+
+  await sb
+    .from("orders")
+    .update(
+      fullyRefunded
+        ? { status: "refunded", payment_status: "refunded", refund_reason: opts.reason, refunded_at: now, updated_at: now }
+        : { payment_status: "partially_refunded", updated_at: now },
+    )
+    .eq("id", orderId);
+
+  // Timeline entry — the retailer-facing refund/exchange notice.
+  const parts: string[] = [];
+  parts.push(fullyRefunded ? "Order fully refunded" : "Partial refund");
+  parts.push(`$${amount.toFixed(2)}`);
+  if (replacementItems.length) parts.push(`exchange: ${replacementItems.map((r) => `${r.name} ×${r.qty}`).join(", ")}`);
+  if (restocked) parts.push("reserved stock released");
   await sb.from("order_events").insert({
     order_id: orderId,
     status: "note",
     actor: "system",
-    note: `Order refunded in full (${order.amount != null ? `$${order.amount.toFixed(2)}` : "amount on file"})${preShipment ? " — reserved stock released" : ""}. Reason: ${opts.reason}`,
+    note: `${parts.join(" · ")}. Reason: ${opts.reason}`,
   });
+
+  return { amount, fullyRefunded };
 }
 
 /** Hours an unpaid order may sit before it's auto-cancelled and its stock released. */
@@ -493,13 +638,18 @@ export async function getOrder(
   const order = o as unknown as OrderRow;
   const quote = await getQuote(order.quoteId, sb);
   if (!quote) return undefined;
-  const { data: events, error: e2 } = await sb
-    .from("order_events")
-    .select(EVENT_COLS)
-    .eq("order_id", id)
-    .order("id", { ascending: false });
+  const [{ data: events, error: e2 }, { data: refunds, error: e3 }] = await Promise.all([
+    sb.from("order_events").select(EVENT_COLS).eq("order_id", id).order("id", { ascending: false }),
+    sb.from("order_refunds").select(REFUND_COLS).eq("order_id", id).order("id", { ascending: false }),
+  ]);
   if (e2) throw e2;
-  return { ...order, quote, events: (events ?? []) as unknown as OrderEventRow[] };
+  if (e3) throw e3;
+  return {
+    ...order,
+    quote,
+    events: (events ?? []) as unknown as OrderEventRow[],
+    refunds: (refunds ?? []) as unknown as OrderRefundRow[],
+  };
 }
 
 /**

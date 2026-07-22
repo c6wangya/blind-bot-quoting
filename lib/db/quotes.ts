@@ -328,6 +328,48 @@ export async function addAccessoryItem(
 }
 
 /**
+ * Add an exchange REPLACEMENT accessory line to a quote (used by a refund-with-exchange). The
+ * customer is not charged for it — its stored `computation.unitPrice` is 0 and every variation price
+ * is zeroed, so it folds through all `Σ unitPrice × qty` totals as $0 and never inflates the order.
+ * The real per-unit value it WOULD have cost (base + variations) is returned and also snapshotted on
+ * `config.exchangeValue`, so the refund's "多退少不补" math (cash = max(0, returned − replacement))
+ * and the audit trail have the true figure. Returns the new line + its real per-unit value.
+ */
+export async function addExchangeReplacement(
+  quoteId: number,
+  model: AccessoryModel,
+  qty: number,
+  unitPrice: number | undefined,
+  variations: VariationSnapshot[],
+  sb: SupabaseClient = admin()
+): Promise<{ item: QuoteItemRow; unitValue: number }> {
+  // Build the line at REAL prices first, to capture the true per-unit value (base + variations).
+  const real = await buildAccessoryLine(model, unitPrice, variations, undefined, false);
+  const unitValue = real.computation.unitPrice;
+  // Zero the customer-facing price: strip every variation price and flatten the computation to $0,
+  // and mark the line as an exchange with its real value preserved for the refund record.
+  const config: AccessoryConfig = {
+    ...real.config,
+    exchange: true,
+    exchangeValue: unitValue,
+    ...(real.config.variations ? { variations: real.config.variations.map((v) => ({ ...v, price: 0 })) } : {}),
+  };
+  const computation: QuoteComputation = {
+    ...real.computation,
+    unitPrice: 0,
+    lines: [{ label: "Exchange (no charge)", detail: model.sku, amount: 0 }],
+  };
+  const { data, error } = await sb
+    .from("quote_items")
+    .insert({ quote_id: quoteId, product_id: model.id, line_id: "accessory", qty, config, computation })
+    .select(ITEM_COLS)
+    .single();
+  if (error) throw error;
+  await sb.from("quotes").update({ updated_at: new Date().toISOString() }).eq("id", quoteId);
+  return { item: data as unknown as QuoteItemRow, unitValue };
+}
+
+/**
  * Stamp an admin per-quote price override onto a freshly computed (standard) computation: `unitPrice`
  * becomes the flat `value`, and the standard price it replaces is remembered for "was $X" display.
  * `comp` must be the standard computation (no override) — the standard is read straight off it.
