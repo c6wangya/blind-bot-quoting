@@ -8,7 +8,7 @@ import { usd } from "@/lib/format";
 import { availableTypes, buildBlockedFromGroups, buildItemNames, disabledFor } from "@/lib/variation-logic";
 import { Button, cx } from "./ui";
 
-/** Multi-select the items of a variation. Items with images render as visual cards (tap 🔍 to zoom);
+/** Multi-select the items of a variation. Items with images render as visual cards (tap the image to zoom);
  *  otherwise as text chips. `values` are the currently-selected ids; `onToggle` flips one. Items in
  *  `disabled` share an exclusion group with a current pick and can't be added; `disabledReason` maps
  *  an item id → the conflicting option's name, shown on hover. */
@@ -76,19 +76,15 @@ export function VariationPicker({
             <div className="relative">
               {it.image ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={it.image} alt={it.name} className="h-16 w-full rounded-lg bg-[#0e0e10] object-contain p-1" />
+                <img
+                  src={it.image}
+                  alt={it.name}
+                  onClick={off ? undefined : (e) => { e.stopPropagation(); onZoom(it.image!); }}
+                  title={off ? undefined : "Click to enlarge"}
+                  className={cx("h-16 w-full rounded-lg bg-[#0e0e10] object-contain p-1", !off && "cursor-zoom-in")}
+                />
               ) : (
                 <div className="h-16 w-full rounded-lg bg-[#f1efe9]" />
-              )}
-              {it.image && !off && (
-                <span
-                  role="button"
-                  onClick={(e) => { e.stopPropagation(); onZoom(it.image!); }}
-                  className="absolute right-0.5 top-0.5 rounded-md bg-black/55 px-1 text-[10px] text-white"
-                  title="Enlarge"
-                >
-                  🔍
-                </span>
               )}
             </div>
             <div className="mt-1 truncate text-[11.5px] font-medium text-ink">{it.name}</div>

@@ -16,6 +16,7 @@ import { describeConfig } from "@/lib/describe";
 import { isAccessoryConfig, isAdjustmentConfig } from "@/lib/types";
 import { AccessoryVariations } from "@/components/AccessoryVariations";
 import { OrderShippingRow } from "@/components/OrderShippingRow";
+import { ZoomableImg } from "@/components/ImageZoom";
 import { BRAND } from "@/lib/brand";
 import { ACTOR_LABEL, fmtDate, fmtDateTime, ORDER_STATUS_META, usd } from "@/lib/format";
 import { ORDER_STATUSES, ORDER_STATUSES_ACCESSORY, REFUNDABLE_STATUSES, type OrderStatus } from "@/lib/types";
@@ -224,8 +225,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
       return (
         <li key={item.id} className="flex items-start gap-4 px-5 py-3.5">
           {img && (
-            /* eslint-disable-next-line @next/next/no-img-element */
-            <img src={img} alt={cfg.name} className="size-11 shrink-0 rounded-lg bg-[#0e0e10] object-contain p-1" />
+            <ZoomableImg src={img} alt={cfg.name} trigger="image" className="size-11 shrink-0 rounded-lg bg-[#0e0e10] object-contain p-1" />
           )}
           <div className="min-w-0 flex-1">
             <div className="text-[13.5px] font-semibold text-ink">

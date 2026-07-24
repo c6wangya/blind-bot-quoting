@@ -2,6 +2,7 @@ import Link from "next/link";
 import { MapPin } from "lucide-react";
 import { notFound } from "next/navigation";
 import { AddAdjustmentButton, DeleteDraftButton, LinePriceEditor, PendingPaymentCard, RemoveItemButton, SubmitPreOrderButton } from "@/components/QuoteActions";
+import { ZoomableImg } from "@/components/ImageZoom";
 import { QuoteDetailsDrawer } from "@/components/QuoteDetailsDrawer";
 import { ShippingSummaryRow } from "@/components/ShippingSummaryRow";
 import { ShippingRecalcProvider } from "@/components/ShippingRecalcContext";
@@ -381,8 +382,7 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
                   <div key={item.id} className="px-5 py-4">
                     <div className="flex gap-4">
                       {img && (
-                        /* eslint-disable-next-line @next/next/no-img-element */
-                        <img src={img} alt={cfg.name} className="size-[72px] shrink-0 rounded-2xl bg-[#0e0e10] object-contain p-1.5" />
+                        <ZoomableImg src={img} alt={cfg.name} trigger="image" className="size-[72px] shrink-0 rounded-2xl bg-[#0e0e10] object-contain p-1.5" />
                       )}
                       <div className="min-w-0 flex-1">
                         <div className="flex items-start justify-between gap-3">

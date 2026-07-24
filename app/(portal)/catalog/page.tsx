@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Badge, Card, cx, PageHeader } from "@/components/ui";
+import { ZoomableImg } from "@/components/ImageZoom";
 import { OPACITY_LABELS, TIER_LABELS } from "@/lib/catalog-data";
 import { getLines, getProducts } from "@/lib/db";
 
@@ -78,8 +79,7 @@ export default async function CatalogPage({
             <Link key={p.id} href={`/configure/${p.id}${q ? `?${q}` : ""}`} className="group">
               <Card className="flex h-full flex-col overflow-hidden transition-all hover:-translate-y-0.5 hover:shadow-md">
                 <div className="relative aspect-[4/3] overflow-hidden bg-[#f1efe9]">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
+                  <ZoomableImg
                     src={p.imageUrl}
                     alt={p.name}
                     className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"

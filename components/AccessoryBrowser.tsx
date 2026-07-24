@@ -589,7 +589,7 @@ function VariationPanel({
       <div className="flex items-start gap-3 border-b border-line/70 p-4">
         {model.image ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={model.image} alt={model.name} className="size-16 shrink-0 rounded-xl bg-[#0e0e10] object-contain p-1.5" />
+          <img src={model.image} alt={model.name} onClick={() => setZoom(model.image)} className="size-16 shrink-0 cursor-zoom-in rounded-xl bg-[#0e0e10] object-contain p-1.5" />
         ) : null}
         <div className="min-w-0 flex-1">
           <div className="text-[15px] font-semibold leading-snug text-ink">{model.name}</div>
@@ -726,7 +726,7 @@ function VariationPanel({
             <div className="flex items-center gap-3 border-b border-line/70 p-4">
               {adding.image ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={adding.image} alt={adding.name} className="size-12 shrink-0 rounded-lg bg-[#0e0e10] object-contain p-1" />
+                <img src={adding.image} alt={adding.name} onClick={() => setZoom(adding.image)} className="size-12 shrink-0 cursor-zoom-in rounded-lg bg-[#0e0e10] object-contain p-1" />
               ) : (
                 <div className="size-12 shrink-0 rounded-lg bg-[#f1efe9]" />
               )}
@@ -1007,18 +1007,14 @@ function OptionRow({
       )}
     >
       {item.image ? (
-        <div className="relative shrink-0">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={item.image} alt={item.name} className="size-10 rounded-lg bg-[#0e0e10] object-contain p-0.5" />
-          <span
-            role="button"
-            onClick={(e) => { e.stopPropagation(); if (item.image) onZoom(item.image); }}
-            className="absolute -right-1 -top-1 rounded bg-black/55 px-1 text-[9px] text-white"
-            title="Enlarge"
-          >
-            🔍
-          </span>
-        </div>
+        /* eslint-disable-next-line @next/next/no-img-element */
+        <img
+          src={item.image}
+          alt={item.name}
+          onClick={(e) => { e.stopPropagation(); if (item.image) onZoom(item.image); }}
+          title="Click to enlarge"
+          className="size-10 shrink-0 cursor-zoom-in rounded-lg bg-[#0e0e10] object-contain p-0.5"
+        />
       ) : (
         <div className="size-10 shrink-0 rounded-lg bg-[#f1efe9]" />
       )}

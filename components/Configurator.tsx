@@ -14,6 +14,7 @@ import type {
   QuoteComputation,
 } from "@/lib/types";
 import { Badge, Card, cx } from "./ui";
+import { ZoomableImg } from "./ImageZoom";
 
 const DEFAULT_DIMS: Record<string, Record<string, number>> = {
   "roller-shade": { width: 150, height: 180 },
@@ -226,11 +227,11 @@ export default function Configurator({
       <div className="lg:col-span-3">
         <Card className="overflow-hidden">
           <div className="relative aspect-[4/3] bg-[#f1efe9]">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
+            <ZoomableImg
               src={imported ? carriedImageSrc ?? "" : heroImg}
               alt={imported ? "Carried over design" : product.name}
               className="h-full w-full object-cover"
+              trigger="image"
             />
             <div className="absolute left-4 top-4 rounded-lg bg-white/85 px-2.5 py-1 text-[11px] font-medium text-ink-soft shadow-sm backdrop-blur">
               {imported ? "Carried over" : "Real product photo"}
