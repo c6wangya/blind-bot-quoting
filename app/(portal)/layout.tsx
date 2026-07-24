@@ -8,7 +8,9 @@ import {
   getProfile,
   getUnreadCount,
   listRetailers,
+  windowDealerAccessFor,
 } from "@/lib/db";
+import { windowErpEnabled } from "@/lib/window/flags";
 
 // Every portal page reads live DB state; opt this subtree out of static prerendering.
 export const dynamic = "force-dynamic";
@@ -31,6 +33,13 @@ export default async function PortalLayout({ children }: Readonly<{ children: Re
   const supplierPendingCount = isAdmin ? await getAdminPendingCount() : 0;
   const retailers = isAdmin ? await listRetailers() : [];
   const nudgePassword = realUid ? await mustChangePassword() : false;
+  // Window Catalog nav for dealer users — only after the org flips dealerWindowAccess on.
+  // Fail-quiet: a broken flag lookup must never take down the whole portal chrome.
+  const windowErp = windowErpEnabled();
+  const windowCatalog =
+    windowErp && realUid && !isAdmin
+      ? await windowDealerAccessFor(realUid).then((v) => v != null, () => false)
+      : false;
 
   return (
     <PortalShell
@@ -44,6 +53,8 @@ export default async function PortalLayout({ children }: Readonly<{ children: Re
       retailers={retailers}
       actingAsId={ctx.actingAsId}
       nudgePassword={nudgePassword}
+      windowCatalog={windowCatalog}
+      windowErp={windowErp}
     >
       {children}
     </PortalShell>

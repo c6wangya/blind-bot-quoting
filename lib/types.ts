@@ -255,7 +255,7 @@ export interface QuoteItemRow {
   id: number;
   quoteId: number;
   productId: string;
-  lineId: ProductLineId | "accessory" | "adjustment";
+  lineId: ProductLineId | "accessory" | "adjustment" | "window-product";
   qty: number;
   config: ItemConfig | AccessoryConfig | AdjustmentConfig;
   computation: QuoteComputation;

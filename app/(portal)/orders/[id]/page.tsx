@@ -14,6 +14,8 @@ import { quoteItemsToRefs } from "@/lib/message-items";
 import type { MotorRate } from "@/lib/shipping";
 import { describeConfig } from "@/lib/describe";
 import { isAccessoryConfig, isAdjustmentConfig } from "@/lib/types";
+import { isWindowConfig } from "@/lib/window/quote";
+import { windowErpEnabled } from "@/lib/window/flags";
 import { AccessoryVariations } from "@/components/AccessoryVariations";
 import { OrderShippingRow } from "@/components/OrderShippingRow";
 import { BRAND } from "@/lib/brand";
@@ -496,6 +498,17 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
             </LinkButton>
             {/* Purchase order file is a supplier/back-office artifact — admin-only. */}
             {adminUser && <PurchaseOrderMenu orderId={order.id} brands={brandGroups.map((g) => g.brand)} />}
+            {/* Manufacturing Order (cut sheet) — only when the order has window-product lines. */}
+            {adminUser && windowErpEnabled() && order.quote.items.some((it) => isWindowConfig(it.config)) && (
+              <>
+                <LinkButton href={`/orders/${order.id}/mo`} variant="secondary" target="_blank">
+                  MO / Cut Sheet
+                </LinkButton>
+                <LinkButton href={`/orders/${order.id}/packing`} variant="secondary" target="_blank">
+                  Packing Slip
+                </LinkButton>
+              </>
+            )}
           </div>
         }
       />

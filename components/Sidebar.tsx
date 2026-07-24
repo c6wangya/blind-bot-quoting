@@ -4,9 +4,12 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
+  Blinds,
   BookOpen,
+  CalendarClock,
   ChevronUp,
   Cpu,
+  FileSpreadsheet,
   Factory,
   FileText,
   KeyRound,
@@ -15,8 +18,10 @@ import {
   type LucideIcon,
   MessageSquare,
   Package,
+  Ruler,
   Settings,
   Tag,
+  Users,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { BRAND } from "@/lib/brand";
@@ -26,13 +31,15 @@ import { cx } from "./ui";
 type NavItem = {
   href?: string;
   label: string;
+  /** Shown only when the dealer window-catalog rollout flag is on for this user. */
+  windowCatalog?: boolean;
   icon: LucideIcon;
   adminOnly?: boolean;
   retailerOnly?: boolean;
   children?: { href: string; label: string; adminOnly?: boolean; disabled?: boolean }[];
 };
 
-const NAV: { section: string; adminOnly?: boolean; items: NavItem[] }[] = [
+const NAV: { section: string; adminOnly?: boolean; windowErp?: boolean; items: NavItem[] }[] = [
   {
     section: "Retailer Portal",
     items: [
@@ -50,6 +57,22 @@ const NAV: { section: string; adminOnly?: boolean; items: NavItem[] }[] = [
       { href: "/orders", label: "Orders", icon: Package },
       // Retailer's own support chat. Admins reach the inbox from Admin Console instead.
       { href: "/messages", label: "Messages", icon: MessageSquare, retailerOnly: true },
+    ],
+  },
+  {
+    // Window-coverings ERP — its own blade, fully separate from the live retailer/admin
+    // surfaces while this area is being polished. Admin items are admin-only; the dealer
+    // Catalog entry appears only for dealer users after the org opens dealerWindowAccess.
+    // The whole section disappears when none of its items are visible.
+    section: "Window ERP",
+    windowErp: true,
+    items: [
+      { href: "/window-catalog", label: "Catalog", icon: Blinds, windowCatalog: true },
+      { href: "/window-products", label: "Products", icon: Blinds, adminOnly: true },
+      { href: "/window-crm", label: "CRM", icon: CalendarClock, adminOnly: true },
+      { href: "/window-products/deductions", label: "Deductions", icon: Ruler, adminOnly: true },
+      { href: "/window-products/dealers", label: "Dealers", icon: Users, adminOnly: true },
+      { href: "/window-products/import", label: "Price Books", icon: FileSpreadsheet, adminOnly: true },
     ],
   },
   {
@@ -76,6 +99,8 @@ export default function Sidebar({
   isAdmin,
   retailers,
   actingAsId,
+  windowCatalog = false,
+  windowErp = false,
   open,
   onClose,
 }: {
@@ -88,6 +113,8 @@ export default function Sidebar({
   isAdmin: boolean;
   retailers: RetailerOption[];
   actingAsId: string | null;
+  windowCatalog?: boolean;
+  windowErp?: boolean;
   open: boolean;
   onClose: () => void;
 }) {
@@ -116,11 +143,16 @@ export default function Sidebar({
       ? pathname === "/"
       : href === "/catalog"
         ? pathname === "/catalog" || pathname.startsWith("/configure")
-        : pathname.startsWith(href);
+        : href === "/window-products"
+          ? pathname === "/window-products" || /^\/window-products\/\d/.test(pathname)
+          : pathname.startsWith(href);
   const initials =
     accountName.trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase() || "?";
   // Item-level visibility (Messages differs by role); groups are filtered separately.
-  const visible = (item: NavItem) => (!item.adminOnly || isAdmin) && (!item.retailerOnly || !isAdmin);
+  const visible = (item: NavItem) =>
+    (!item.adminOnly || isAdmin) &&
+    (!item.retailerOnly || !isAdmin) &&
+    (!item.windowCatalog || windowCatalog);
 
   const handleSignOut = async () => {
     const supabase = createClient();
@@ -147,7 +179,9 @@ export default function Sidebar({
       </Link>
 
       <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-2">
-        {NAV.filter((group) => !group.adminOnly || isAdmin).map((group) => (
+        {NAV.filter(
+          (group) => (!group.adminOnly || isAdmin) && (!group.windowErp || windowErp) && group.items.some(visible)
+        ).map((group) => (
           <div key={group.section}>
             <div className="px-2.5 pb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/35">
               {group.section}

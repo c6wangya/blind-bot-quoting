@@ -28,6 +28,20 @@ import {
 import { computeQuote, PricingError } from "@/lib/pricing";
 import { isAccessoryConfig, type AccessoryConfig, type ItemConfig, type QuoteComputation, type QuoteRow, type VariationSnapshot } from "@/lib/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  addWindowQuoteItem,
+  getDealerAccountId,
+  getDefaultOrgId,
+  getWindowProduct,
+  getWindowTemplate,
+  loadWindowPricingData,
+  windowDealerAccessFor,
+} from "@/lib/db";
+import { priceWindowLine } from "@/lib/window/price";
+import { validateWindowConfig } from "@/lib/window/validate";
+import { toQuoteComputation, windowFacts, type WindowQuoteConfig } from "@/lib/window/quote";
+import { WindowPricingError, type WindowLineConfig } from "@/lib/window/types";
+import { windowErpEnabled } from "@/lib/window/flags";
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -176,6 +190,10 @@ export async function POST(req: Request) {
        *  resolve to a brand-agnostic source model, so productId alone loses the browsed brand — this
        *  carries it through so the one-brand-per-quote guard fires on the brand the user chose. */
       brand?: string;
+      /** Window-coverings ERP line — handled by its own branch below. itemId = update-in-place. */
+      window?: WindowLineConfig & { itemId?: number };
+      /** Admin: price the window line for a specific dealer account (MSRP preview otherwise). */
+      dealerAccountId?: number;
     };
     const qty = Math.max(1, Math.min(500, Math.round(body.qty || 1)));
     const quoteId = typeof body.quoteId === "number" && Number.isInteger(body.quoteId) ? body.quoteId : undefined;
@@ -194,6 +212,92 @@ export async function POST(req: Request) {
       const note = body.adjustment.note?.trim() || undefined;
       const item = await addAdjustmentLine(quote.id, label, amount, note, sb);
       return NextResponse.json({ quoteId: quote.id, quoteRef: quote.ref, item });
+    }
+
+    // Window-product line (window-coverings ERP). Fully separate branch — the accessory and
+    // legacy roller/drapery paths below never see this kind. The server always re-validates +
+    // re-prices (client price untrusted). Access: admins, or dealer users once the org's
+    // dealerWindowAccess flag is on (their account resolved from the profile, never the body).
+    if (body.window) {
+      if (!windowErpEnabled()) return NextResponse.json({ error: "Not found" }, { status: 404 });
+      const dealerAccess = acting.isAdmin ? null : await windowDealerAccessFor(userId);
+      if (!acting.isAdmin && dealerAccess == null) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+      try {
+        const w = body.window;
+        const product = await getWindowProduct(Number(w.productId));
+        if (!product) return NextResponse.json({ error: "Product not found" }, { status: 404 });
+        const template = await getWindowTemplate(product.templateId);
+        if (!template) return NextResponse.json({ error: "Template not found" }, { status: 404 });
+
+        // Dealer pricing: dealer users price as themselves; admins price as the acted-for
+        // retailer's dealer account, an explicit account, or MSRP preview (factor 1).
+        const dealerAccountId = !acting.isAdmin
+          ? dealerAccess
+          : (await getDealerAccountId(userId)) ??
+            (Number.isInteger(body.dealerAccountId) ? (body.dealerAccountId as number) : null);
+        const orgId = await getDefaultOrgId();
+        const pricing = await loadWindowPricingData(orgId, product.id, dealerAccountId);
+
+        const config: WindowQuoteConfig = {
+          kind: "window-product",
+          productId: product.id,
+          templateRevision: product.templateRevision,
+          room: typeof w.room === "string" ? w.room.trim() || undefined : undefined,
+          widthIn: Number(w.widthIn),
+          heightIn: Number(w.heightIn),
+          selections: w.selections ?? {},
+          parentItemId: Number.isInteger(w.parentItemId) ? w.parentItemId : undefined,
+          specialInstructions:
+            typeof w.specialInstructions === "string" ? w.specialInstructions.trim() || undefined : undefined,
+        };
+        const computation = priceWindowLine({
+          template,
+          product,
+          config,
+          pricing,
+          lineKey: template.lineKey,
+          factorOverride: dealerAccountId == null ? 1 : undefined,
+        });
+        const { effective } = validateWindowConfig({ template, product, config, pricing });
+        // Snapshot the FULL effective config (defaults included), not just the user's picks —
+        // production derivation (MO cut sheets) must never need the live template/product.
+        config.selections = effective;
+        const snapshot = toQuoteComputation(computation, windowFacts(template, config, effective));
+
+        // Update-in-place: re-configuring an existing window line (?item= flow). The RLS-scoped
+        // client guards ownership (the item lookup 404s unless the quote is visible to this user).
+        const editItemId = Number.isInteger((w as { itemId?: number }).itemId)
+          ? (w as { itemId?: number }).itemId!
+          : undefined;
+        if (editItemId !== undefined) {
+          const { data: existingItem } = await sb
+            .from("quote_items")
+            .select("id, quote_id, line_id")
+            .eq("id", editItemId)
+            .maybeSingle();
+          if (!existingItem || existingItem.line_id !== "window-product") {
+            return NextResponse.json({ error: "Line not found" }, { status: 404 });
+          }
+          const target = await getQuote(existingItem.quote_id, sb);
+          if (!target) return NextResponse.json({ error: "Quote not found" }, { status: 404 });
+          if (target.status !== "draft") {
+            return NextResponse.json({ error: "This quote is no longer editable" }, { status: 409 });
+          }
+          await updateQuoteItem(editItemId, { config: config as unknown as ItemConfig, computation: snapshot, qty }, sb);
+          return NextResponse.json({ quoteId: target.id, quoteRef: target.ref, itemId: editItemId });
+        }
+
+        const quote = await resolveTargetQuote(userId, sb, quoteId);
+        const item = await addWindowQuoteItem(quote.id, product.id, config, qty, snapshot, sb);
+        return NextResponse.json({ quoteId: quote.id, quoteRef: quote.ref, item });
+      } catch (err) {
+        if (err instanceof WindowPricingError) {
+          return NextResponse.json({ error: err.message, issues: err.issues }, { status: 422 });
+        }
+        throw err;
+      }
     }
 
     const catalog = await loadCatalog();

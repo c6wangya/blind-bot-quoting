@@ -1,0 +1,1924 @@
+{
+  "exportedAt": "2026-07-24T01:57:37.453Z",
+  "engineVersion": "1.0",
+  "productLine": "roller_shade",
+  "label": "Roller Shade",
+  "schemaVersion": 3,
+  "sections": [
+    {
+      "key": "topStyle",
+      "label": "Top Style"
+    },
+    {
+      "key": "topFabric",
+      "label": "Top Fabric",
+      "visibleWhen": {
+        "anyOf": [
+          {
+            "field": "topTreatment",
+            "equals": "VALANCE"
+          },
+          {
+            "allOf": [
+              {
+                "not": {
+                  "field": "treatmentMode",
+                  "equals": "DUAL"
+                }
+              },
+              {
+                "field": "frontFabric",
+                "truthy": true
+              },
+              {
+                "anyOf": [
+                  {
+                    "field": "topTreatment",
+                    "in": [
+                      "CASSETTE_SQUARE",
+                      "CASSETTE_ROUND"
+                    ]
+                  },
+                  {
+                    "field": "topTreatment",
+                    "in": [
+                      "FASCIA",
+                      "ROUND_FASCIA"
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "key": "frontSolar",
+      "label": "Front Solar Fabric",
+      "visibleWhen": {
+        "field": "treatmentMode",
+        "equals": "DUAL"
+      }
+    },
+    {
+      "key": "fabricPanel",
+      "label": "Fabric Panel"
+    },
+    {
+      "key": "bottomRail",
+      "label": "Bottom Rail"
+    },
+    {
+      "key": "controlType",
+      "label": "Control Type"
+    },
+    {
+      "key": "mountRelated",
+      "label": "Mount Related"
+    },
+    {
+      "key": "viewer",
+      "label": "Viewer"
+    }
+  ],
+  "defaults": {
+    "treatmentMode": "SINGLE",
+    "topTreatment": "CASSETTE_SQUARE",
+    "cassetteSize": "3",
+    "fasciaSize": "4",
+    "fasciaTopCap": true,
+    "valanceHeight": 0.1143,
+    "valanceDepth": 0.0762,
+    "valanceSideCover": true,
+    "topColor": "#ededec",
+    "endCapColor": "#ededec",
+    "frontFabric": false,
+    "rollType": "STANDARD",
+    "topFabricIndependent": false,
+    "topFabricColor": "#e0d9b8",
+    "topFabricTexture": "/default-pattern.png",
+    "topFabricTexSize": 0.3,
+    "dualFrontPosition": 1,
+    "dualSolarOpenness": 0.05,
+    "dualSolarColor": "#cfc8b7",
+    "dualSolarTexture": null,
+    "dualSolarTexSize": 0.24,
+    "fabricType": "LIGHT_FILTERING",
+    "solarOpenness": 0.05,
+    "fabricWeave": "SMOOTH",
+    "fabricColor": "#e0d9b8",
+    "fabricTexture": "/default-pattern.png",
+    "texSize": 0.3,
+    "control": "CHAIN",
+    "controlSide": "RIGHT",
+    "cordPct": 0.75,
+    "chainStyle": "BEAD",
+    "chainMaterial": "METAL",
+    "chainColor": "#c8c8c8",
+    "tensionerColor": "#deded8",
+    "breakaway": false,
+    "motorPower": "IN_TUBE",
+    "antenna": false,
+    "remoteBrand": "",
+    "remoteType": "",
+    "wandLength": 0.61,
+    "wandMaterial": "METAL",
+    "dualChainRearSide": "LEFT",
+    "tensionerHorizontalShift": 0.022,
+    "tensionerDepthShift": 0.006,
+    "wandColor": "#a0a2a8",
+    "hembarSystem": "WRAPPED",
+    "hembarShape": "RECTANGULAR",
+    "hembarFinish": "HALF_WRAP",
+    "hembarColor": "#ededec",
+    "hembarEndCapColor": "#ededec",
+    "hembarGrip": true,
+    "hembarSeal": "NONE",
+    "mount": "INSIDE",
+    "blackoutSystem": false,
+    "sideChannels": false,
+    "sideChannelSill": false,
+    "sideChannelColor": "#8a8a8c",
+    "sideChannelMaterial": "METAL",
+    "shadeWidth": 1.45,
+    "shadeDrop": 1.1,
+    "openness": 1
+  },
+  "rules": [
+    {
+      "id": "enter-dual-reset",
+      "trigger": "onEnter",
+      "when": {
+        "field": "treatmentMode",
+        "equals": "DUAL"
+      },
+      "description": "Switching to Dual resets to the paired-roller baseline (RollerViewer handleTreatmentMode)",
+      "set": {
+        "topTreatment": "CASSETTE_SQUARE",
+        "rollType": "STANDARD",
+        "frontFabric": false,
+        "dualChainRearSide": "LEFT",
+        "cassetteSize": "5",
+        "fasciaSize": "5",
+        "fabricType": "ROOM_DARKENING",
+        "blackoutSystem": false,
+        "sideChannels": false,
+        "sideChannelSill": false,
+        "openness": 1,
+        "dualFrontPosition": 0.5
+      }
+    },
+    {
+      "id": "enter-valance-front-fabric",
+      "trigger": "onEnter",
+      "when": {
+        "allOf": [
+          {
+            "field": "topTreatment",
+            "equals": "VALANCE"
+          },
+          {
+            "not": {
+              "field": "treatmentMode",
+              "equals": "DUAL"
+            }
+          }
+        ]
+      },
+      "description": "Valance is fabric-wrapped by definition — front fabric locks on",
+      "set": {
+        "frontFabric": true
+      }
+    },
+    {
+      "id": "enter-blackout-package",
+      "trigger": "onEnter",
+      "when": {
+        "field": "blackoutSystem",
+        "truthy": true
+      },
+      "description": "Blackout system pulls in blackout fabric, both channels, standard roll, and the D30 rail; rail color follows the channel color",
+      "set": {
+        "fabricType": "BLACKOUT",
+        "sideChannels": true,
+        "sideChannelSill": true,
+        "rollType": "STANDARD",
+        "hembarSystem": "BLACKOUT"
+      },
+      "copy": {
+        "hembarColor": "sideChannelColor"
+      }
+    },
+    {
+      "id": "exit-blackout-fabric-drops-system",
+      "trigger": "onEnter",
+      "when": {
+        "not": {
+          "field": "fabricType",
+          "equals": "BLACKOUT"
+        }
+      },
+      "description": "Moving the fabric off Blackout turns the blackout system off",
+      "set": {
+        "blackoutSystem": false
+      }
+    },
+    {
+      "id": "enter-cordless-grip",
+      "trigger": "onEnter",
+      "when": {
+        "field": "control",
+        "equals": "CORDLESS"
+      },
+      "description": "Cordless defaults the clear pull grip on",
+      "set": {
+        "hembarGrip": true
+      }
+    },
+    {
+      "id": "enter-independent-top-fabric-seed",
+      "trigger": "onEnter",
+      "when": {
+        "field": "topFabricIndependent",
+        "truthy": true
+      },
+      "description": "Independent top fabric starts from the current panel fabric",
+      "copy": {
+        "topFabricColor": "fabricColor",
+        "topFabricTexture": "fabricTexture",
+        "topFabricTexSize": "texSize"
+      }
+    },
+    {
+      "id": "dual-invariants",
+      "trigger": "always",
+      "when": {
+        "field": "treatmentMode",
+        "equals": "DUAL"
+      },
+      "description": "Dual permanently excludes reverse roll, front fabric, and the channel/blackout package (enforceRollerSideChannelCompatibility)",
+      "set": {
+        "rollType": "STANDARD",
+        "frontFabric": false,
+        "blackoutSystem": false,
+        "sideChannels": false,
+        "sideChannelSill": false
+      }
+    },
+    {
+      "id": "blackout-system-rail",
+      "trigger": "always",
+      "when": {
+        "field": "blackoutSystem",
+        "truthy": true
+      },
+      "description": "While the blackout system is on, the rail hardware is always the blackout channel rail (enforce falls any profile back to D30)",
+      "set": {
+        "hembarSystem": "BLACKOUT"
+      }
+    },
+    {
+      "id": "channels-standard-roll",
+      "trigger": "always",
+      "when": {
+        "anyOf": [
+          {
+            "field": "sideChannels",
+            "truthy": true
+          },
+          {
+            "field": "sideChannelSill",
+            "truthy": true
+          },
+          {
+            "field": "blackoutSystem",
+            "truthy": true
+          }
+        ]
+      },
+      "description": "Any channel package needs the fabric on the wall side — reverse roll snaps back",
+      "set": {
+        "rollType": "STANDARD"
+      }
+    },
+    {
+      "id": "channels-wrapped-repair",
+      "trigger": "always",
+      "when": {
+        "allOf": [
+          {
+            "anyOf": [
+              {
+                "field": "sideChannels",
+                "truthy": true
+              },
+              {
+                "field": "sideChannelSill",
+                "truthy": true
+              },
+              {
+                "field": "blackoutSystem",
+                "truthy": true
+              }
+            ]
+          },
+          {
+            "field": "hembarSystem",
+            "equals": "WRAPPED"
+          }
+        ]
+      },
+      "description": "Wrapped rails cannot run in channels; enforce falls back to the flat exposed rail",
+      "set": {
+        "hembarSystem": "EXPOSED",
+        "hembarFinish": "INTEGRATED_ENDS",
+        "hembarShape": "SLIM_FLAT"
+      }
+    },
+    {
+      "id": "blackout-hembar-trio",
+      "trigger": "always",
+      "when": {
+        "field": "hembarSystem",
+        "equals": "BLACKOUT"
+      },
+      "description": "The blackout rail is exactly the channel-seal D30 (enforceRollerHembarCompatibility)",
+      "set": {
+        "hembarFinish": "CHANNEL_SEAL",
+        "hembarShape": "D30"
+      }
+    },
+    {
+      "id": "blackout-seal-defaults-brush",
+      "trigger": "always",
+      "when": {
+        "allOf": [
+          {
+            "field": "hembarSystem",
+            "equals": "BLACKOUT"
+          },
+          {
+            "field": "hembarSeal",
+            "equals": "NONE"
+          }
+        ]
+      },
+      "set": {
+        "hembarSeal": "BRUSH"
+      }
+    },
+    {
+      "id": "non-blackout-clears-seal",
+      "trigger": "always",
+      "when": {
+        "allOf": [
+          {
+            "not": {
+              "field": "hembarSystem",
+              "equals": "BLACKOUT"
+            }
+          },
+          {
+            "not": {
+              "field": "hembarSeal",
+              "equals": "NONE"
+            }
+          }
+        ]
+      },
+      "set": {
+        "hembarSeal": "NONE"
+      }
+    },
+    {
+      "id": "grip-unavailable-clears",
+      "trigger": "always",
+      "when": {
+        "anyOf": [
+          {
+            "not": {
+              "field": "control",
+              "equals": "CORDLESS"
+            }
+          },
+          {
+            "field": "hembarSystem",
+            "equals": "POCKET"
+          },
+          {
+            "field": "hembarShape",
+            "equals": "ROUND"
+          }
+        ]
+      },
+      "description": "rollerHembarGripAvailable: grip exists only on cordless, non-pocket, non-round rails",
+      "set": {
+        "hembarGrip": false
+      }
+    }
+  ],
+  "variations": [
+    {
+      "key": "treatmentMode",
+      "section": "topStyle",
+      "label": "Treatment",
+      "defaultValue": "SINGLE",
+      "tier": "common",
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "SINGLE",
+            "label": "Single"
+          },
+          {
+            "value": "DUAL",
+            "label": "Dual",
+            "description": "Front solar + rear privacy roll"
+          }
+        ]
+      }
+    },
+    {
+      "key": "topTreatment",
+      "section": "topStyle",
+      "label": "Top style",
+      "defaultValue": "CASSETTE_SQUARE",
+      "tier": "common",
+      "optionsWhen": [
+        {
+          "when": {
+            "field": "treatmentMode",
+            "equals": "DUAL"
+          },
+          "allow": [
+            "CASSETTE_SQUARE"
+          ]
+        }
+      ],
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "CASSETTE_SQUARE",
+            "label": "Cassette (Square)",
+            "description": "Enclosed housing, square profile"
+          },
+          {
+            "value": "CASSETTE_ROUND",
+            "label": "Cassette (Round)",
+            "description": "Enclosed housing, rounded front"
+          },
+          {
+            "value": "FASCIA",
+            "label": "Fascia",
+            "description": "Slim front board, square profile"
+          },
+          {
+            "value": "ROUND_FASCIA",
+            "label": "Fascia (Round)",
+            "description": "Slim front board, curved-arc front"
+          },
+          {
+            "value": "OPEN_ROLL",
+            "label": "Open Roll",
+            "description": "Exposed roller with end discs"
+          },
+          {
+            "value": "VALANCE",
+            "label": "Valance",
+            "description": "Fabric-wrapped front board + side returns"
+          },
+          {
+            "value": "HIDDEN_ROLL",
+            "label": "Hidden Roll",
+            "description": "Roll recessed in a ceiling pocket"
+          }
+        ]
+      }
+    },
+    {
+      "key": "cassetteSize",
+      "section": "topStyle",
+      "label": "Size",
+      "defaultValue": "3",
+      "visibleWhen": {
+        "field": "topTreatment",
+        "in": [
+          "CASSETTE_SQUARE",
+          "CASSETTE_ROUND"
+        ]
+      },
+      "tier": "advanced",
+      "optionsWhen": [
+        {
+          "when": {
+            "field": "treatmentMode",
+            "equals": "DUAL"
+          },
+          "allow": [
+            "5"
+          ]
+        }
+      ],
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "3",
+            "label": "3\"",
+            "description": "Minimal profile (roll-clear floor)"
+          },
+          {
+            "value": "4",
+            "label": "4\""
+          },
+          {
+            "value": "5",
+            "label": "5\""
+          }
+        ]
+      }
+    },
+    {
+      "key": "fasciaSize",
+      "section": "topStyle",
+      "label": "Size",
+      "defaultValue": "4",
+      "visibleWhen": {
+        "field": "topTreatment",
+        "in": [
+          "FASCIA",
+          "ROUND_FASCIA"
+        ]
+      },
+      "tier": "advanced",
+      "optionsWhen": [
+        {
+          "when": {
+            "field": "treatmentMode",
+            "equals": "DUAL"
+          },
+          "allow": [
+            "5"
+          ]
+        }
+      ],
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "3",
+            "label": "3\"",
+            "description": "Slim special-order"
+          },
+          {
+            "value": "4",
+            "label": "4\"",
+            "description": "Standard (Rollease RFP4)"
+          },
+          {
+            "value": "5",
+            "label": "5\"",
+            "description": "Large fascia class"
+          }
+        ]
+      }
+    },
+    {
+      "key": "fasciaTopCap",
+      "section": "topStyle",
+      "label": "Top cap",
+      "defaultValue": true,
+      "visibleWhen": {
+        "field": "topTreatment",
+        "in": [
+          "FASCIA",
+          "ROUND_FASCIA"
+        ]
+      },
+      "tier": "advanced",
+      "description": "Close the fascia top (industry default is open-top)",
+      "control": {
+        "kind": "toggle"
+      }
+    },
+    {
+      "key": "valanceHeight",
+      "section": "topStyle",
+      "label": "Face height",
+      "defaultValue": 0.1143,
+      "visibleWhen": {
+        "field": "topTreatment",
+        "equals": "VALANCE"
+      },
+      "tier": "advanced",
+      "description": "Face board drop height (default 4.5\")",
+      "control": {
+        "kind": "slider",
+        "min": 0.06,
+        "max": 0.25,
+        "step": 0.005,
+        "unit": "m"
+      }
+    },
+    {
+      "key": "valanceDepth",
+      "section": "topStyle",
+      "label": "Return depth",
+      "defaultValue": 0.0762,
+      "visibleWhen": {
+        "field": "topTreatment",
+        "equals": "VALANCE"
+      },
+      "tier": "advanced",
+      "description": "Projection / side-return depth (default 3\")",
+      "control": {
+        "kind": "slider",
+        "min": 0.04,
+        "max": 0.15,
+        "step": 0.005,
+        "unit": "m"
+      }
+    },
+    {
+      "key": "valanceSideCover",
+      "section": "topStyle",
+      "label": "Side covers",
+      "defaultValue": true,
+      "visibleWhen": {
+        "field": "topTreatment",
+        "equals": "VALANCE"
+      },
+      "tier": "advanced",
+      "description": "Include the left/right end return wings",
+      "control": {
+        "kind": "toggle"
+      }
+    },
+    {
+      "key": "topColor",
+      "section": "topStyle",
+      "label": "Housing color",
+      "defaultValue": "#ededec",
+      "tier": "common",
+      "visibleWhen": {
+        "not": {
+          "field": "topTreatment",
+          "equals": "OPEN_ROLL"
+        }
+      },
+      "control": {
+        "kind": "color"
+      }
+    },
+    {
+      "key": "endCapColor",
+      "section": "topStyle",
+      "label": "End cap color",
+      "defaultValue": "#ededec",
+      "tier": "advanced",
+      "description": "Cassette/fascia side end-caps (open-roll end discs too)",
+      "visibleWhen": {
+        "not": {
+          "field": "topTreatment",
+          "in": [
+            "VALANCE",
+            "HIDDEN_ROLL"
+          ]
+        }
+      },
+      "control": {
+        "kind": "color"
+      }
+    },
+    {
+      "key": "frontFabric",
+      "section": "topStyle",
+      "label": "Front fabric",
+      "defaultValue": false,
+      "tier": "common",
+      "description": "Wrap fabric over the cassette/fascia front",
+      "visibleWhen": {
+        "not": {
+          "field": "treatmentMode",
+          "equals": "DUAL"
+        }
+      },
+      "enabledWhen": {
+        "anyOf": [
+          {
+            "field": "topTreatment",
+            "in": [
+              "CASSETTE_SQUARE",
+              "CASSETTE_ROUND"
+            ]
+          },
+          {
+            "field": "topTreatment",
+            "in": [
+              "FASCIA",
+              "ROUND_FASCIA"
+            ]
+          }
+        ]
+      },
+      "control": {
+        "kind": "toggle"
+      }
+    },
+    {
+      "key": "rollType",
+      "section": "topStyle",
+      "label": "Roll direction",
+      "defaultValue": "STANDARD",
+      "tier": "advanced",
+      "enabledWhen": {
+        "not": {
+          "anyOf": [
+            {
+              "field": "treatmentMode",
+              "equals": "DUAL"
+            },
+            {
+              "anyOf": [
+                {
+                  "field": "sideChannels",
+                  "truthy": true
+                },
+                {
+                  "field": "sideChannelSill",
+                  "truthy": true
+                },
+                {
+                  "field": "blackoutSystem",
+                  "truthy": true
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "STANDARD",
+            "label": "Standard"
+          },
+          {
+            "value": "REVERSE",
+            "label": "Reverse"
+          }
+        ]
+      }
+    },
+    {
+      "key": "topFabricIndependent",
+      "section": "topFabric",
+      "label": "Custom fabric",
+      "defaultValue": false,
+      "tier": "advanced",
+      "description": "Off = top-treatment fabric follows the panel fabric",
+      "control": {
+        "kind": "toggle"
+      }
+    },
+    {
+      "key": "topFabricColor",
+      "section": "topFabric",
+      "label": "Fabric color",
+      "defaultValue": "#e0d9b8",
+      "visibleWhen": {
+        "field": "topFabricIndependent",
+        "truthy": true
+      },
+      "tier": "advanced",
+      "control": {
+        "kind": "color"
+      }
+    },
+    {
+      "key": "topFabricTexture",
+      "section": "topFabric",
+      "label": "Pattern",
+      "defaultValue": "/default-pattern.png",
+      "visibleWhen": {
+        "field": "topFabricIndependent",
+        "truthy": true
+      },
+      "tier": "advanced",
+      "control": {
+        "kind": "image"
+      }
+    },
+    {
+      "key": "dualFrontPosition",
+      "section": "frontSolar",
+      "label": "Front solar position",
+      "defaultValue": 1,
+      "visibleWhen": {
+        "field": "treatmentMode",
+        "equals": "DUAL"
+      },
+      "description": "0 = front solar up, 1 = fully lowered",
+      "control": {
+        "kind": "slider",
+        "min": 0,
+        "max": 1,
+        "step": 0.01
+      }
+    },
+    {
+      "key": "dualSolarOpenness",
+      "section": "frontSolar",
+      "label": "Solar openness",
+      "defaultValue": 0.05,
+      "visibleWhen": {
+        "field": "treatmentMode",
+        "equals": "DUAL"
+      },
+      "control": {
+        "kind": "slider",
+        "min": 0.01,
+        "max": 0.14,
+        "step": 0.005
+      }
+    },
+    {
+      "key": "dualSolarColor",
+      "section": "frontSolar",
+      "label": "Fabric color",
+      "defaultValue": "#cfc8b7",
+      "visibleWhen": {
+        "field": "treatmentMode",
+        "equals": "DUAL"
+      },
+      "control": {
+        "kind": "color"
+      }
+    },
+    {
+      "key": "dualSolarTexture",
+      "section": "frontSolar",
+      "label": "Pattern",
+      "defaultValue": null,
+      "visibleWhen": {
+        "field": "treatmentMode",
+        "equals": "DUAL"
+      },
+      "control": {
+        "kind": "image"
+      }
+    },
+    {
+      "key": "fabricType",
+      "section": "fabricPanel",
+      "label": "Fabric type",
+      "defaultValue": "LIGHT_FILTERING",
+      "tier": "common",
+      "optionsWhen": [
+        {
+          "when": {
+            "field": "treatmentMode",
+            "equals": "DUAL"
+          },
+          "allow": [
+            "LIGHT_FILTERING",
+            "ROOM_DARKENING",
+            "BLACKOUT"
+          ]
+        }
+      ],
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "SHEER",
+            "label": "Sheer",
+            "description": "~35% transmission"
+          },
+          {
+            "value": "LIGHT_FILTERING",
+            "label": "Light filtering",
+            "description": "~15% transmission"
+          },
+          {
+            "value": "ROOM_DARKENING",
+            "label": "Room darkening",
+            "description": "~4% transmission"
+          },
+          {
+            "value": "BLACKOUT",
+            "label": "Blackout",
+            "description": "Fully opaque"
+          },
+          {
+            "value": "SOLAR",
+            "label": "Solar",
+            "description": "Open-weave sunscreen"
+          }
+        ]
+      }
+    },
+    {
+      "key": "solarOpenness",
+      "section": "fabricPanel",
+      "label": "Solar openness",
+      "defaultValue": 0.05,
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "fabricType",
+            "equals": "SOLAR"
+          },
+          {
+            "not": {
+              "field": "treatmentMode",
+              "equals": "DUAL"
+            }
+          }
+        ]
+      },
+      "control": {
+        "kind": "slider",
+        "min": 0.01,
+        "max": 0.14,
+        "step": 0.005
+      }
+    },
+    {
+      "key": "fabricWeave",
+      "section": "fabricPanel",
+      "label": "Weave relief",
+      "defaultValue": "SMOOTH",
+      "tier": "advanced",
+      "description": "Surface bump only — never changes transparency",
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "SMOOTH",
+            "label": "Smooth"
+          },
+          {
+            "value": "WOVEN_V",
+            "label": "Woven (vertical ribs)"
+          },
+          {
+            "value": "WOVEN_H",
+            "label": "Woven (horizontal ribs)"
+          },
+          {
+            "value": "WOVEN_CROSS",
+            "label": "Woven (basket)"
+          }
+        ]
+      }
+    },
+    {
+      "key": "fabricColor",
+      "section": "fabricPanel",
+      "label": "Fabric color",
+      "defaultValue": "#e0d9b8",
+      "tier": "common",
+      "control": {
+        "kind": "color"
+      }
+    },
+    {
+      "key": "fabricTexture",
+      "section": "fabricPanel",
+      "label": "Custom pattern",
+      "defaultValue": "/default-pattern.png",
+      "tier": "common",
+      "description": "Swatch image URL / data URL; overrides fabric color",
+      "control": {
+        "kind": "image"
+      }
+    },
+    {
+      "key": "control",
+      "section": "controlType",
+      "label": "Control type",
+      "defaultValue": "CHAIN",
+      "tier": "common",
+      "optionsWhen": [
+        {
+          "when": {
+            "field": "treatmentMode",
+            "equals": "DUAL"
+          },
+          "allow": [
+            "CHAIN",
+            "CORDLESS",
+            "MOTORIZED"
+          ],
+          "fallback": "CHAIN"
+        }
+      ],
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "CHAIN",
+            "label": "Chain",
+            "description": "Beaded loop + tensioner"
+          },
+          {
+            "value": "CORDLESS",
+            "label": "Cordless",
+            "description": "Spring lift, no exposed cord"
+          },
+          {
+            "value": "MOTORIZED",
+            "label": "Motorized"
+          },
+          {
+            "value": "WAND",
+            "label": "Wand",
+            "description": "Crank / twist wand"
+          }
+        ]
+      }
+    },
+    {
+      "key": "controlSide",
+      "section": "controlType",
+      "label": "Control side",
+      "defaultValue": "RIGHT",
+      "tier": "common",
+      "visibleWhen": {
+        "not": {
+          "field": "treatmentMode",
+          "equals": "DUAL"
+        }
+      },
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "RIGHT",
+            "label": "Right"
+          },
+          {
+            "value": "LEFT",
+            "label": "Left"
+          }
+        ]
+      }
+    },
+    {
+      "key": "cordPct",
+      "section": "controlType",
+      "label": "Cord/chain length",
+      "defaultValue": 0.75,
+      "visibleWhen": {
+        "field": "control",
+        "equals": "CHAIN"
+      },
+      "control": {
+        "kind": "slider",
+        "min": 0.1,
+        "max": 1,
+        "step": 0.01,
+        "unit": "× drop"
+      }
+    },
+    {
+      "key": "chainStyle",
+      "section": "controlType",
+      "label": "Chain style",
+      "defaultValue": "BEAD",
+      "visibleWhen": {
+        "field": "control",
+        "equals": "CHAIN"
+      },
+      "tier": "advanced",
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "BEAD",
+            "label": "Bead"
+          },
+          {
+            "value": "CORD",
+            "label": "Cord"
+          }
+        ]
+      }
+    },
+    {
+      "key": "chainMaterial",
+      "section": "controlType",
+      "label": "Chain material",
+      "defaultValue": "METAL",
+      "visibleWhen": {
+        "field": "control",
+        "equals": "CHAIN"
+      },
+      "tier": "advanced",
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "METAL",
+            "label": "Metal"
+          },
+          {
+            "value": "PLASTIC",
+            "label": "Plastic"
+          }
+        ]
+      }
+    },
+    {
+      "key": "chainColor",
+      "section": "controlType",
+      "label": "Chain color",
+      "defaultValue": "#c8c8c8",
+      "visibleWhen": {
+        "field": "control",
+        "equals": "CHAIN"
+      },
+      "control": {
+        "kind": "color"
+      }
+    },
+    {
+      "key": "tensionerColor",
+      "section": "controlType",
+      "label": "Tensioner color",
+      "defaultValue": "#deded8",
+      "visibleWhen": {
+        "field": "control",
+        "equals": "CHAIN"
+      },
+      "tier": "advanced",
+      "control": {
+        "kind": "color"
+      }
+    },
+    {
+      "key": "breakaway",
+      "section": "controlType",
+      "label": "Breakaway",
+      "defaultValue": false,
+      "visibleWhen": {
+        "field": "control",
+        "equals": "CHAIN"
+      },
+      "tier": "advanced",
+      "description": "Child-safety breakaway clasp",
+      "control": {
+        "kind": "toggle"
+      }
+    },
+    {
+      "key": "motorPower",
+      "section": "controlType",
+      "label": "Motor power",
+      "defaultValue": "IN_TUBE",
+      "visibleWhen": {
+        "field": "control",
+        "equals": "MOTORIZED"
+      },
+      "tier": "advanced",
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "IN_TUBE",
+            "label": "Tube"
+          },
+          {
+            "value": "BATTERY_WAND",
+            "label": "Wand"
+          },
+          {
+            "value": "HARDWIRED",
+            "label": "Wired"
+          },
+          {
+            "value": "SOLAR",
+            "label": "Solar"
+          }
+        ]
+      }
+    },
+    {
+      "key": "antenna",
+      "section": "controlType",
+      "label": "Antenna",
+      "defaultValue": false,
+      "visibleWhen": {
+        "field": "control",
+        "equals": "MOTORIZED"
+      },
+      "tier": "advanced",
+      "control": {
+        "kind": "toggle"
+      }
+    },
+    {
+      "key": "remoteBrand",
+      "section": "controlType",
+      "label": "Remote brand",
+      "defaultValue": "",
+      "visibleWhen": {
+        "field": "control",
+        "equals": "MOTORIZED"
+      },
+      "tier": "advanced",
+      "control": {
+        "kind": "text",
+        "placeholder": "e.g. Somfy"
+      }
+    },
+    {
+      "key": "remoteType",
+      "section": "controlType",
+      "label": "Remote type",
+      "defaultValue": "",
+      "visibleWhen": {
+        "field": "control",
+        "equals": "MOTORIZED"
+      },
+      "tier": "advanced",
+      "control": {
+        "kind": "text",
+        "placeholder": "e.g. Situo 5"
+      }
+    },
+    {
+      "key": "wandLength",
+      "section": "controlType",
+      "label": "Wand length",
+      "defaultValue": 0.61,
+      "visibleWhen": {
+        "field": "control",
+        "equals": "WAND"
+      },
+      "tier": "advanced",
+      "control": {
+        "kind": "slider",
+        "min": 0.3,
+        "max": 1.2,
+        "step": 0.05,
+        "unit": "m"
+      }
+    },
+    {
+      "key": "wandMaterial",
+      "section": "controlType",
+      "label": "Wand material",
+      "defaultValue": "METAL",
+      "visibleWhen": {
+        "field": "control",
+        "equals": "WAND"
+      },
+      "tier": "advanced",
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "METAL",
+            "label": "Metal"
+          },
+          {
+            "value": "ACRYLIC",
+            "label": "Acrylic"
+          }
+        ]
+      }
+    },
+    {
+      "key": "dualChainRearSide",
+      "section": "controlType",
+      "label": "Rear loop side",
+      "defaultValue": "LEFT",
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "treatmentMode",
+            "equals": "DUAL"
+          },
+          {
+            "field": "control",
+            "equals": "CHAIN"
+          }
+        ]
+      },
+      "tier": "advanced",
+      "description": "Rear privacy loop side; the front solar loop takes the opposite side",
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "LEFT",
+            "label": "Rear left"
+          },
+          {
+            "value": "RIGHT",
+            "label": "Rear right"
+          }
+        ]
+      }
+    },
+    {
+      "key": "tensionerHorizontalShift",
+      "section": "controlType",
+      "label": "Horizontal shift",
+      "defaultValue": 0.022,
+      "visibleWhen": {
+        "field": "control",
+        "equals": "CHAIN"
+      },
+      "tier": "advanced",
+      "description": "Sideward lock shift from the clutch endpoint",
+      "control": {
+        "kind": "slider",
+        "min": 0,
+        "max": 0.06,
+        "step": 0.002,
+        "unit": "m"
+      }
+    },
+    {
+      "key": "tensionerDepthShift",
+      "section": "controlType",
+      "label": "Depth shift",
+      "defaultValue": 0.006,
+      "visibleWhen": {
+        "field": "control",
+        "equals": "CHAIN"
+      },
+      "tier": "advanced",
+      "description": "Wall-depth lock shift from the chain plane",
+      "control": {
+        "kind": "slider",
+        "min": 0,
+        "max": 0.06,
+        "step": 0.002,
+        "unit": "m"
+      }
+    },
+    {
+      "key": "wandColor",
+      "section": "controlType",
+      "label": "Wand color",
+      "defaultValue": "#a0a2a8",
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "control",
+            "equals": "WAND"
+          },
+          {
+            "field": "wandMaterial",
+            "equals": "METAL"
+          }
+        ]
+      },
+      "tier": "advanced",
+      "control": {
+        "kind": "color"
+      }
+    },
+    {
+      "key": "hembarSystem",
+      "section": "bottomRail",
+      "label": "Cover",
+      "defaultValue": "WRAPPED",
+      "tier": "common",
+      "optionsWhen": [
+        {
+          "when": {
+            "anyOf": [
+              {
+                "field": "treatmentMode",
+                "equals": "DUAL"
+              },
+              {
+                "not": {
+                  "anyOf": [
+                    {
+                      "field": "sideChannels",
+                      "truthy": true
+                    },
+                    {
+                      "field": "sideChannelSill",
+                      "truthy": true
+                    },
+                    {
+                      "field": "blackoutSystem",
+                      "truthy": true
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          "allow": [
+            "POCKET",
+            "WRAPPED",
+            "EXPOSED"
+          ],
+          "fallback": "EXPOSED"
+        }
+      ],
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "POCKET",
+            "label": "Pocket",
+            "description": "Hidden weight in a fabric pocket"
+          },
+          {
+            "value": "WRAPPED",
+            "label": "Wrapped",
+            "description": "Visible rail with fabric wrap"
+          },
+          {
+            "value": "EXPOSED",
+            "label": "Exposed",
+            "description": "Painted/anodized metal rail"
+          },
+          {
+            "value": "BLACKOUT",
+            "label": "Blackout",
+            "description": "Channel-compatible D30 rail (needs side channels)"
+          }
+        ]
+      }
+    },
+    {
+      "key": "hembarShape",
+      "section": "bottomRail",
+      "label": "Profile",
+      "defaultValue": "RECTANGULAR",
+      "description": "Valid profiles depend on the system; incompatible picks self-correct",
+      "optionsWhen": [
+        {
+          "when": {
+            "field": "hembarSystem",
+            "equals": "POCKET"
+          },
+          "allow": [
+            "POCKET"
+          ]
+        },
+        {
+          "when": {
+            "field": "hembarSystem",
+            "equals": "WRAPPED"
+          },
+          "allow": [
+            "RECTANGULAR"
+          ]
+        },
+        {
+          "when": {
+            "field": "hembarSystem",
+            "equals": "EXPOSED"
+          },
+          "allow": [
+            "SLIM_FLAT",
+            "LARGE_RECTANGULAR",
+            "OVAL",
+            "ROUND"
+          ],
+          "fallback": "SLIM_FLAT"
+        },
+        {
+          "when": {
+            "field": "hembarSystem",
+            "equals": "BLACKOUT"
+          },
+          "allow": [
+            "D30"
+          ]
+        }
+      ],
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "POCKET",
+            "label": "Pocketed"
+          },
+          {
+            "value": "RECTANGULAR",
+            "label": "Fabric wrap bar"
+          },
+          {
+            "value": "SLIM_FLAT",
+            "label": "Flat exposed"
+          },
+          {
+            "value": "LARGE_RECTANGULAR",
+            "label": "Large rectangular"
+          },
+          {
+            "value": "OVAL",
+            "label": "Oval exposed"
+          },
+          {
+            "value": "ROUND",
+            "label": "Round exposed"
+          },
+          {
+            "value": "D30",
+            "label": "D30 channel"
+          }
+        ]
+      }
+    },
+    {
+      "key": "hembarFinish",
+      "section": "bottomRail",
+      "label": "End detail",
+      "defaultValue": "HALF_WRAP",
+      "description": "Valid finishes depend on the system; incompatible picks self-correct",
+      "optionsWhen": [
+        {
+          "when": {
+            "field": "hembarSystem",
+            "equals": "POCKET"
+          },
+          "allow": [
+            "OPEN_POCKET",
+            "HEAT_SEALED",
+            "FABRIC_CLOSED"
+          ]
+        },
+        {
+          "when": {
+            "field": "hembarSystem",
+            "equals": "WRAPPED"
+          },
+          "allow": [
+            "HALF_WRAP",
+            "FULL_WRAP",
+            "VISIBLE_CAPS"
+          ]
+        },
+        {
+          "when": {
+            "field": "hembarSystem",
+            "equals": "EXPOSED"
+          },
+          "allow": [
+            "INTEGRATED_ENDS",
+            "VISIBLE_CAPS"
+          ],
+          "fallback": "INTEGRATED_ENDS"
+        },
+        {
+          "when": {
+            "field": "hembarSystem",
+            "equals": "BLACKOUT"
+          },
+          "allow": [
+            "CHANNEL_SEAL"
+          ]
+        }
+      ],
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "OPEN_POCKET",
+            "label": "Open end"
+          },
+          {
+            "value": "HEAT_SEALED",
+            "label": "Heat sealed"
+          },
+          {
+            "value": "FABRIC_CLOSED",
+            "label": "Fabric closed"
+          },
+          {
+            "value": "HALF_WRAP",
+            "label": "Half wrap"
+          },
+          {
+            "value": "FULL_WRAP",
+            "label": "Full wrap"
+          },
+          {
+            "value": "VISIBLE_CAPS",
+            "label": "Visible caps"
+          },
+          {
+            "value": "INTEGRATED_ENDS",
+            "label": "Integrated"
+          },
+          {
+            "value": "CHANNEL_SEAL",
+            "label": "Channel seal"
+          }
+        ]
+      }
+    },
+    {
+      "key": "hembarColor",
+      "section": "bottomRail",
+      "label": "Rail color",
+      "defaultValue": "#ededec",
+      "tier": "advanced",
+      "visibleWhen": {
+        "anyOf": [
+          {
+            "field": "hembarSystem",
+            "in": [
+              "EXPOSED",
+              "BLACKOUT"
+            ]
+          },
+          {
+            "allOf": [
+              {
+                "field": "hembarSystem",
+                "equals": "WRAPPED"
+              },
+              {
+                "not": {
+                  "field": "hembarFinish",
+                  "equals": "FULL_WRAP"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "control": {
+        "kind": "color"
+      }
+    },
+    {
+      "key": "hembarEndCapColor",
+      "section": "bottomRail",
+      "label": "End cap color",
+      "defaultValue": "#ededec",
+      "tier": "advanced",
+      "visibleWhen": {
+        "anyOf": [
+          {
+            "allOf": [
+              {
+                "field": "hembarSystem",
+                "equals": "POCKET"
+              },
+              {
+                "field": "hembarFinish",
+                "equals": "OPEN_POCKET"
+              }
+            ]
+          },
+          {
+            "field": "hembarFinish",
+            "equals": "VISIBLE_CAPS"
+          }
+        ]
+      },
+      "control": {
+        "kind": "color"
+      }
+    },
+    {
+      "key": "hembarGrip",
+      "section": "bottomRail",
+      "label": "Clear grip",
+      "defaultValue": true,
+      "visibleWhen": {
+        "field": "control",
+        "equals": "CORDLESS"
+      },
+      "tier": "advanced",
+      "description": "Cordless only (not available on pocket or round rails)",
+      "control": {
+        "kind": "toggle"
+      }
+    },
+    {
+      "key": "hembarSeal",
+      "section": "bottomRail",
+      "label": "Seal",
+      "defaultValue": "NONE",
+      "visibleWhen": {
+        "field": "hembarSystem",
+        "equals": "BLACKOUT"
+      },
+      "tier": "advanced",
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "NONE",
+            "label": "None"
+          },
+          {
+            "value": "BRUSH",
+            "label": "Brush"
+          },
+          {
+            "value": "BUBBLE",
+            "label": "Bubble"
+          }
+        ]
+      }
+    },
+    {
+      "key": "mount",
+      "section": "mountRelated",
+      "label": "Mount",
+      "defaultValue": "INSIDE",
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "INSIDE",
+            "label": "Inside"
+          },
+          {
+            "value": "OUTSIDE",
+            "label": "Outside"
+          }
+        ]
+      }
+    },
+    {
+      "key": "blackoutSystem",
+      "section": "mountRelated",
+      "label": "Blackout system",
+      "defaultValue": false,
+      "enabledWhen": {
+        "not": {
+          "field": "treatmentMode",
+          "equals": "DUAL"
+        }
+      },
+      "description": "Forces blackout fabric + side/sill channels + light seals",
+      "control": {
+        "kind": "toggle"
+      }
+    },
+    {
+      "key": "sideChannels",
+      "section": "mountRelated",
+      "label": "Side channels",
+      "defaultValue": false,
+      "visibleWhen": {
+        "not": {
+          "field": "treatmentMode",
+          "equals": "DUAL"
+        }
+      },
+      "enabledWhen": {
+        "not": {
+          "field": "blackoutSystem",
+          "truthy": true
+        }
+      },
+      "description": "U-profile guide rails along the drop",
+      "control": {
+        "kind": "toggle"
+      }
+    },
+    {
+      "key": "sideChannelSill",
+      "section": "mountRelated",
+      "label": "Sill channel",
+      "defaultValue": false,
+      "enabledWhen": {
+        "not": {
+          "anyOf": [
+            {
+              "field": "treatmentMode",
+              "equals": "DUAL"
+            },
+            {
+              "field": "blackoutSystem",
+              "truthy": true
+            }
+          ]
+        }
+      },
+      "description": "Bottom sill closure between the side channels",
+      "control": {
+        "kind": "toggle"
+      }
+    },
+    {
+      "key": "sideChannelColor",
+      "section": "mountRelated",
+      "label": "Channel color",
+      "defaultValue": "#8a8a8c",
+      "visibleWhen": {
+        "anyOf": [
+          {
+            "field": "sideChannels",
+            "truthy": true
+          },
+          {
+            "field": "sideChannelSill",
+            "truthy": true
+          },
+          {
+            "field": "blackoutSystem",
+            "truthy": true
+          }
+        ]
+      },
+      "tier": "advanced",
+      "control": {
+        "kind": "color"
+      }
+    },
+    {
+      "key": "sideChannelMaterial",
+      "section": "mountRelated",
+      "label": "Channel material",
+      "defaultValue": "METAL",
+      "visibleWhen": {
+        "anyOf": [
+          {
+            "field": "sideChannels",
+            "truthy": true
+          },
+          {
+            "field": "sideChannelSill",
+            "truthy": true
+          },
+          {
+            "field": "blackoutSystem",
+            "truthy": true
+          }
+        ]
+      },
+      "tier": "advanced",
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "METAL",
+            "label": "Metal"
+          },
+          {
+            "value": "PLASTIC",
+            "label": "Plastic"
+          }
+        ]
+      }
+    },
+    {
+      "key": "shadeWidth",
+      "section": "viewer",
+      "label": "Shade width",
+      "defaultValue": 1.45,
+      "tier": "advanced",
+      "description": "Embedded viewers drive size via the homography scale knob instead",
+      "control": {
+        "kind": "slider",
+        "min": 0.4,
+        "max": 3,
+        "step": 0.01,
+        "unit": "m"
+      }
+    },
+    {
+      "key": "shadeDrop",
+      "section": "viewer",
+      "label": "Shade drop",
+      "defaultValue": 1.1,
+      "tier": "advanced",
+      "description": "Embedded viewers drive size via the homography scale knob instead",
+      "control": {
+        "kind": "slider",
+        "min": 0.4,
+        "max": 3,
+        "step": 0.01,
+        "unit": "m"
+      }
+    },
+    {
+      "key": "openness",
+      "section": "viewer",
+      "label": "Shade position",
+      "defaultValue": 1,
+      "tier": "common",
+      "description": "0 = rolled up, 1 = fully extended",
+      "control": {
+        "kind": "slider",
+        "min": 0,
+        "max": 1,
+        "step": 0.01
+      }
+    }
+  ]
+}
