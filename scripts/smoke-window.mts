@@ -1,0 +1,151 @@
+// End-to-end smoke of the window pricing path against the real DB (no HTTP/auth layer):
+// loads the demo product + template + L3 data exactly like loadWindowPricingData does, then
+// runs the SAME pure engine the API uses. Expectations mirror scripts/seed-window-demo.mjs.
+//
+// Run: node --experimental-strip-types scripts/smoke-window.ts
+
+import { createClient } from "@supabase/supabase-js";
+import { readFileSync } from "node:fs";
+import { resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+import { priceWindowLine } from "../lib/window/price.ts";
+import { WindowPricingError } from "../lib/window/types.ts";
+import type { WindowPricingData, WindowProduct, WindowTemplate } from "../lib/window/types.ts";
+
+const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+for (const line of readFileSync(resolve(root, ".env.local"), "utf8").split("\n")) {
+  const m = line.match(/^([A-Z0-9_]+)=(.*)$/);
+  if (m && !process.env[m[1]]) process.env[m[1]] = m[2].trim();
+}
+const db = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+  auth: { persistSession: false },
+});
+
+const productRow = await db
+  .from("catalog_products")
+  .select(
+    "id, orgId:org_id, templateId:template_id, templateRevision:template_revision, name, sku, status, fieldPolicies:field_policies, sortOrder:sort_order, createdAt:created_at, updatedAt:updated_at"
+  )
+  .eq("name", "Classic Roller Shade (demo)")
+  .single();
+if (productRow.error) throw productRow.error;
+const product = productRow.data as unknown as WindowProduct;
+
+const templateRow = await db
+  .from("product_templates")
+  .select("id, orgId:org_id, lineKey:line_key, label, revision, status, source, fields, sections, dimensions, rules, createdAt:created_at, updatedAt:updated_at")
+  .eq("id", product.templateId)
+  .single();
+if (templateRow.error) throw templateRow.error;
+const template = templateRow.data as unknown as WindowTemplate;
+
+const [groups, maps, grids, surcharges, constraints, factors] = await Promise.all([
+  db.from("price_groups").select("id, orgId:org_id, key, label").eq("org_id", product.orgId),
+  db.from("price_group_maps").select("id, productId:product_id, fieldKey:field_key, valueToken:value_token, priceGroupId:price_group_id").eq("product_id", product.id),
+  db.from("price_grids").select("id, priceGroupId:price_group_id, currency, widthBreaks:width_breaks, heightBreaks:height_breaks, cells, effectiveFrom:effective_from, effectiveTo:effective_to, note").is("effective_to", null),
+  db.from("surcharge_rules").select("id, productId:product_id, label, matcher, kind, amount").is("effective_to", null),
+  db.from("size_constraints").select("id, productId:product_id, matcher, dimension, minValue:min_value, maxValue:max_value, message"),
+  db.from("account_factors").select("id, dealerAccountId:dealer_account_id, productId:product_id, lineKey:line_key, factor").is("effective_to", null),
+]);
+
+const pricingBase = {
+  priceGroups: groups.data as never,
+  priceGroupMaps: maps.data as never,
+  priceGrids: (grids.data as never[]).map((g: never) => ({
+    ...(g as object),
+    widthBreaks: ((g as { widthBreaks: unknown[] }).widthBreaks ?? []).map(Number),
+    heightBreaks: ((g as { heightBreaks: unknown[] }).heightBreaks ?? []).map(Number),
+  })),
+  surchargeRules: surcharges.data as never,
+  sizeConstraints: constraints.data as never,
+} as unknown as Omit<WindowPricingData, "factors">;
+
+const dealerPricing: WindowPricingData = {
+  ...pricingBase,
+  factors: (factors.data as never[]).map((f: never) => ({ ...(f as object), factor: Number((f as { factor: unknown }).factor) })) as never,
+};
+const msrpPricing: WindowPricingData = { ...pricingBase, factors: [] };
+
+// Synthetic grid formula from the seed — expectations computed, not hardcoded.
+const rsa = (w: number, h: number) => Math.round(120 + 1.8 * w + 1.2 * h + 0.045 * w * h);
+// Round-up to break: 36×60 uses the (36, 60) cell exactly.
+const line = (over: Record<string, unknown> = {}, w = 36, h = 60) => ({
+  productId: product.id,
+  templateRevision: product.templateRevision,
+  widthIn: w,
+  heightIn: h,
+  selections: { ...over },
+});
+
+let failures = 0;
+function check(name: string, got: unknown, want: unknown) {
+  const ok = JSON.stringify(got) === JSON.stringify(want);
+  console.log(`${ok ? "✓" : "✗"} ${name}${ok ? "" : ` — got ${JSON.stringify(got)}, want ${JSON.stringify(want)}`}`);
+  if (!ok) failures++;
+}
+function expectError(name: string, fn: () => unknown, code: string) {
+  try {
+    fn();
+    console.log(`✗ ${name} — expected ${code}, got success`);
+    failures++;
+  } catch (err) {
+    const codes = err instanceof WindowPricingError ? err.issues.map((i) => i.code) : [String(err)];
+    const ok = codes.includes(code as never);
+    console.log(`${ok ? "✓" : "✗"} ${name}${ok ? ` (${code})` : ` — got ${codes.join(",")}`}`);
+    if (!ok) failures++;
+  }
+}
+
+// 1. Base: chain control, white fabric (RSA), 36×60, MSRP preview.
+const base = priceWindowLine({ template, product, config: line(), pricing: msrpPricing, lineKey: "roller_shade", factorOverride: 1 });
+check("MSRP base 36×60 white → RSA cell", base.msrpBase, rsa(36, 60));
+check("  priceGroup", base.priceGroupKey, "RSA");
+check("  no surcharges on defaults", base.surcharges.length, 0);
+check("  unit = msrp at factor 1", base.unitPrice, base.msrpUnit);
+
+// 2. Round-up: 30×55 must price at the (36, 60) cell.
+const ru = priceWindowLine({ template, product, config: line({}, 30, 55), pricing: msrpPricing, lineKey: "roller_shade", factorOverride: 1 });
+check("round-up 30×55 → same cell as 36×60", ru.msrpBase, rsa(36, 60));
+
+// 3. Gray fabric routes to RSB (×1.08).
+const gray = priceWindowLine({ template, product, config: line({ fabricColor: "#808080" }), pricing: msrpPricing, lineKey: "roller_shade", factorOverride: 1 });
+check("gray → RSB", gray.priceGroupKey, "RSB");
+check("  RSB = RSA×1.08", gray.msrpBase, Math.round(rsa(36, 60) * 1.08));
+
+// 4. Cordless width-band surcharge: 36" → first band $135; 60" → $180.
+const c36 = priceWindowLine({ template, product, config: line({ control: "CORDLESS" }), pricing: msrpPricing, lineKey: "roller_shade", factorOverride: 1 });
+check("cordless 36″ surcharge", c36.surcharges.map((s) => s.amount), [135]);
+const c60 = priceWindowLine({ template, product, config: line({ control: "CORDLESS" }, 60, 60), pricing: msrpPricing, lineKey: "roller_shade", factorOverride: 1 });
+check("cordless 60″ surcharge", c60.surcharges.map((s) => s.amount), [180]);
+
+// 5. Motorized + hub: flat 160 + 185; motorization chain fields become visible/validated.
+const moto = priceWindowLine({
+  template, product,
+  config: line({ control: "MOTORIZED", smartHub: true }),
+  pricing: msrpPricing, lineKey: "roller_shade", factorOverride: 1,
+});
+check("motor+hub surcharges", moto.surcharges.map((s) => s.amount).sort((a, b) => a - b), [160, 185]);
+
+// 6. Dealer factor 0.35 resolves from account_factors (line-scoped).
+const dealer = priceWindowLine({ template, product, config: line(), pricing: dealerPricing, lineKey: "roller_shade" });
+check("dealer factor", dealer.factor, 0.35);
+check("dealer unit = msrp×0.35", dealer.unitPrice, Math.round(dealer.msrpUnit * 0.35 * 100) / 100);
+
+// 7. Violations.
+expectError("cordless 15″ violates min width 19", () =>
+  priceWindowLine({ template, product, config: line({ control: "CORDLESS" }, 15, 60), pricing: msrpPricing, lineKey: "roller_shade", factorOverride: 1 }), "SIZE_CONSTRAINT");
+expectError("100″ wide exceeds grid", () =>
+  priceWindowLine({ template, product, config: line({}, 100, 60), pricing: msrpPricing, lineKey: "roller_shade", factorOverride: 1 }), "UNMANUFACTURABLE");
+expectError("96×108 hits N/A cell", () =>
+  priceWindowLine({ template, product, config: line({}, 96, 108), pricing: msrpPricing, lineKey: "roller_shade", factorOverride: 1 }), "UNMANUFACTURABLE");
+expectError("disallowed fabric color", () =>
+  priceWindowLine({ template, product, config: line({ fabricColor: "#ff0000" }), pricing: msrpPricing, lineKey: "roller_shade", factorOverride: 1 }), "VALUE_NOT_ALLOWED");
+expectError("no factor for unknown dealer", () =>
+  priceWindowLine({ template, product, config: line(), pricing: msrpPricing, lineKey: "roller_shade" }), "NO_ACCOUNT_FACTOR");
+
+// 8. Child line (2-on-1) prices 0.
+const child = priceWindowLine({ template, product, config: { ...line(), parentItemId: 1 }, pricing: msrpPricing, lineKey: "roller_shade", factorOverride: 1 });
+check("2-on-1 child priced 0", child.unitPrice, 0);
+
+console.log(failures === 0 ? "\nALL SMOKE CHECKS PASSED" : `\n${failures} FAILURES`);
+process.exit(failures === 0 ? 0 : 1);
