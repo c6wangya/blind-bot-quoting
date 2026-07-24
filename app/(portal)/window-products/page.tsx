@@ -31,6 +31,16 @@ export default async function WindowProductsPage() {
       <PageHeader
         title="Window Products"
         description="Finished window-covering products your dealers can order — built from platform templates, customized per product."
+        actions={
+          <div className="flex gap-2">
+            <Link href="/window-products/import" className="rounded-lg border border-line px-3 py-1.5 text-sm font-medium text-ink hover:bg-black/[.03]">
+              Import price book
+            </Link>
+            <Link href="/window-products/dealers" className="rounded-lg border border-line px-3 py-1.5 text-sm font-medium text-ink hover:bg-black/[.03]">
+              Dealer accounts
+            </Link>
+          </div>
+        }
       />
 
       {setupHint ? (
