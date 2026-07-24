@@ -506,9 +506,6 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                 <LinkButton href={`/orders/${order.id}/packing`} variant="secondary" target="_blank">
                   Packing Slip
                 </LinkButton>
-                <LinkButton href={`/api/orders/${order.id}/qb-csv`} variant="secondary">
-                  QuickBooks CSV
-                </LinkButton>
               </>
             )}
           </div>
