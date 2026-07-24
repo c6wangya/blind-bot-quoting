@@ -19,6 +19,7 @@ import { loadCatalog } from "./db/accessory-catalog";
 import { describeConfig } from "./describe";
 import { fmtDate } from "./format";
 import { isAccessoryConfig, isAdjustmentConfig, type QuoteItemRow } from "./types";
+import { isWindowConfig, type WindowQuoteComputation } from "./window/quote";
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -85,6 +86,26 @@ export function buildPurchaseOrderRows(
       }
       continue;
     }
+    // Window-coverings ERP line — snapshot-described (production detail = the facts list).
+    if (isWindowConfig(cfg)) {
+      const w = item.computation as WindowQuoteComputation;
+      rows.push({
+        qty: item.qty,
+        rate: 0, // window products have no accessory cost_price; faithful to the data
+        amount: 0,
+        sku: null,
+        name: w.window.productName,
+        detail: [
+          ...w.facts.map((f) => `${f.label}: ${f.value}`),
+          cfg.room ? `Room: ${cfg.room}` : null,
+          cfg.specialInstructions,
+        ]
+          .filter(Boolean)
+          .join(" · "),
+      });
+      continue;
+    }
+
     const product = getProduct(item.productId);
     const line = product ? getLine(item.lineId) : null;
     // Full products have no cost_price — faithful to the data, cost is 0.

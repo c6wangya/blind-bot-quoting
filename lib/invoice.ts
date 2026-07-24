@@ -8,6 +8,7 @@ import { BRAND } from "./brand";
 import { getLine, getProduct, getSellerInfo } from "./db";
 import { describeConfig } from "./describe";
 import { accessoryListKey, isAccessoryConfig, isAdjustmentConfig, type QuoteItemRow, type QuoteRow } from "./types";
+import { isWindowConfig, type WindowQuoteComputation } from "./window/quote";
 
 /** Bill-To fields an invoice requires (the reference invoice's customer address block). Returns the
  *  human labels of any that are blank — empty array means the quote has complete invoicing details. */
@@ -171,6 +172,19 @@ export function buildInvoiceLines(
       const listRate = defBase != null ? round2(defBase + varSumPerMotor) : null;
       const listAmount = listRate != null ? round2(listRate * qty) : null;
       return { ...base, name: cfg.name, description, sku: cfg.sku, image: cfg.image ?? null, breakdown, listRate, listAmount };
+    }
+
+    // Window-coverings ERP line — name/description come entirely from the snapshot.
+    if (isWindowConfig(cfg)) {
+      const w = item.computation as WindowQuoteComputation;
+      const description = [
+        ...w.facts.map((f) => `${f.label}: ${f.value}`),
+        cfg.room ? `Room: ${cfg.room}` : null,
+        cfg.specialInstructions,
+      ]
+        .filter(Boolean)
+        .join(" · ");
+      return { ...base, name: w.window.productName, description, sku: null };
     }
 
     const product = getProduct(item.productId);

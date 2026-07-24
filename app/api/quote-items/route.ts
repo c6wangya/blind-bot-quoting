@@ -28,6 +28,18 @@ import {
 import { computeQuote, PricingError } from "@/lib/pricing";
 import { isAccessoryConfig, type AccessoryConfig, type ItemConfig, type QuoteComputation, type QuoteRow, type VariationSnapshot } from "@/lib/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  addWindowQuoteItem,
+  getDealerAccountId,
+  getDefaultOrgId,
+  getWindowProduct,
+  getWindowTemplate,
+  loadWindowPricingData,
+} from "@/lib/db";
+import { priceWindowLine } from "@/lib/window/price";
+import { validateWindowConfig } from "@/lib/window/validate";
+import { toQuoteComputation, windowFacts, type WindowQuoteConfig } from "@/lib/window/quote";
+import { WindowPricingError, type WindowLineConfig } from "@/lib/window/types";
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -176,6 +188,10 @@ export async function POST(req: Request) {
        *  resolve to a brand-agnostic source model, so productId alone loses the browsed brand — this
        *  carries it through so the one-brand-per-quote guard fires on the brand the user chose. */
       brand?: string;
+      /** Window-coverings ERP line (admin-only v1) — handled by its own branch below. */
+      window?: WindowLineConfig;
+      /** Admin: price the window line for a specific dealer account (MSRP preview otherwise). */
+      dealerAccountId?: number;
     };
     const qty = Math.max(1, Math.min(500, Math.round(body.qty || 1)));
     const quoteId = typeof body.quoteId === "number" && Number.isInteger(body.quoteId) ? body.quoteId : undefined;
@@ -194,6 +210,65 @@ export async function POST(req: Request) {
       const note = body.adjustment.note?.trim() || undefined;
       const item = await addAdjustmentLine(quote.id, label, amount, note, sb);
       return NextResponse.json({ quoteId: quote.id, quoteRef: quote.ref, item });
+    }
+
+    // Window-product line (window-coverings ERP). Fully separate branch — the accessory and
+    // legacy roller/drapery paths below never see this kind. v1: admin-gated like the rest of
+    // the window surface; the server always re-validates + re-prices (client price untrusted).
+    if (body.window) {
+      if (!acting.isAdmin) return NextResponse.json({ error: "Admin only" }, { status: 403 });
+      try {
+        const w = body.window;
+        const product = await getWindowProduct(Number(w.productId));
+        if (!product) return NextResponse.json({ error: "Product not found" }, { status: 404 });
+        const template = await getWindowTemplate(product.templateId);
+        if (!template) return NextResponse.json({ error: "Template not found" }, { status: 404 });
+
+        // Dealer pricing: the target user's dealer account (acting-as), else an explicit
+        // admin-chosen account, else MSRP preview (factor 1).
+        const dealerAccountId =
+          (await getDealerAccountId(userId)) ??
+          (Number.isInteger(body.dealerAccountId) ? (body.dealerAccountId as number) : null);
+        const orgId = await getDefaultOrgId();
+        const pricing = await loadWindowPricingData(orgId, product.id, dealerAccountId);
+
+        const config: WindowQuoteConfig = {
+          kind: "window-product",
+          productId: product.id,
+          templateRevision: product.templateRevision,
+          room: typeof w.room === "string" ? w.room.trim() || undefined : undefined,
+          widthIn: Number(w.widthIn),
+          heightIn: Number(w.heightIn),
+          selections: w.selections ?? {},
+          parentItemId: Number.isInteger(w.parentItemId) ? w.parentItemId : undefined,
+          specialInstructions:
+            typeof w.specialInstructions === "string" ? w.specialInstructions.trim() || undefined : undefined,
+        };
+        const computation = priceWindowLine({
+          template,
+          product,
+          config,
+          pricing,
+          lineKey: template.lineKey,
+          factorOverride: dealerAccountId == null ? 1 : undefined,
+        });
+        const { effective } = validateWindowConfig({ template, product, config, pricing });
+        const quote = await resolveTargetQuote(userId, sb, quoteId);
+        const item = await addWindowQuoteItem(
+          quote.id,
+          product.id,
+          config,
+          qty,
+          toQuoteComputation(computation, windowFacts(template, config, effective)),
+          sb
+        );
+        return NextResponse.json({ quoteId: quote.id, quoteRef: quote.ref, item });
+      } catch (err) {
+        if (err instanceof WindowPricingError) {
+          return NextResponse.json({ error: err.message, issues: err.issues }, { status: 422 });
+        }
+        throw err;
+      }
     }
 
     const catalog = await loadCatalog();

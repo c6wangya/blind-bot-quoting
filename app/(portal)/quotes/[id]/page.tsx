@@ -42,6 +42,7 @@ import { canInvoiceQuote } from "@/lib/invoice";
 import { describeConfig } from "@/lib/describe";
 import { fmtDate, usd } from "@/lib/format";
 import { isAccessoryConfig, isAdjustmentConfig } from "@/lib/types";
+import { isWindowConfig, type WindowQuoteComputation } from "@/lib/window/quote";
 
 function DetailBlock({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -461,6 +462,39 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
                             exclusionGroups={exclusionMap[item.productId] ?? []}
                           />
                         )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
+
+              // Window-coverings ERP line — fully snapshot-rendered (config + computation carry
+              // everything; no live catalog lookup, so product/pricing edits never break history).
+              if (isWindowConfig(item.config)) {
+                const cfg = item.config;
+                const comp = item.computation as WindowQuoteComputation;
+                return (
+                  <div key={item.id} className="px-5 py-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-[15px] font-semibold text-ink">{comp.window.productName}</div>
+                        <div className="mt-0.5 text-xs text-muted">
+                          {comp.facts.map((f) => `${f.label}: ${f.value}`).join(" · ")}
+                        </div>
+                        {cfg.room && (
+                          <div className="mt-1 text-[12px] font-medium text-ink-soft">📍 {cfg.room}</div>
+                        )}
+                        {cfg.specialInstructions && (
+                          <div className="mt-1 text-[11.5px] italic text-muted">Note: {cfg.specialInstructions}</div>
+                        )}
+                      </div>
+                      <div className="text-right">
+                        <div className="font-semibold tabular-nums text-ink">
+                          {usd(item.computation.unitPrice * item.qty)}
+                        </div>
+                        <div className="text-xs text-muted">
+                          {item.qty} × {usd(item.computation.unitPrice)}
+                        </div>
                       </div>
                     </div>
                   </div>

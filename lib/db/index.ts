@@ -30,3 +30,4 @@ export * from "./messaging";
 export * from "./window-catalog";
 export * from "./window-pricing";
 export * from "./window-org";
+export * from "./window-quote";
