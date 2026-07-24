@@ -27,3 +27,6 @@ export * from "./accessory-catalog-admin";
 export * from "./variations";
 export * from "./settings";
 export * from "./messaging";
+export * from "./window-catalog";
+export * from "./window-pricing";
+export * from "./window-org";
