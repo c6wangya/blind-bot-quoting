@@ -35,6 +35,7 @@ import {
   getWindowProduct,
   getWindowTemplate,
   loadWindowPricingData,
+  windowDealerAccessFor,
 } from "@/lib/db";
 import { priceWindowLine } from "@/lib/window/price";
 import { validateWindowConfig } from "@/lib/window/validate";
@@ -213,10 +214,14 @@ export async function POST(req: Request) {
     }
 
     // Window-product line (window-coverings ERP). Fully separate branch — the accessory and
-    // legacy roller/drapery paths below never see this kind. v1: admin-gated like the rest of
-    // the window surface; the server always re-validates + re-prices (client price untrusted).
+    // legacy roller/drapery paths below never see this kind. The server always re-validates +
+    // re-prices (client price untrusted). Access: admins, or dealer users once the org's
+    // dealerWindowAccess flag is on (their account resolved from the profile, never the body).
     if (body.window) {
-      if (!acting.isAdmin) return NextResponse.json({ error: "Admin only" }, { status: 403 });
+      const dealerAccess = acting.isAdmin ? null : await windowDealerAccessFor(userId);
+      if (!acting.isAdmin && dealerAccess == null) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
       try {
         const w = body.window;
         const product = await getWindowProduct(Number(w.productId));
@@ -224,11 +229,12 @@ export async function POST(req: Request) {
         const template = await getWindowTemplate(product.templateId);
         if (!template) return NextResponse.json({ error: "Template not found" }, { status: 404 });
 
-        // Dealer pricing: the target user's dealer account (acting-as), else an explicit
-        // admin-chosen account, else MSRP preview (factor 1).
-        const dealerAccountId =
-          (await getDealerAccountId(userId)) ??
-          (Number.isInteger(body.dealerAccountId) ? (body.dealerAccountId as number) : null);
+        // Dealer pricing: dealer users price as themselves; admins price as the acted-for
+        // retailer's dealer account, an explicit account, or MSRP preview (factor 1).
+        const dealerAccountId = !acting.isAdmin
+          ? dealerAccess
+          : (await getDealerAccountId(userId)) ??
+            (Number.isInteger(body.dealerAccountId) ? (body.dealerAccountId as number) : null);
         const orgId = await getDefaultOrgId();
         const pricing = await loadWindowPricingData(orgId, product.id, dealerAccountId);
 
@@ -253,6 +259,9 @@ export async function POST(req: Request) {
           factorOverride: dealerAccountId == null ? 1 : undefined,
         });
         const { effective } = validateWindowConfig({ template, product, config, pricing });
+        // Snapshot the FULL effective config (defaults included), not just the user's picks —
+        // production derivation (MO cut sheets) must never need the live template/product.
+        config.selections = effective;
         const quote = await resolveTargetQuote(userId, sb, quoteId);
         const item = await addWindowQuoteItem(
           quote.id,
