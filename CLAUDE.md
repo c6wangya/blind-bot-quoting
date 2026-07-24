@@ -4,25 +4,51 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 @AGENTS.md
 
+## Engineering approach — read before coding
+
+`AGENTS.md` is the canonical engineering standard; this section reinforces its highest-priority
+design rule rather than replacing it:
+
+- **Design types and boundaries before implementation.** Model the command, refined domain state,
+  expected errors, result, events (when any), and required ports before substantial business code.
+- Treat HTTP input, JSON/JSONB, Supabase results, provider payloads, storage, and environment values
+  as `unknown` until a runtime parser proves their shape. A cast is not validation.
+- Use pure functions and immutable values for pricing, totals, validation, policies, and workflow
+  decisions; use small imperative application services for I/O and transaction orchestration.
+- Use classes selectively for resource-owning infrastructure or meaningful identity/lifecycle—not
+  for ordinary business calculations. Prefer composition over inheritance.
+- Keep transport DTOs, persistence records, domain state, and UI view models distinct. Do not pass
+  one broad `*Row` type through every layer or grow `lib/types.ts` into a universal type dump.
+- Establish a typed caller/capability context and authorize the exact operation on the loaded
+  resource. Authentication, read access, and mutation authority are different proofs.
+- Server-recompute money and workflow outcomes. Commit coupled state, stock, money, and audit events
+  atomically, and preserve deliberate historical snapshots.
+
+When a requested implementation weakens these boundaries or adds unnecessary indirection, step
+back to the underlying invariant and propose the simpler, safer abstraction.
+
 ## Commands
 
 ```bash
 npm install          # required first (also installs node_modules/next/dist/docs/, see AGENTS.md)
-npm run dev -- -p 3001   # dev server — use port 3001 (Google OAuth / Supabase redirect URLs are configured for it)
+npm run dev -- -p 3001   # dev server — matches scripts/dev-local.sh
 npm run build        # production build
 npm run lint         # eslint
 ```
 
 There is **no test suite**. The data layer is **Supabase/Postgres** — the app needs `.env.local`
-(see `.env.example` and `DEPLOY.md`); there is no local-file DB fallback. Demo data
-(2 sample quotes/orders + pricing versions) is seeded into Supabase on first request when the
-tables are empty. To reset, clear the rows (`node scripts/db-admin.mjs reseed`).
+(see `.env.example` and `DEPLOY.md`); there is no local-file DB fallback. Only required pricing
+versions are seeded on first request; demo quotes/orders are intentionally not seeded.
+
+The local launcher uses port 3001, but `supabase/config.toml` currently declares auth redirect URLs
+on port 3000. Verify and align the intended redirect configuration before changing or testing local
+OAuth; do not assume the two ports are already consistent.
 
 ## What this is
 
 A B2B quoting & pre-order portal for window treatments (Linear THE-772): catalog → configure →
 auto-quote → pre-order → bilingual supplier Excel → status tracking to delivery. It is
-white-labeled (default brand "Loom & Shade") and sits downstream of the **blind-bot** visualizer,
+white-labeled (default brand "Quorvia Trade") and sits downstream of the **blind-bot** visualizer,
 which hands off "Get a quote" designs. Real supplier/logistics integrations are simulated by the
 admin-only Supplier Console (`app/(portal)/supplier`).
 
@@ -94,10 +120,13 @@ retailer-facing update channel. `lib/excel.ts` builds the bilingual (中文/EN) 
 
 ## Conventions
 
-- Route handler / page props are async: `params` and `searchParams` are `Promise`s — await them.
-- Domain types are centralized in `lib/types.ts`; DB rows use snake_case→camelCase column aliases
-  in `lib/db/` (the shared column-alias constants live in `lib/db/internal.ts`) so everything
-  above works with the camelCase domain types.
+- Page/layout `params`, page `searchParams`, and Route Handler context `params` are `Promise`s —
+  await them. Route Handler URL query parameters are read from the request URL.
+- Legacy cross-cutting read/persistence projections are centralized in `lib/types.ts`; do not grow
+  it into a universal type dump. New capability-owned commands, refined domain states, errors,
+  events, DTOs, and view models live near their owning capability per `AGENTS.md`. DB rows currently
+  use snake_case→camelCase column aliases in `lib/db/` (the shared column-alias constants live in
+  `lib/db/internal.ts`), but those projections still require validation/refinement at boundaries.
 - Feature work follows a spec-first flow: design specs + plans under `docs/superpowers/`.
 - **Deleting an accessory model must stay clean.** Quote/order lines snapshot the product
   (`AccessoryConfig` in `config` + `computation`), so a model can always be hard-deleted without
