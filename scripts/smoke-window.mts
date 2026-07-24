@@ -8,9 +8,9 @@ import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { priceWindowLine } from "../lib/window/price.ts";
-import { WindowPricingError } from "../lib/window/types.ts";
-import type { WindowPricingData, WindowProduct, WindowTemplate } from "../lib/window/types.ts";
+import { priceWindowLine } from "../lib/window/price";
+import { WindowPricingError } from "../lib/window/types";
+import type { WindowPricingData, WindowProduct, WindowTemplate } from "../lib/window/types";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 for (const line of readFileSync(resolve(root, ".env.local"), "utf8").split("\n")) {
@@ -146,6 +146,51 @@ expectError("no factor for unknown dealer", () =>
 // 8. Child line (2-on-1) prices 0.
 const child = priceWindowLine({ template, product, config: { ...line(), parentItemId: 1 }, pricing: msrpPricing, lineKey: "roller_shade", factorOverride: 1 });
 check("2-on-1 child priced 0", child.unitPrice, 0);
+
+// 9. Phase B: deduction derivation (anchor cassette offsets: valance −3/8 IM, tube −1.25,
+//    fabric L +12) from live deduction_tables rows.
+{
+  const { deriveCutList, matchDeductionRow } = await import("../lib/window/production");
+  const ded = await db
+    .from("deduction_tables")
+    .select("id, lineKey:line_key, label, matcher, components, sortOrder:sort_order, note")
+    .is("effective_to", null);
+  if (ded.error) throw ded.error;
+  const rows = ded.data as never[];
+  const effective = { mount: "INSIDE", topTreatment: "CASSETTE_SQUARE" };
+  const row = matchDeductionRow(rows as never, "roller_shade", effective);
+  check("deduction row matched (cassette IM)", row?.label ?? null, "Cassette · Inside Mount");
+  if (row) {
+    const cuts = deriveCutList(row, { widthIn: 36, heightIn: 60 });
+    const byKey = Object.fromEntries(cuts.map((c) => [c.componentKey, c.inches]));
+    check("  valance cut = W − 3/8", byKey.valance, 35.625);
+    check("  tube cut = W − 1.25", byKey.tube, 34.75);
+    check("  fabric length = H + 12", byKey.fabricLength, 72);
+    check("  fraction display", cuts.find((c) => c.componentKey === "valance")?.display, "35 5/8″");
+  }
+  const om = matchDeductionRow(rows as never, "roller_shade", { mount: "OUTSIDE", topTreatment: "FASCIA" });
+  check("deduction row matched (fascia OM)", om?.label ?? null, "Fascia · Outside Mount");
+}
+
+// 10. Freight: ground $7/unit, oversize step $95/unit over 93.875″, will_call free.
+{
+  const { computeWindowFreight } = await import("../lib/window/freight");
+  const fr = await db
+    .from("freight_rules")
+    .select("id, method, label, matcher, amount, sortOrder:sort_order")
+    .order("sort_order");
+  if (fr.error) throw fr.error;
+  const rules = fr.data as never;
+  const mk = (widthIn: number, qty: number, parent?: number) => ({
+    qty,
+    config: { kind: "window-product", productId: 1, templateRevision: 1, widthIn, heightIn: 60, selections: {}, ...(parent ? { parentItemId: parent } : {}) },
+  });
+  check("freight ground 2 × 36″", computeWindowFreight([mk(36, 2)] as never, rules, "ground"), 14);
+  check("freight oversize 96″", computeWindowFreight([mk(96, 1)] as never, rules, "ground"), 95);
+  check("freight mixed", computeWindowFreight([mk(36, 1), mk(96, 1)] as never, rules, "ground"), 102);
+  check("freight will_call", computeWindowFreight([mk(36, 3)] as never, rules, "will_call"), 0);
+  check("freight skips 2-on-1 children", computeWindowFreight([mk(36, 1), mk(36, 1, 99)] as never, rules, "ground"), 7);
+}
 
 console.log(failures === 0 ? "\nALL SMOKE CHECKS PASSED" : `\n${failures} FAILURES`);
 process.exit(failures === 0 ? 0 : 1);

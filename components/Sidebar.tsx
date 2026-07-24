@@ -27,6 +27,8 @@ import { cx } from "./ui";
 type NavItem = {
   href?: string;
   label: string;
+  /** Shown only when the dealer window-catalog rollout flag is on for this user. */
+  windowCatalog?: boolean;
   icon: LucideIcon;
   adminOnly?: boolean;
   retailerOnly?: boolean;
@@ -47,6 +49,9 @@ const NAV: { section: string; adminOnly?: boolean; items: NavItem[] }[] = [
           { href: "/catalog/accessories", label: "Accessory" },
         ],
       },
+      // Dealer window-coverings catalog — rendered only when the org has opened dealer access
+      // AND this user is linked to a dealer account (invisible to everyone else).
+      { href: "/window-catalog", label: "Window Products", icon: Blinds, windowCatalog: true },
       { href: "/quotes", label: "Quotes", icon: FileText },
       { href: "/orders", label: "Orders", icon: Package },
       // Retailer's own support chat. Admins reach the inbox from Admin Console instead.
@@ -79,6 +84,7 @@ export default function Sidebar({
   isAdmin,
   retailers,
   actingAsId,
+  windowCatalog = false,
   open,
   onClose,
 }: {
@@ -91,6 +97,7 @@ export default function Sidebar({
   isAdmin: boolean;
   retailers: RetailerOption[];
   actingAsId: string | null;
+  windowCatalog?: boolean;
   open: boolean;
   onClose: () => void;
 }) {
@@ -123,7 +130,10 @@ export default function Sidebar({
   const initials =
     accountName.trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase() || "?";
   // Item-level visibility (Messages differs by role); groups are filtered separately.
-  const visible = (item: NavItem) => (!item.adminOnly || isAdmin) && (!item.retailerOnly || !isAdmin);
+  const visible = (item: NavItem) =>
+    (!item.adminOnly || isAdmin) &&
+    (!item.retailerOnly || !isAdmin) &&
+    (!item.windowCatalog || windowCatalog);
 
   const handleSignOut = async () => {
     const supabase = createClient();

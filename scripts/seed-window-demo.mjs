@@ -25,6 +25,21 @@ const PRODUCT_NAME = "Classic Roller Shade (demo)";
 const { data: org } = await db.from("orgs").select("id").order("id").limit(1).single();
 const orgId = org.id;
 
+// Freight rules (runs even when the product already exists — added in a later revision).
+// Anchor model: UPS Ground $7/unit, stepping to $95/unit over 93.875" width; Will Call free.
+const { count: freightCount } = await db
+  .from("freight_rules")
+  .select("*", { count: "exact", head: true })
+  .eq("org_id", orgId);
+if ((freightCount ?? 0) === 0) {
+  await db.from("freight_rules").insert([
+    { org_id: orgId, method: "ground", label: "UPS Ground", matcher: {}, amount: { perUnit: 7 }, sort_order: 0 },
+    { org_id: orgId, method: "ground", label: "UPS Ground oversize (>93.875\")", matcher: { dimension: "width", gt: 93.875 }, amount: { perUnit: 95 }, sort_order: 1 },
+    { org_id: orgId, method: "will_call", label: "Will Call", matcher: {}, amount: { perUnit: 0 }, sort_order: 0 },
+  ]);
+  console.log("freight rules seeded (ground + will_call)");
+}
+
 const { data: existing } = await db.from("catalog_products").select("id").eq("name", PRODUCT_NAME).maybeSingle();
 if (existing) {
   console.log(`demo product already exists (id ${existing.id}) — nothing to do`);

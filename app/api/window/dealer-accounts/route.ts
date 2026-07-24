@@ -1,22 +1,35 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth/api";
 import {
+  assignUserToDealerAccount,
   createDealerAccount,
   getDefaultOrgId,
+  getOrgSettings,
   listAccountFactors,
   listDealerAccounts,
+  listDealerUsers,
   setAccountFactor,
+  setOrgSetting,
 } from "@/lib/db";
 
-/** Dealer companies + their live pricing factors. Admin only. */
+/** Dealer companies + factors, retailer users (for account assignment), and the org rollout
+ *  flag — everything the dealers admin page renders. Admin only. */
 export async function GET() {
   const gate = await requireAdmin();
   if (gate instanceof NextResponse) return gate;
   try {
     const orgId = await getDefaultOrgId();
-    const accounts = await listDealerAccounts(orgId);
+    const [accounts, users, settings] = await Promise.all([
+      listDealerAccounts(orgId),
+      listDealerUsers(),
+      getOrgSettings(),
+    ]);
     const factors = await Promise.all(accounts.map((a) => listAccountFactors(a.id)));
-    return NextResponse.json(accounts.map((a, i) => ({ ...a, factors: factors[i] })));
+    return NextResponse.json({
+      accounts: accounts.map((a, i) => ({ ...a, factors: factors[i] })),
+      users,
+      dealerWindowAccess: settings.dealerWindowAccess === true,
+    });
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 500 });
   }
@@ -25,6 +38,8 @@ export async function GET() {
 /**
  * { name, contact?, qbRef? }                               → create a dealer account (201)
  * { dealerAccountId, factor, productId? | lineKey? }       → set a factor at one scope
+ * { assignUserId, dealerAccountId | null }                 → link/unlink a retailer profile
+ * { setDealerWindowAccess: boolean }                       → org rollout flag for the dealer surface
  */
 export async function POST(req: Request) {
   const gate = await requireAdmin();
@@ -32,6 +47,20 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     const orgId = await getDefaultOrgId();
+
+    if (typeof body.setDealerWindowAccess === "boolean") {
+      const settings = await setOrgSetting("dealerWindowAccess", body.setDealerWindowAccess);
+      return NextResponse.json({ dealerWindowAccess: settings.dealerWindowAccess === true });
+    }
+
+    if (typeof body.assignUserId === "string" && body.assignUserId) {
+      const target = body.dealerAccountId === null ? null : Number(body.dealerAccountId);
+      if (target !== null && !Number.isInteger(target)) {
+        return NextResponse.json({ error: "dealerAccountId must be an id or null" }, { status: 400 });
+      }
+      await assignUserToDealerAccount(body.assignUserId, target);
+      return NextResponse.json({ ok: true });
+    }
 
     if (Number.isInteger(body.dealerAccountId) && body.factor !== undefined) {
       const factor = Number(body.factor);
