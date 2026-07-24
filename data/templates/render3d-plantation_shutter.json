@@ -1,0 +1,5405 @@
+{
+  "exportedAt": "2026-07-24T01:57:37.456Z",
+  "engineVersion": "1.0",
+  "productLine": "plantation_shutter",
+  "label": "Shutter Designer",
+  "schemaVersion": 3,
+  "sections": [
+    {
+      "key": "shape",
+      "label": "Shape"
+    },
+    {
+      "key": "layout",
+      "label": "Layout"
+    },
+    {
+      "key": "material",
+      "label": "Color & Material"
+    },
+    {
+      "key": "frame",
+      "label": "Frame & Mount"
+    },
+    {
+      "key": "louverTilt",
+      "label": "Louver & Tilt"
+    },
+    {
+      "key": "viewer",
+      "label": "Dimensions"
+    }
+  ],
+  "defaults": {
+    "shape": "rectangle",
+    "nTiers": 1,
+    "rectSameTiers": true,
+    "productStyle": "full_height",
+    "cafe.enabled": false,
+    "cafe.heightRatio": 0.5,
+    "tPost.enabled": "single",
+    "tPost.profile": "standard_25mm",
+    "arch.composition": "full",
+    "arch.type": "full-arch",
+    "arch.sectionSplit": 1,
+    "arch.fill": "sunburst",
+    "arch.bladeCount": 17,
+    "arch.hubDiameterMm": 200,
+    "arch.louverOperation": "operable",
+    "arch.riseMm": 457,
+    "legHeightMm": 457,
+    "material.mode": "wood",
+    "material.solidColorHex": "#f2ede3",
+    "material.woodSpecies": "cherry",
+    "material.woodTexture": "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/asset-pattern-swatches/3d-pattern/shutter-honey-oak-cathedral-grain-material.jpg",
+    "material.woodTextureScale": 1,
+    "material.woodTextureRotationDeg": 0,
+    "material.finish": "diffuse",
+    "frame.frameType": "L",
+    "frame.mountType": "inside",
+    "frame.frameProfile": "plain",
+    "frame.frameSides": "four_sides",
+    "frame.sillMode": "none",
+    "frame.bottomTreatment": "none",
+    "irregular.kind": "rake-left",
+    "irregular.lowHeightMm": 900,
+    "irregular.cornerStyle": "fixed-louver",
+    "oval.preset": "vertical-oval",
+    "oval.hExtent": 0.8,
+    "oval.vExtent": 1,
+    "oval.roundness": 1,
+    "tier1.columns": 2,
+    "tier1.opening": "bifold-left",
+    "tier1.bypassSystem": "open_louver_bypass",
+    "tier1.bypassTrackCount": 2,
+    "tier1.bypassSpacing": "open_clear",
+    "tier1.sameFill": true,
+    "tier1.fill": "louvered",
+    "tier1.solidProfile": "raised",
+    "tier1.panel1.fill": "louvered",
+    "tier1.panel2.fill": "louvered",
+    "tier1.panel3.fill": "louvered",
+    "tier1.panel4.fill": "louvered",
+    "tier1.dividerRail": false,
+    "tier1.dividerPos": 0.5,
+    "tier1.splitTilt": false,
+    "tier1.upperTilt": 0.5,
+    "tier1.lowerTilt": 0.5,
+    "tier1.chordInches": 3.5,
+    "tier1.louverTilt": 0.5,
+    "tier1.rodType": "center",
+    "tier1.rodThicknessMm": 14,
+    "tier2.columns": 2,
+    "tier2.opening": "bifold-left",
+    "tier2.bypassSystem": "open_louver_bypass",
+    "tier2.bypassTrackCount": 2,
+    "tier2.bypassSpacing": "open_clear",
+    "tier2.sameFill": true,
+    "tier2.fill": "louvered",
+    "tier2.solidProfile": "raised",
+    "tier2.panel1.fill": "louvered",
+    "tier2.panel2.fill": "louvered",
+    "tier2.panel3.fill": "louvered",
+    "tier2.panel4.fill": "louvered",
+    "tier2.dividerRail": false,
+    "tier2.dividerPos": 0.5,
+    "tier2.splitTilt": false,
+    "tier2.upperTilt": 0.5,
+    "tier2.lowerTilt": 0.5,
+    "tier2.chordInches": 3.5,
+    "tier2.louverTilt": 0.5,
+    "tier2.rodType": "center",
+    "tier2.rodThicknessMm": 14,
+    "tier3.columns": 2,
+    "tier3.opening": "bifold-left",
+    "tier3.bypassSystem": "open_louver_bypass",
+    "tier3.bypassTrackCount": 2,
+    "tier3.bypassSpacing": "open_clear",
+    "tier3.sameFill": true,
+    "tier3.fill": "louvered",
+    "tier3.solidProfile": "raised",
+    "tier3.panel1.fill": "louvered",
+    "tier3.panel2.fill": "louvered",
+    "tier3.panel3.fill": "louvered",
+    "tier3.panel4.fill": "louvered",
+    "tier3.dividerRail": false,
+    "tier3.dividerPos": 0.5,
+    "tier3.splitTilt": false,
+    "tier3.upperTilt": 0.5,
+    "tier3.lowerTilt": 0.5,
+    "tier3.chordInches": 3.5,
+    "tier3.louverTilt": 0.5,
+    "tier3.rodType": "center",
+    "tier3.rodThicknessMm": 14,
+    "panelSwing": 0,
+    "widthMm": 1219,
+    "heightMm": 1829,
+    "frameWidthMm": 76,
+    "depthMm": 45
+  },
+  "rules": [
+    {
+      "id": "sync-rectangle-tiers",
+      "trigger": "always",
+      "when": {
+        "allOf": [
+          {
+            "field": "shape",
+            "equals": "rectangle"
+          },
+          {
+            "field": "rectSameTiers",
+            "truthy": true
+          },
+          {
+            "field": "nTiers",
+            "gte": 2
+          }
+        ]
+      },
+      "description": "Same settings for all tiers (rectangle) → mirror tier-1 onto tiers 2/3",
+      "copy": {
+        "tier2.columns": "tier1.columns",
+        "tier2.opening": "tier1.opening",
+        "tier2.fill": "tier1.fill",
+        "tier2.sameFill": "tier1.sameFill",
+        "tier2.solidProfile": "tier1.solidProfile",
+        "tier2.dividerRail": "tier1.dividerRail",
+        "tier2.dividerPos": "tier1.dividerPos",
+        "tier2.panel1.fill": "tier1.panel1.fill",
+        "tier2.panel2.fill": "tier1.panel2.fill",
+        "tier2.panel3.fill": "tier1.panel3.fill",
+        "tier2.panel4.fill": "tier1.panel4.fill",
+        "tier2.bypassSystem": "tier1.bypassSystem",
+        "tier2.bypassTrackCount": "tier1.bypassTrackCount",
+        "tier2.bypassSpacing": "tier1.bypassSpacing",
+        "tier3.columns": "tier1.columns",
+        "tier3.opening": "tier1.opening",
+        "tier3.fill": "tier1.fill",
+        "tier3.sameFill": "tier1.sameFill",
+        "tier3.solidProfile": "tier1.solidProfile",
+        "tier3.dividerRail": "tier1.dividerRail",
+        "tier3.dividerPos": "tier1.dividerPos",
+        "tier3.panel1.fill": "tier1.panel1.fill",
+        "tier3.panel2.fill": "tier1.panel2.fill",
+        "tier3.panel3.fill": "tier1.panel3.fill",
+        "tier3.panel4.fill": "tier1.panel4.fill",
+        "tier3.bypassSystem": "tier1.bypassSystem",
+        "tier3.bypassTrackCount": "tier1.bypassTrackCount",
+        "tier3.bypassSpacing": "tier1.bypassSpacing"
+      }
+    },
+    {
+      "id": "sync-aor-rectangle-tiers",
+      "trigger": "always",
+      "when": {
+        "allOf": [
+          {
+            "field": "shape",
+            "equals": "arch-over-rectangle"
+          },
+          {
+            "field": "rectSameTiers",
+            "truthy": true
+          },
+          {
+            "field": "nTiers",
+            "gte": 3
+          }
+        ]
+      },
+      "description": "Same settings for all tiers (AoR) → mirror the first rectangle section (tier-2) onto tier-3",
+      "copy": {
+        "tier3.columns": "tier2.columns",
+        "tier3.opening": "tier2.opening",
+        "tier3.fill": "tier2.fill",
+        "tier3.sameFill": "tier2.sameFill",
+        "tier3.solidProfile": "tier2.solidProfile",
+        "tier3.dividerRail": "tier2.dividerRail",
+        "tier3.dividerPos": "tier2.dividerPos",
+        "tier3.panel1.fill": "tier2.panel1.fill",
+        "tier3.panel2.fill": "tier2.panel2.fill",
+        "tier3.panel3.fill": "tier2.panel3.fill",
+        "tier3.panel4.fill": "tier2.panel4.fill",
+        "tier3.bypassSystem": "tier2.bypassSystem",
+        "tier3.bypassTrackCount": "tier2.bypassTrackCount",
+        "tier3.bypassSpacing": "tier2.bypassSpacing"
+      }
+    },
+    {
+      "id": "enter-center-rods",
+      "trigger": "onEnter",
+      "when": {
+        "field": "shape",
+        "in": [
+          "rectangle",
+          "oval",
+          "irregular"
+        ]
+      },
+      "description": "Rectangle / oval / angle-top default every tier tilt rod to Center",
+      "set": {
+        "tier1.rodType": "center",
+        "tier2.rodType": "center",
+        "tier3.rodType": "center"
+      }
+    },
+    {
+      "id": "enter-arch-rods",
+      "trigger": "onEnter",
+      "when": {
+        "field": "shape",
+        "in": [
+          "arch",
+          "arch-over-rectangle"
+        ]
+      },
+      "description": "Arch / AoR default every tier tilt rod to None (no visible rod)",
+      "set": {
+        "tier1.rodType": "none",
+        "tier2.rodType": "none",
+        "tier3.rodType": "none"
+      }
+    },
+    {
+      "id": "enter-single-unit-tiers",
+      "trigger": "onEnter",
+      "when": {
+        "field": "shape",
+        "in": [
+          "oval",
+          "irregular",
+          "arch"
+        ]
+      },
+      "description": "Oval / angle-top / standalone arch are single-tier units",
+      "set": {
+        "nTiers": 1
+      }
+    },
+    {
+      "id": "enter-style-full-height",
+      "trigger": "onEnter",
+      "when": {
+        "field": "productStyle",
+        "equals": "full_height"
+      },
+      "description": "Full height: one louvered tier, no cafe",
+      "set": {
+        "nTiers": 1,
+        "cafe.enabled": false,
+        "rectSameTiers": true,
+        "tier1.fill": "louvered",
+        "tier1.panel1.fill": "louvered",
+        "tier1.panel2.fill": "louvered",
+        "tier1.panel3.fill": "louvered",
+        "tier1.panel4.fill": "louvered",
+        "tier2.fill": "louvered",
+        "tier2.panel1.fill": "louvered",
+        "tier2.panel2.fill": "louvered",
+        "tier2.panel3.fill": "louvered",
+        "tier2.panel4.fill": "louvered",
+        "tier3.fill": "louvered",
+        "tier3.panel1.fill": "louvered",
+        "tier3.panel2.fill": "louvered",
+        "tier3.panel3.fill": "louvered",
+        "tier3.panel4.fill": "louvered"
+      }
+    },
+    {
+      "id": "enter-cafe-style",
+      "trigger": "onEnter",
+      "when": {
+        "field": "productStyle",
+        "equals": "cafe"
+      },
+      "description": "Cafe: single louvered tier + cafe rail (partial-height lower shutter)",
+      "set": {
+        "nTiers": 1,
+        "cafe.enabled": true,
+        "rectSameTiers": true,
+        "tier1.fill": "louvered",
+        "tier1.panel1.fill": "louvered",
+        "tier1.panel2.fill": "louvered",
+        "tier1.panel3.fill": "louvered",
+        "tier1.panel4.fill": "louvered",
+        "tier2.fill": "louvered",
+        "tier2.panel1.fill": "louvered",
+        "tier2.panel2.fill": "louvered",
+        "tier2.panel3.fill": "louvered",
+        "tier2.panel4.fill": "louvered",
+        "tier3.fill": "louvered",
+        "tier3.panel1.fill": "louvered",
+        "tier3.panel2.fill": "louvered",
+        "tier3.panel3.fill": "louvered",
+        "tier3.panel4.fill": "louvered"
+      }
+    },
+    {
+      "id": "enter-style-tier-on-tier",
+      "trigger": "onEnter",
+      "when": {
+        "field": "productStyle",
+        "equals": "tier_on_tier"
+      },
+      "description": "Tier on tier: two independently-operable louvered tiers",
+      "set": {
+        "nTiers": 2,
+        "cafe.enabled": false,
+        "rectSameTiers": true,
+        "tier1.fill": "louvered",
+        "tier1.panel1.fill": "louvered",
+        "tier1.panel2.fill": "louvered",
+        "tier1.panel3.fill": "louvered",
+        "tier1.panel4.fill": "louvered",
+        "tier2.fill": "louvered",
+        "tier2.panel1.fill": "louvered",
+        "tier2.panel2.fill": "louvered",
+        "tier2.panel3.fill": "louvered",
+        "tier2.panel4.fill": "louvered",
+        "tier3.fill": "louvered",
+        "tier3.panel1.fill": "louvered",
+        "tier3.panel2.fill": "louvered",
+        "tier3.panel3.fill": "louvered",
+        "tier3.panel4.fill": "louvered"
+      }
+    },
+    {
+      "id": "enter-style-combination",
+      "trigger": "onEnter",
+      "when": {
+        "field": "productStyle",
+        "equals": "combination"
+      },
+      "description": "Combination: louvered top tier over a solid bottom tier",
+      "set": {
+        "nTiers": 2,
+        "cafe.enabled": false,
+        "rectSameTiers": false,
+        "tier1.fill": "louvered",
+        "tier1.panel1.fill": "louvered",
+        "tier1.panel2.fill": "louvered",
+        "tier1.panel3.fill": "louvered",
+        "tier1.panel4.fill": "louvered",
+        "tier2.fill": "solid",
+        "tier2.panel1.fill": "solid",
+        "tier2.panel2.fill": "solid",
+        "tier2.panel3.fill": "solid",
+        "tier2.panel4.fill": "solid",
+        "tier3.fill": "louvered",
+        "tier3.panel1.fill": "louvered",
+        "tier3.panel2.fill": "louvered",
+        "tier3.panel3.fill": "louvered",
+        "tier3.panel4.fill": "louvered"
+      }
+    },
+    {
+      "id": "shape-no-leg",
+      "trigger": "always",
+      "when": {
+        "not": {
+          "field": "shape",
+          "equals": "arch-over-rectangle"
+        }
+      },
+      "description": "Only arch-over-rectangle has a rectangle-body leg; zero it elsewhere",
+      "set": {
+        "legHeightMm": 0
+      }
+    },
+    {
+      "id": "enter-aor-leg",
+      "trigger": "onEnter",
+      "when": {
+        "field": "shape",
+        "equals": "arch-over-rectangle"
+      },
+      "description": "Entering arch-over-rectangle restores the default rectangle-body height",
+      "set": {
+        "legHeightMm": 457
+      }
+    },
+    {
+      "id": "enter-one-piece-sunburst",
+      "trigger": "onEnter",
+      "when": {
+        "field": "arch.sectionSplit",
+        "equals": 1
+      },
+      "description": "One-piece arch restores the radial sunburst fill (reverts the Two-piece → horizontal force)",
+      "set": {
+        "arch.fill": "sunburst"
+      }
+    },
+    {
+      "id": "enter-arch-full",
+      "trigger": "onEnter",
+      "when": {
+        "field": "arch.type",
+        "equals": "full-arch"
+      },
+      "description": "Full arch → tall (≈ semicircle) rise",
+      "set": {
+        "arch.riseMm": 610
+      }
+    },
+    {
+      "id": "enter-arch-eyebrow",
+      "trigger": "onEnter",
+      "when": {
+        "field": "arch.type",
+        "equals": "eyebrow"
+      },
+      "description": "Eyebrow → shallow rise",
+      "set": {
+        "arch.riseMm": 300
+      }
+    },
+    {
+      "id": "shape-not-tpost",
+      "trigger": "always",
+      "when": {
+        "not": {
+          "field": "shape",
+          "in": [
+            "rectangle",
+            "arch-over-rectangle"
+          ]
+        }
+      },
+      "description": "T-post only exists on rectangle / arch-over-rectangle (E4)",
+      "set": {
+        "tPost.enabled": "single"
+      }
+    },
+    {
+      "id": "single-panel-same-fill-t0",
+      "trigger": "always",
+      "when": {
+        "field": "tier1.columns",
+        "equals": 1
+      },
+      "description": "Single-panel tier → pin Same-fill ON",
+      "set": {
+        "tier1.sameFill": true
+      }
+    },
+    {
+      "id": "single-panel-same-fill-t1",
+      "trigger": "always",
+      "when": {
+        "field": "tier2.columns",
+        "equals": 1
+      },
+      "description": "Single-panel tier → pin Same-fill ON",
+      "set": {
+        "tier2.sameFill": true
+      }
+    },
+    {
+      "id": "single-panel-same-fill-t2",
+      "trigger": "always",
+      "when": {
+        "field": "tier3.columns",
+        "equals": 1
+      },
+      "description": "Single-panel tier → pin Same-fill ON",
+      "set": {
+        "tier3.sameFill": true
+      }
+    },
+    {
+      "id": "bypass-closed-t0",
+      "trigger": "onEnter",
+      "when": {
+        "field": "tier1.bypassSystem",
+        "equals": "closed_bypass"
+      },
+      "description": "Closed bypass → numeric lane spacing + 2 tracks",
+      "set": {
+        "tier1.bypassSpacing": 2,
+        "tier1.bypassTrackCount": 2
+      }
+    },
+    {
+      "id": "bypass-open-t0",
+      "trigger": "onEnter",
+      "when": {
+        "field": "tier1.bypassSystem",
+        "equals": "open_louver_bypass"
+      },
+      "description": "Open-louver bypass → auto (open-clear) lane spacing",
+      "set": {
+        "tier1.bypassSpacing": "open_clear"
+      }
+    },
+    {
+      "id": "bypass-triple-t0",
+      "trigger": "onEnter",
+      "when": {
+        "field": "tier1.bypassSystem",
+        "equals": "triple_track"
+      },
+      "description": "Triple track → 3 lanes + auto (open-clear) spacing",
+      "set": {
+        "tier1.bypassSpacing": "open_clear",
+        "tier1.bypassTrackCount": 3
+      }
+    },
+    {
+      "id": "bypass-closed-t1",
+      "trigger": "onEnter",
+      "when": {
+        "field": "tier2.bypassSystem",
+        "equals": "closed_bypass"
+      },
+      "description": "Closed bypass → numeric lane spacing + 2 tracks",
+      "set": {
+        "tier2.bypassSpacing": 2,
+        "tier2.bypassTrackCount": 2
+      }
+    },
+    {
+      "id": "bypass-open-t1",
+      "trigger": "onEnter",
+      "when": {
+        "field": "tier2.bypassSystem",
+        "equals": "open_louver_bypass"
+      },
+      "description": "Open-louver bypass → auto (open-clear) lane spacing",
+      "set": {
+        "tier2.bypassSpacing": "open_clear"
+      }
+    },
+    {
+      "id": "bypass-triple-t1",
+      "trigger": "onEnter",
+      "when": {
+        "field": "tier2.bypassSystem",
+        "equals": "triple_track"
+      },
+      "description": "Triple track → 3 lanes + auto (open-clear) spacing",
+      "set": {
+        "tier2.bypassSpacing": "open_clear",
+        "tier2.bypassTrackCount": 3
+      }
+    },
+    {
+      "id": "bypass-closed-t2",
+      "trigger": "onEnter",
+      "when": {
+        "field": "tier3.bypassSystem",
+        "equals": "closed_bypass"
+      },
+      "description": "Closed bypass → numeric lane spacing + 2 tracks",
+      "set": {
+        "tier3.bypassSpacing": 2,
+        "tier3.bypassTrackCount": 2
+      }
+    },
+    {
+      "id": "bypass-open-t2",
+      "trigger": "onEnter",
+      "when": {
+        "field": "tier3.bypassSystem",
+        "equals": "open_louver_bypass"
+      },
+      "description": "Open-louver bypass → auto (open-clear) lane spacing",
+      "set": {
+        "tier3.bypassSpacing": "open_clear"
+      }
+    },
+    {
+      "id": "bypass-triple-t2",
+      "trigger": "onEnter",
+      "when": {
+        "field": "tier3.bypassSystem",
+        "equals": "triple_track"
+      },
+      "description": "Triple track → 3 lanes + auto (open-clear) spacing",
+      "set": {
+        "tier3.bypassSpacing": "open_clear",
+        "tier3.bypassTrackCount": 3
+      }
+    },
+    {
+      "id": "cafe-rectangle-single-only",
+      "trigger": "always",
+      "when": {
+        "not": {
+          "allOf": [
+            {
+              "field": "shape",
+              "equals": "rectangle"
+            },
+            {
+              "field": "nTiers",
+              "equals": 1
+            }
+          ]
+        }
+      },
+      "description": "Cafe is rectangle + single-tier only (F1)",
+      "set": {
+        "cafe.enabled": false
+      }
+    },
+    {
+      "id": "tier1-nonlouvered-rod-none",
+      "trigger": "always",
+      "when": {
+        "field": "tier1.fill",
+        "in": [
+          "solid",
+          "empty"
+        ]
+      },
+      "set": {
+        "tier1.rodType": "none"
+      }
+    },
+    {
+      "id": "tier2-nonlouvered-rod-none",
+      "trigger": "always",
+      "when": {
+        "allOf": [
+          {
+            "field": "nTiers",
+            "gt": 1
+          },
+          {
+            "field": "tier2.fill",
+            "in": [
+              "solid",
+              "empty"
+            ]
+          }
+        ]
+      },
+      "set": {
+        "tier2.rodType": "none"
+      }
+    },
+    {
+      "id": "tier3-nonlouvered-rod-none",
+      "trigger": "always",
+      "when": {
+        "allOf": [
+          {
+            "field": "nTiers",
+            "gt": 2
+          },
+          {
+            "field": "tier3.fill",
+            "in": [
+              "solid",
+              "empty"
+            ]
+          }
+        ]
+      },
+      "set": {
+        "tier3.rodType": "none"
+      }
+    },
+    {
+      "id": "frame-real-family-mount-inside",
+      "trigger": "onEnter",
+      "when": {
+        "field": "frame.frameType",
+        "in": [
+          "L",
+          "Z",
+          "deco"
+        ]
+      },
+      "description": "Choosing a real frame family seats it inside (StepStyle onChange)",
+      "set": {
+        "frame.mountType": "inside"
+      }
+    },
+    {
+      "id": "frame-mount-forces-no-frame",
+      "trigger": "always",
+      "when": {
+        "field": "frame.mountType",
+        "in": [
+          "direct",
+          "hang_strip"
+        ]
+      },
+      "description": "Direct / hang-strip mounts have no outer frame (C2f)",
+      "set": {
+        "frame.frameType": "none"
+      }
+    },
+    {
+      "id": "frame-none-inside-to-direct",
+      "trigger": "always",
+      "when": {
+        "allOf": [
+          {
+            "field": "frame.frameType",
+            "equals": "none"
+          },
+          {
+            "field": "frame.mountType",
+            "equals": "inside"
+          }
+        ]
+      },
+      "description": "No outer frame + inside mount ⇒ direct mount (C3f)",
+      "set": {
+        "frame.mountType": "direct"
+      }
+    },
+    {
+      "id": "frame-hang-strip-profile",
+      "trigger": "always",
+      "when": {
+        "field": "frame.mountType",
+        "equals": "hang_strip"
+      },
+      "description": "Hang-strip mount uses the hang-strip profile (C5f)",
+      "set": {
+        "frame.frameProfile": "hang_strip"
+      }
+    },
+    {
+      "id": "frame-no-bottom-sill-none",
+      "trigger": "always",
+      "when": {
+        "field": "frame.frameSides",
+        "equals": "no_bottom"
+      },
+      "description": "No-bottom frame ⇒ no sill (C6f)",
+      "set": {
+        "frame.sillMode": "none"
+      }
+    },
+    {
+      "id": "frame-sill-none-cap-none",
+      "trigger": "always",
+      "when": {
+        "field": "frame.sillMode",
+        "equals": "none"
+      },
+      "description": "No sill ⇒ no cap treatment (C7f)",
+      "set": {
+        "frame.bottomTreatment": "none"
+      }
+    },
+    {
+      "id": "frame-round-irregular-perimeter",
+      "trigger": "always",
+      "when": {
+        "field": "shape",
+        "in": [
+          "oval",
+          "irregular"
+        ]
+      },
+      "description": "Round/irregular ⇒ four-sides, no sill, no cap (C8f)",
+      "set": {
+        "frame.frameSides": "four_sides",
+        "frame.sillMode": "none",
+        "frame.bottomTreatment": "none"
+      }
+    },
+    {
+      "id": "frame-arch-four-sides",
+      "trigger": "always",
+      "when": {
+        "field": "shape",
+        "equals": "arch"
+      },
+      "description": "Pure arch ⇒ four-sides frame (C9f)",
+      "set": {
+        "frame.frameSides": "four_sides"
+      }
+    },
+    {
+      "id": "oval-preset-vertical-oval",
+      "trigger": "onEnter",
+      "when": {
+        "allOf": [
+          {
+            "field": "shape",
+            "equals": "oval"
+          },
+          {
+            "field": "oval.preset",
+            "equals": "vertical-oval"
+          }
+        ]
+      },
+      "description": "Oval preset \"vertical-oval\" stamps its extent triple",
+      "set": {
+        "oval.hExtent": 0.8,
+        "oval.vExtent": 1,
+        "oval.roundness": 1
+      }
+    },
+    {
+      "id": "oval-preset-horizontal-oval",
+      "trigger": "onEnter",
+      "when": {
+        "allOf": [
+          {
+            "field": "shape",
+            "equals": "oval"
+          },
+          {
+            "field": "oval.preset",
+            "equals": "horizontal-oval"
+          }
+        ]
+      },
+      "description": "Oval preset \"horizontal-oval\" stamps its extent triple",
+      "set": {
+        "oval.hExtent": 1,
+        "oval.vExtent": 0.75,
+        "oval.roundness": 1
+      }
+    },
+    {
+      "id": "oval-preset-circle",
+      "trigger": "onEnter",
+      "when": {
+        "allOf": [
+          {
+            "field": "shape",
+            "equals": "oval"
+          },
+          {
+            "field": "oval.preset",
+            "equals": "circle"
+          }
+        ]
+      },
+      "description": "Oval preset \"circle\" stamps its extent triple",
+      "set": {
+        "oval.hExtent": 1,
+        "oval.vExtent": 1,
+        "oval.roundness": 1
+      }
+    }
+  ],
+  "variations": [
+    {
+      "key": "shape",
+      "section": "shape",
+      "label": "Shape",
+      "defaultValue": "rectangle",
+      "tier": "common",
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "rectangle",
+            "label": "Standard rectangle",
+            "description": "Classic square-top shutter"
+          },
+          {
+            "value": "arch",
+            "label": "Arch",
+            "description": "Half-round, eyebrow or extended"
+          },
+          {
+            "value": "arch-over-rectangle",
+            "label": "Arch over rectangle",
+            "description": "Arch tier above square panels"
+          },
+          {
+            "value": "oval",
+            "label": "Oval",
+            "description": "Oval or circle speciality frame"
+          },
+          {
+            "value": "irregular",
+            "label": "Angle top",
+            "description": "Sloped-top speciality frame"
+          }
+        ]
+      }
+    },
+    {
+      "key": "nTiers",
+      "section": "layout",
+      "label": "Tiers",
+      "defaultValue": 1,
+      "tier": "common",
+      "visibleWhen": {
+        "field": "shape",
+        "equals": "arch-over-rectangle"
+      },
+      "description": "Rectangle sections below the arch crown",
+      "optionsWhen": [
+        {
+          "when": {
+            "field": "shape",
+            "equals": "arch-over-rectangle"
+          },
+          "allow": [
+            2,
+            3
+          ],
+          "fallback": 2
+        }
+      ],
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": 1,
+            "label": "1"
+          },
+          {
+            "value": 2,
+            "label": "1"
+          },
+          {
+            "value": 3,
+            "label": "2"
+          }
+        ]
+      }
+    },
+    {
+      "key": "rectSameTiers",
+      "section": "layout",
+      "label": "Same settings for all tiers",
+      "defaultValue": true,
+      "visibleWhen": {
+        "anyOf": [
+          {
+            "allOf": [
+              {
+                "field": "shape",
+                "equals": "rectangle"
+              },
+              {
+                "field": "nTiers",
+                "gte": 2
+              }
+            ]
+          },
+          {
+            "allOf": [
+              {
+                "field": "shape",
+                "equals": "arch-over-rectangle"
+              },
+              {
+                "field": "nTiers",
+                "gte": 3
+              }
+            ]
+          }
+        ]
+      },
+      "control": {
+        "kind": "toggle"
+      }
+    },
+    {
+      "key": "productStyle",
+      "section": "layout",
+      "label": "Type",
+      "defaultValue": "full_height",
+      "tier": "common",
+      "visibleWhen": {
+        "field": "shape",
+        "equals": "rectangle"
+      },
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "full_height",
+            "label": "Full height"
+          },
+          {
+            "value": "cafe",
+            "label": "Cafe"
+          },
+          {
+            "value": "tier_on_tier",
+            "label": "Tier on tier"
+          },
+          {
+            "value": "combination",
+            "label": "Combination"
+          }
+        ]
+      }
+    },
+    {
+      "key": "cafe.enabled",
+      "section": "layout",
+      "label": "Cafe",
+      "defaultValue": false,
+      "visibleWhen": {
+        "field": "shape",
+        "in": []
+      },
+      "control": {
+        "kind": "toggle"
+      }
+    },
+    {
+      "key": "cafe.heightRatio",
+      "section": "layout",
+      "label": "Cafe height",
+      "defaultValue": 0.5,
+      "tier": "advanced",
+      "visibleWhen": {
+        "field": "cafe.enabled",
+        "truthy": true
+      },
+      "control": {
+        "kind": "slider",
+        "min": 0.4,
+        "max": 0.65,
+        "step": 0.05,
+        "format": "percent"
+      }
+    },
+    {
+      "key": "tPost.enabled",
+      "section": "layout",
+      "label": "Opening split",
+      "defaultValue": "single",
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "in": [
+              "rectangle",
+              "arch-over-rectangle"
+            ]
+          },
+          {
+            "not": {
+              "field": "arch.composition",
+              "in": [
+                "half-left",
+                "half-right"
+              ]
+            }
+          }
+        ]
+      },
+      "enabledWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "in": [
+              "rectangle",
+              "arch-over-rectangle"
+            ]
+          },
+          {
+            "anyOf": [
+              {
+                "field": "tier1.columns",
+                "gt": 1
+              },
+              {
+                "allOf": [
+                  {
+                    "field": "nTiers",
+                    "gt": 1
+                  },
+                  {
+                    "field": "tier2.columns",
+                    "gt": 1
+                  }
+                ]
+              },
+              {
+                "allOf": [
+                  {
+                    "field": "nTiers",
+                    "gt": 2
+                  },
+                  {
+                    "field": "tier3.columns",
+                    "gt": 1
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "anyOf": [
+              {
+                "field": "nTiers",
+                "lt": 1
+              },
+              {
+                "field": "tier1.columns",
+                "lt": 2
+              },
+              {
+                "field": "tier1.opening",
+                "in": [
+                  "hinge-double",
+                  "hinge-2L-1R",
+                  "hinge-1L-2R",
+                  "hinge-2L-2R",
+                  "hinge-3L-1R",
+                  "hinge-1L-3R"
+                ]
+              }
+            ]
+          },
+          {
+            "anyOf": [
+              {
+                "field": "nTiers",
+                "lt": 2
+              },
+              {
+                "field": "tier2.columns",
+                "lt": 2
+              },
+              {
+                "field": "tier2.opening",
+                "in": [
+                  "hinge-double",
+                  "hinge-2L-1R",
+                  "hinge-1L-2R",
+                  "hinge-2L-2R",
+                  "hinge-3L-1R",
+                  "hinge-1L-3R"
+                ]
+              }
+            ]
+          },
+          {
+            "anyOf": [
+              {
+                "field": "nTiers",
+                "lt": 3
+              },
+              {
+                "field": "tier3.columns",
+                "lt": 2
+              },
+              {
+                "field": "tier3.opening",
+                "in": [
+                  "hinge-double",
+                  "hinge-2L-1R",
+                  "hinge-1L-2R",
+                  "hinge-2L-2R",
+                  "hinge-3L-1R",
+                  "hinge-1L-3R"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "single",
+            "label": "Single"
+          },
+          {
+            "value": "tpost",
+            "label": "T post"
+          }
+        ]
+      }
+    },
+    {
+      "key": "tPost.profile",
+      "section": "layout",
+      "label": "Post size",
+      "defaultValue": "standard_25mm",
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "in": [
+              "rectangle",
+              "arch-over-rectangle"
+            ]
+          },
+          {
+            "not": {
+              "field": "arch.composition",
+              "in": [
+                "half-left",
+                "half-right"
+              ]
+            }
+          },
+          {
+            "field": "tPost.enabled",
+            "equals": "tpost"
+          }
+        ]
+      },
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "standard_25mm",
+            "label": "1 in"
+          },
+          {
+            "value": "wide_45mm",
+            "label": "1 3/4 in"
+          }
+        ]
+      }
+    },
+    {
+      "key": "arch.composition",
+      "section": "shape",
+      "label": "Subtype",
+      "defaultValue": "full",
+      "visibleWhen": {
+        "field": "shape",
+        "equals": "arch-over-rectangle"
+      },
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "full",
+            "label": "Full"
+          },
+          {
+            "value": "half-left",
+            "label": "Left half"
+          },
+          {
+            "value": "half-right",
+            "label": "Right half"
+          }
+        ]
+      }
+    },
+    {
+      "key": "arch.type",
+      "section": "layout",
+      "label": "Type",
+      "defaultValue": "full-arch",
+      "tier": "common",
+      "visibleWhen": {
+        "field": "shape",
+        "equals": "arch"
+      },
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "eyebrow",
+            "label": "Eyebrow"
+          },
+          {
+            "value": "full-arch",
+            "label": "Full arch"
+          }
+        ]
+      }
+    },
+    {
+      "key": "arch.sectionSplit",
+      "section": "layout",
+      "label": "Section split",
+      "defaultValue": 1,
+      "tier": "common",
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "in": [
+              "arch",
+              "arch-over-rectangle"
+            ]
+          },
+          {
+            "not": {
+              "field": "arch.composition",
+              "in": [
+                "half-left",
+                "half-right"
+              ]
+            }
+          }
+        ]
+      },
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": 1,
+            "label": "One-piece"
+          },
+          {
+            "value": 2,
+            "label": "Center split"
+          }
+        ]
+      }
+    },
+    {
+      "key": "arch.fill",
+      "section": "layout",
+      "label": "Arch fill",
+      "defaultValue": "sunburst",
+      "tier": "common",
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "in": [
+              "arch",
+              "arch-over-rectangle"
+            ]
+          },
+          {
+            "not": {
+              "field": "arch.composition",
+              "in": [
+                "half-left",
+                "half-right"
+              ]
+            }
+          }
+        ]
+      },
+      "optionsWhen": [
+        {
+          "when": {
+            "field": "arch.sectionSplit",
+            "equals": 2
+          },
+          "allow": [
+            "horizontal"
+          ],
+          "fallback": "horizontal"
+        }
+      ],
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "sunburst",
+            "label": "Radial sunburst"
+          },
+          {
+            "value": "horizontal",
+            "label": "Horizontal louvers"
+          }
+        ]
+      }
+    },
+    {
+      "key": "arch.bladeCount",
+      "section": "louverTilt",
+      "label": "Blades",
+      "defaultValue": 17,
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "in": [
+              "arch",
+              "arch-over-rectangle"
+            ]
+          },
+          {
+            "not": {
+              "field": "arch.composition",
+              "in": [
+                "half-left",
+                "half-right"
+              ]
+            }
+          },
+          {
+            "field": "arch.fill",
+            "equals": "sunburst"
+          }
+        ]
+      },
+      "control": {
+        "kind": "slider",
+        "min": 5,
+        "max": 20,
+        "step": 1
+      }
+    },
+    {
+      "key": "arch.hubDiameterMm",
+      "section": "louverTilt",
+      "label": "Hub diameter",
+      "defaultValue": 200,
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "in": [
+              "arch",
+              "arch-over-rectangle"
+            ]
+          },
+          {
+            "not": {
+              "field": "arch.composition",
+              "in": [
+                "half-left",
+                "half-right"
+              ]
+            }
+          },
+          {
+            "field": "arch.fill",
+            "equals": "sunburst"
+          }
+        ]
+      },
+      "control": {
+        "kind": "slider",
+        "min": 100,
+        "max": 450,
+        "step": 5,
+        "unit": "mm",
+        "format": "imperial-from-mm"
+      }
+    },
+    {
+      "key": "arch.louverOperation",
+      "section": "layout",
+      "label": "Louver operation",
+      "defaultValue": "operable",
+      "tier": "advanced",
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "in": [
+              "arch",
+              "arch-over-rectangle"
+            ]
+          },
+          {
+            "field": "arch.fill",
+            "equals": "horizontal"
+          }
+        ]
+      },
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "operable",
+            "label": "Operable tilt"
+          },
+          {
+            "value": "fixed",
+            "label": "Fixed"
+          }
+        ]
+      }
+    },
+    {
+      "key": "arch.riseMm",
+      "section": "layout",
+      "label": "Arch rise",
+      "defaultValue": 457,
+      "tier": "advanced",
+      "visibleWhen": {
+        "field": "shape",
+        "in": [
+          "arch",
+          "arch-over-rectangle"
+        ]
+      },
+      "control": {
+        "kind": "slider",
+        "min": 220,
+        "max": 1219,
+        "step": 5,
+        "unit": "mm",
+        "format": "imperial-from-mm"
+      }
+    },
+    {
+      "key": "legHeightMm",
+      "section": "layout",
+      "label": "Rectangle height",
+      "defaultValue": 457,
+      "visibleWhen": {
+        "field": "shape",
+        "equals": "arch-over-rectangle"
+      },
+      "control": {
+        "kind": "slider",
+        "min": 457,
+        "max": 2591,
+        "step": 6.35,
+        "unit": "mm",
+        "format": "imperial-from-mm"
+      }
+    },
+    {
+      "key": "material.mode",
+      "section": "material",
+      "label": "Type",
+      "defaultValue": "wood",
+      "tier": "common",
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "solid",
+            "label": "Solid"
+          },
+          {
+            "value": "wood",
+            "label": "Wood grain"
+          }
+        ]
+      }
+    },
+    {
+      "key": "material.solidColorHex",
+      "section": "material",
+      "label": "Paint color",
+      "defaultValue": "#f2ede3",
+      "visibleWhen": {
+        "field": "material.mode",
+        "equals": "solid"
+      },
+      "control": {
+        "kind": "color"
+      }
+    },
+    {
+      "key": "material.woodSpecies",
+      "section": "material",
+      "label": "Wood species",
+      "defaultValue": "cherry",
+      "visibleWhen": {
+        "field": "shape",
+        "in": []
+      },
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "cherry",
+            "label": "Cherry"
+          },
+          {
+            "value": "rosewood",
+            "label": "Rosewood"
+          },
+          {
+            "value": "mahogany",
+            "label": "Mahogany"
+          },
+          {
+            "value": "faux-wood",
+            "label": "Faux wood"
+          }
+        ]
+      }
+    },
+    {
+      "key": "material.woodTexture",
+      "section": "material",
+      "label": "Wood grain",
+      "defaultValue": "https://iashgsuvdedpdmytdbgw.supabase.co/storage/v1/object/public/asset-pattern-swatches/3d-pattern/shutter-honey-oak-cathedral-grain-material.jpg",
+      "visibleWhen": {
+        "field": "material.mode",
+        "equals": "wood"
+      },
+      "control": {
+        "kind": "image"
+      }
+    },
+    {
+      "key": "material.woodTextureScale",
+      "section": "material",
+      "label": "Scale",
+      "defaultValue": 1,
+      "tier": "advanced",
+      "visibleWhen": {
+        "field": "material.mode",
+        "equals": "wood"
+      },
+      "control": {
+        "kind": "slider",
+        "min": 0.25,
+        "max": 4,
+        "step": 0.05,
+        "unit": "x"
+      }
+    },
+    {
+      "key": "material.woodTextureRotationDeg",
+      "section": "material",
+      "label": "Angle",
+      "defaultValue": 0,
+      "tier": "advanced",
+      "visibleWhen": {
+        "field": "material.mode",
+        "equals": "wood"
+      },
+      "control": {
+        "kind": "slider",
+        "min": -90,
+        "max": 90,
+        "step": 1,
+        "unit": "°"
+      }
+    },
+    {
+      "key": "material.finish",
+      "section": "material",
+      "label": "Finish",
+      "defaultValue": "diffuse",
+      "tier": "advanced",
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "diffuse",
+            "label": "Painted"
+          },
+          {
+            "value": "solid-wood",
+            "label": "Solid wood"
+          }
+        ]
+      }
+    },
+    {
+      "key": "frame.frameType",
+      "section": "frame",
+      "label": "Frame type",
+      "defaultValue": "L",
+      "tier": "common",
+      "optionsWhen": [
+        {
+          "when": {
+            "field": "shape",
+            "in": [
+              "oval",
+              "irregular"
+            ]
+          },
+          "allow": [
+            "L",
+            "Z",
+            "deco"
+          ],
+          "fallback": "L"
+        }
+      ],
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "L",
+            "label": "L"
+          },
+          {
+            "value": "Z",
+            "label": "Z"
+          },
+          {
+            "value": "deco",
+            "label": "Deco"
+          },
+          {
+            "value": "none",
+            "label": "No outer"
+          }
+        ]
+      }
+    },
+    {
+      "key": "frame.mountType",
+      "section": "frame",
+      "label": "Mount",
+      "defaultValue": "inside",
+      "tier": "common",
+      "optionsWhen": [
+        {
+          "when": {
+            "field": "shape",
+            "in": [
+              "oval",
+              "irregular"
+            ]
+          },
+          "allow": [
+            "inside",
+            "outside"
+          ],
+          "fallback": "inside"
+        }
+      ],
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "inside",
+            "label": "Inside"
+          },
+          {
+            "value": "outside",
+            "label": "Outside"
+          },
+          {
+            "value": "direct",
+            "label": "Direct"
+          },
+          {
+            "value": "hang_strip",
+            "label": "Hang"
+          }
+        ]
+      }
+    },
+    {
+      "key": "frame.frameProfile",
+      "section": "frame",
+      "label": "Profile",
+      "defaultValue": "plain",
+      "optionsWhen": [
+        {
+          "when": {
+            "field": "frame.frameType",
+            "equals": "L"
+          },
+          "allow": [
+            "plain",
+            "beaded",
+            "bullnose",
+            "vintage"
+          ],
+          "fallback": "plain"
+        },
+        {
+          "when": {
+            "field": "frame.frameType",
+            "equals": "Z"
+          },
+          "allow": [
+            "beaded",
+            "crown",
+            "bullnose",
+            "bel_air"
+          ],
+          "fallback": "beaded"
+        },
+        {
+          "when": {
+            "field": "frame.frameType",
+            "equals": "deco"
+          },
+          "allow": [
+            "classic",
+            "mission",
+            "ridge"
+          ],
+          "fallback": "classic"
+        },
+        {
+          "when": {
+            "field": "frame.frameType",
+            "equals": "none"
+          },
+          "allow": [
+            "no_frame",
+            "hang_strip"
+          ],
+          "fallback": "no_frame"
+        }
+      ],
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "plain",
+            "label": "Plain"
+          },
+          {
+            "value": "beaded",
+            "label": "Beaded"
+          },
+          {
+            "value": "bullnose",
+            "label": "Bullnose"
+          },
+          {
+            "value": "vintage",
+            "label": "Vintage"
+          },
+          {
+            "value": "crown",
+            "label": "Crown"
+          },
+          {
+            "value": "bel_air",
+            "label": "Bel Air"
+          },
+          {
+            "value": "classic",
+            "label": "Classic"
+          },
+          {
+            "value": "mission",
+            "label": "Mission"
+          },
+          {
+            "value": "ridge",
+            "label": "Ridge"
+          },
+          {
+            "value": "no_frame",
+            "label": "No outer frame"
+          },
+          {
+            "value": "hang_strip",
+            "label": "Hang strip"
+          }
+        ]
+      }
+    },
+    {
+      "key": "frame.frameSides",
+      "section": "frame",
+      "label": "Side",
+      "defaultValue": "four_sides",
+      "tier": "advanced",
+      "visibleWhen": {
+        "field": "shape",
+        "in": [
+          "rectangle",
+          "arch-over-rectangle"
+        ]
+      },
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "four_sides",
+            "label": "4 sides"
+          },
+          {
+            "value": "three_sides",
+            "label": "3 sides"
+          },
+          {
+            "value": "no_bottom",
+            "label": "No bottom"
+          }
+        ]
+      }
+    },
+    {
+      "key": "frame.sillMode",
+      "section": "frame",
+      "label": "Sill / bottom",
+      "defaultValue": "none",
+      "tier": "advanced",
+      "visibleWhen": {
+        "field": "shape",
+        "in": [
+          "rectangle",
+          "arch",
+          "arch-over-rectangle"
+        ]
+      },
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "none",
+            "label": "None"
+          },
+          {
+            "value": "bottom_bar",
+            "label": "Bottom bar"
+          },
+          {
+            "value": "sill_plate",
+            "label": "Sill plate"
+          }
+        ]
+      }
+    },
+    {
+      "key": "frame.bottomTreatment",
+      "section": "frame",
+      "label": "Cap style",
+      "defaultValue": "none",
+      "tier": "advanced",
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "in": [
+              "rectangle",
+              "arch",
+              "arch-over-rectangle"
+            ]
+          },
+          {
+            "not": {
+              "field": "frame.sillMode",
+              "equals": "none"
+            }
+          }
+        ]
+      },
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "none",
+            "label": "None"
+          },
+          {
+            "value": "modern",
+            "label": "Modern"
+          },
+          {
+            "value": "traditional",
+            "label": "Traditional"
+          }
+        ]
+      }
+    },
+    {
+      "key": "irregular.kind",
+      "section": "shape",
+      "label": "Subtype",
+      "defaultValue": "rake-left",
+      "visibleWhen": {
+        "field": "shape",
+        "equals": "irregular"
+      },
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "rake-left",
+            "label": "High on left"
+          },
+          {
+            "value": "rake-right",
+            "label": "High on right"
+          },
+          {
+            "value": "triangle",
+            "label": "Gable / Triangle"
+          },
+          {
+            "value": "octagon",
+            "label": "Octagon"
+          },
+          {
+            "value": "hexagon",
+            "label": "Hexagon"
+          },
+          {
+            "value": "pentagon",
+            "label": "Pentagon / House"
+          },
+          {
+            "value": "trapezoid",
+            "label": "Trapezoid"
+          },
+          {
+            "value": "quarter-round-left",
+            "label": "Quarter-round (left)"
+          },
+          {
+            "value": "quarter-round-right",
+            "label": "Quarter-round (right)"
+          },
+          {
+            "value": "gothic",
+            "label": "Gothic / Pointed Arch"
+          }
+        ]
+      }
+    },
+    {
+      "key": "irregular.lowHeightMm",
+      "section": "layout",
+      "label": "Low height",
+      "defaultValue": 900,
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "equals": "irregular"
+          },
+          {
+            "field": "irregular.kind",
+            "in": [
+              "rake-left",
+              "rake-right"
+            ]
+          }
+        ]
+      },
+      "control": {
+        "kind": "slider",
+        "min": 300,
+        "max": 3048,
+        "step": 6.35,
+        "unit": "mm",
+        "format": "imperial-from-mm"
+      }
+    },
+    {
+      "key": "irregular.cornerStyle",
+      "section": "layout",
+      "label": "Corner style",
+      "defaultValue": "fixed-louver",
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "equals": "irregular"
+          },
+          {
+            "field": "irregular.kind",
+            "in": [
+              "rake-left",
+              "rake-right",
+              "triangle",
+              "pentagon"
+            ]
+          }
+        ]
+      },
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "fixed-louver",
+            "label": "Louvered"
+          },
+          {
+            "value": "solid-panel",
+            "label": "Sealed panel"
+          }
+        ]
+      }
+    },
+    {
+      "key": "oval.preset",
+      "section": "layout",
+      "label": "Layout",
+      "defaultValue": "vertical-oval",
+      "tier": "common",
+      "visibleWhen": {
+        "field": "shape",
+        "equals": "oval"
+      },
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "vertical-oval",
+            "label": "Vertical oval"
+          },
+          {
+            "value": "horizontal-oval",
+            "label": "Horizontal oval"
+          },
+          {
+            "value": "circle",
+            "label": "Circle"
+          }
+        ]
+      }
+    },
+    {
+      "key": "oval.hExtent",
+      "section": "layout",
+      "label": "Width",
+      "defaultValue": 0.8,
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "equals": "oval"
+          },
+          {
+            "not": {
+              "field": "oval.preset",
+              "equals": "circle"
+            }
+          }
+        ]
+      },
+      "control": {
+        "kind": "slider",
+        "min": 0.2,
+        "max": 1,
+        "step": 0.01,
+        "format": "percent"
+      }
+    },
+    {
+      "key": "oval.vExtent",
+      "section": "layout",
+      "label": "Height",
+      "defaultValue": 1,
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "equals": "oval"
+          },
+          {
+            "not": {
+              "field": "oval.preset",
+              "equals": "circle"
+            }
+          }
+        ]
+      },
+      "control": {
+        "kind": "slider",
+        "min": 0.2,
+        "max": 1,
+        "step": 0.01,
+        "format": "percent"
+      }
+    },
+    {
+      "key": "oval.roundness",
+      "section": "layout",
+      "label": "Curvature",
+      "defaultValue": 1,
+      "visibleWhen": {
+        "field": "shape",
+        "equals": "oval"
+      },
+      "control": {
+        "kind": "slider",
+        "min": 0.1,
+        "max": 1,
+        "step": 0.01,
+        "format": "percent"
+      }
+    },
+    {
+      "key": "tier1.columns",
+      "section": "layout",
+      "label": "Panel number",
+      "defaultValue": 2,
+      "visibleWhen": {
+        "allOf": [
+          {
+            "allOf": [
+              {
+                "field": "shape",
+                "equals": "rectangle"
+              },
+              {
+                "field": "nTiers",
+                "gt": 0
+              }
+            ]
+          },
+          {
+            "not": {
+              "field": "arch.composition",
+              "in": [
+                "half-left",
+                "half-right"
+              ]
+            }
+          }
+        ]
+      },
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": 1,
+            "label": "1"
+          },
+          {
+            "value": 2,
+            "label": "2"
+          },
+          {
+            "value": 3,
+            "label": "3"
+          },
+          {
+            "value": 4,
+            "label": "4"
+          }
+        ]
+      }
+    },
+    {
+      "key": "tier1.opening",
+      "section": "layout",
+      "label": "Opening",
+      "defaultValue": "bifold-left",
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "equals": "rectangle"
+          },
+          {
+            "field": "nTiers",
+            "gt": 0
+          }
+        ]
+      },
+      "optionsWhen": [
+        {
+          "when": {
+            "field": "tier1.columns",
+            "equals": 1
+          },
+          "allow": [
+            "fixed",
+            "hinge-left",
+            "hinge-right"
+          ],
+          "fallback": "fixed"
+        },
+        {
+          "when": {
+            "field": "tier1.columns",
+            "equals": 2
+          },
+          "allow": [
+            "bifold-left",
+            "bifold-right",
+            "hinge-double",
+            "sliding"
+          ],
+          "fallback": "bifold-left"
+        },
+        {
+          "when": {
+            "field": "tier1.columns",
+            "equals": 3
+          },
+          "allow": [
+            "hinge-2L-1R",
+            "hinge-1L-2R",
+            "hinge-3-left",
+            "hinge-3-right",
+            "sliding"
+          ],
+          "fallback": "hinge-2L-1R"
+        },
+        {
+          "when": {
+            "field": "tier1.columns",
+            "equals": 4
+          },
+          "allow": [
+            "hinge-2L-2R",
+            "hinge-3L-1R",
+            "hinge-1L-3R",
+            "hinge-4L",
+            "hinge-4R",
+            "sliding"
+          ],
+          "fallback": "hinge-2L-2R"
+        }
+      ],
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "fixed",
+            "label": "Fixed"
+          },
+          {
+            "value": "hinge-left",
+            "label": "Hinge L"
+          },
+          {
+            "value": "hinge-right",
+            "label": "Hinge R"
+          },
+          {
+            "value": "bifold-left",
+            "label": "Stack L"
+          },
+          {
+            "value": "bifold-right",
+            "label": "Stack R"
+          },
+          {
+            "value": "hinge-double",
+            "label": "Center pair"
+          },
+          {
+            "value": "sliding",
+            "label": "Bypass"
+          },
+          {
+            "value": "hinge-2L-1R",
+            "label": "2L / 1R"
+          },
+          {
+            "value": "hinge-1L-2R",
+            "label": "1L / 2R"
+          },
+          {
+            "value": "hinge-3-left",
+            "label": "3 Stack L"
+          },
+          {
+            "value": "hinge-3-right",
+            "label": "3 Stack R"
+          },
+          {
+            "value": "hinge-2L-2R",
+            "label": "2L / 2R"
+          },
+          {
+            "value": "hinge-3L-1R",
+            "label": "3L / 1R"
+          },
+          {
+            "value": "hinge-1L-3R",
+            "label": "1L / 3R"
+          },
+          {
+            "value": "hinge-4L",
+            "label": "4 Stack L"
+          },
+          {
+            "value": "hinge-4R",
+            "label": "4 Stack R"
+          }
+        ]
+      }
+    },
+    {
+      "key": "tier1.bypassSystem",
+      "section": "layout",
+      "label": "Bypass system",
+      "defaultValue": "open_louver_bypass",
+      "tier": "advanced",
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "equals": "rectangle"
+          },
+          {
+            "field": "nTiers",
+            "gt": 0
+          },
+          {
+            "field": "tier1.opening",
+            "equals": "sliding"
+          }
+        ]
+      },
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "closed_bypass",
+            "label": "Closed bypass"
+          },
+          {
+            "value": "open_louver_bypass",
+            "label": "Open louver"
+          },
+          {
+            "value": "triple_track",
+            "label": "Triple track"
+          }
+        ]
+      }
+    },
+    {
+      "key": "tier1.bypassTrackCount",
+      "section": "layout",
+      "label": "Track count",
+      "defaultValue": 2,
+      "tier": "advanced",
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "equals": "rectangle"
+          },
+          {
+            "field": "nTiers",
+            "gt": 0
+          },
+          {
+            "field": "tier1.opening",
+            "equals": "sliding"
+          }
+        ]
+      },
+      "optionsWhen": [
+        {
+          "when": {
+            "field": "tier1.bypassSystem",
+            "equals": "triple_track"
+          },
+          "allow": [
+            3
+          ],
+          "fallback": 3
+        }
+      ],
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": 2,
+            "label": "2"
+          },
+          {
+            "value": 3,
+            "label": "3"
+          }
+        ]
+      }
+    },
+    {
+      "key": "tier1.bypassSpacing",
+      "section": "layout",
+      "label": "Track spacing",
+      "defaultValue": "open_clear",
+      "tier": "advanced",
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "equals": "rectangle"
+          },
+          {
+            "field": "nTiers",
+            "gt": 0
+          },
+          {
+            "field": "tier1.opening",
+            "equals": "sliding"
+          }
+        ]
+      },
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "open_clear",
+            "label": "Open-clear (auto)"
+          },
+          {
+            "value": 1.625,
+            "label": "1 5/8 in"
+          },
+          {
+            "value": 2,
+            "label": "2 in"
+          },
+          {
+            "value": 2.5,
+            "label": "2 1/2 in"
+          },
+          {
+            "value": 3,
+            "label": "3 in"
+          },
+          {
+            "value": 3.5,
+            "label": "3 1/2 in"
+          },
+          {
+            "value": 4,
+            "label": "4 in"
+          },
+          {
+            "value": 4.5,
+            "label": "4 1/2 in"
+          },
+          {
+            "value": 5,
+            "label": "5 in"
+          },
+          {
+            "value": 6,
+            "label": "6 in"
+          }
+        ]
+      }
+    },
+    {
+      "key": "tier1.sameFill",
+      "section": "layout",
+      "label": "Same fill for all panels",
+      "defaultValue": true,
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "equals": "rectangle"
+          },
+          {
+            "field": "nTiers",
+            "gt": 0
+          },
+          {
+            "field": "tier1.columns",
+            "gte": 2
+          }
+        ]
+      },
+      "control": {
+        "kind": "toggle"
+      }
+    },
+    {
+      "key": "tier1.fill",
+      "section": "layout",
+      "label": "Panel fill",
+      "defaultValue": "louvered",
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "equals": "rectangle"
+          },
+          {
+            "field": "nTiers",
+            "gt": 0
+          },
+          {
+            "field": "tier1.sameFill",
+            "truthy": true
+          }
+        ]
+      },
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "louvered",
+            "label": "Louvered"
+          },
+          {
+            "value": "solid",
+            "label": "Solid"
+          },
+          {
+            "value": "empty",
+            "label": "Open"
+          }
+        ]
+      }
+    },
+    {
+      "key": "tier1.solidProfile",
+      "section": "layout",
+      "label": "Panel style",
+      "defaultValue": "raised",
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "equals": "rectangle"
+          },
+          {
+            "field": "nTiers",
+            "gt": 0
+          },
+          {
+            "anyOf": [
+              {
+                "allOf": [
+                  {
+                    "field": "tier1.sameFill",
+                    "truthy": true
+                  },
+                  {
+                    "field": "tier1.fill",
+                    "equals": "solid"
+                  }
+                ]
+              },
+              {
+                "allOf": [
+                  {
+                    "field": "tier1.sameFill",
+                    "equals": false
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "allOf": [
+                          {
+                            "field": "tier1.panel1.fill",
+                            "equals": "solid"
+                          },
+                          {
+                            "field": "tier1.columns",
+                            "gte": 1
+                          }
+                        ]
+                      },
+                      {
+                        "allOf": [
+                          {
+                            "field": "tier1.panel2.fill",
+                            "equals": "solid"
+                          },
+                          {
+                            "field": "tier1.columns",
+                            "gte": 2
+                          }
+                        ]
+                      },
+                      {
+                        "allOf": [
+                          {
+                            "field": "tier1.panel3.fill",
+                            "equals": "solid"
+                          },
+                          {
+                            "field": "tier1.columns",
+                            "gte": 3
+                          }
+                        ]
+                      },
+                      {
+                        "allOf": [
+                          {
+                            "field": "tier1.panel4.fill",
+                            "equals": "solid"
+                          },
+                          {
+                            "field": "tier1.columns",
+                            "gte": 4
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "raised",
+            "label": "Raised"
+          },
+          {
+            "value": "flat",
+            "label": "Flat"
+          }
+        ]
+      }
+    },
+    {
+      "key": "tier1.panel1.fill",
+      "section": "layout",
+      "label": "Panel 1",
+      "defaultValue": "louvered",
+      "tier": "advanced",
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "equals": "rectangle"
+          },
+          {
+            "field": "nTiers",
+            "gt": 0
+          },
+          {
+            "allOf": [
+              {
+                "field": "tier1.sameFill",
+                "equals": false
+              },
+              {
+                "field": "tier1.columns",
+                "gte": 1
+              }
+            ]
+          }
+        ]
+      },
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "louvered",
+            "label": "Louvered"
+          },
+          {
+            "value": "solid",
+            "label": "Solid"
+          },
+          {
+            "value": "empty",
+            "label": "Open"
+          }
+        ]
+      }
+    },
+    {
+      "key": "tier1.panel2.fill",
+      "section": "layout",
+      "label": "Panel 2",
+      "defaultValue": "louvered",
+      "tier": "advanced",
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "equals": "rectangle"
+          },
+          {
+            "field": "nTiers",
+            "gt": 0
+          },
+          {
+            "allOf": [
+              {
+                "field": "tier1.sameFill",
+                "equals": false
+              },
+              {
+                "field": "tier1.columns",
+                "gte": 2
+              }
+            ]
+          }
+        ]
+      },
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "louvered",
+            "label": "Louvered"
+          },
+          {
+            "value": "solid",
+            "label": "Solid"
+          },
+          {
+            "value": "empty",
+            "label": "Open"
+          }
+        ]
+      }
+    },
+    {
+      "key": "tier1.panel3.fill",
+      "section": "layout",
+      "label": "Panel 3",
+      "defaultValue": "louvered",
+      "tier": "advanced",
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "equals": "rectangle"
+          },
+          {
+            "field": "nTiers",
+            "gt": 0
+          },
+          {
+            "allOf": [
+              {
+                "field": "tier1.sameFill",
+                "equals": false
+              },
+              {
+                "field": "tier1.columns",
+                "gte": 3
+              }
+            ]
+          }
+        ]
+      },
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "louvered",
+            "label": "Louvered"
+          },
+          {
+            "value": "solid",
+            "label": "Solid"
+          },
+          {
+            "value": "empty",
+            "label": "Open"
+          }
+        ]
+      }
+    },
+    {
+      "key": "tier1.panel4.fill",
+      "section": "layout",
+      "label": "Panel 4",
+      "defaultValue": "louvered",
+      "tier": "advanced",
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "equals": "rectangle"
+          },
+          {
+            "field": "nTiers",
+            "gt": 0
+          },
+          {
+            "allOf": [
+              {
+                "field": "tier1.sameFill",
+                "equals": false
+              },
+              {
+                "field": "tier1.columns",
+                "gte": 4
+              }
+            ]
+          }
+        ]
+      },
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "louvered",
+            "label": "Louvered"
+          },
+          {
+            "value": "solid",
+            "label": "Solid"
+          },
+          {
+            "value": "empty",
+            "label": "Open"
+          }
+        ]
+      }
+    },
+    {
+      "key": "tier1.dividerRail",
+      "section": "layout",
+      "label": "Divider rail",
+      "defaultValue": false,
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "equals": "rectangle"
+          },
+          {
+            "field": "nTiers",
+            "gt": 0
+          }
+        ]
+      },
+      "control": {
+        "kind": "toggle"
+      }
+    },
+    {
+      "key": "tier1.dividerPos",
+      "section": "layout",
+      "label": "Rail position",
+      "defaultValue": 0.5,
+      "tier": "advanced",
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "equals": "rectangle"
+          },
+          {
+            "field": "nTiers",
+            "gt": 0
+          },
+          {
+            "field": "tier1.dividerRail",
+            "truthy": true
+          }
+        ]
+      },
+      "control": {
+        "kind": "slider",
+        "min": 0,
+        "max": 1,
+        "step": 0.01
+      }
+    },
+    {
+      "key": "tier1.splitTilt",
+      "section": "louverTilt",
+      "label": "Split tilt",
+      "defaultValue": false,
+      "tier": "advanced",
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "equals": "rectangle"
+          },
+          {
+            "field": "nTiers",
+            "gt": 0
+          },
+          {
+            "field": "tier1.dividerRail",
+            "truthy": true
+          }
+        ]
+      },
+      "control": {
+        "kind": "toggle"
+      }
+    },
+    {
+      "key": "tier1.upperTilt",
+      "section": "louverTilt",
+      "label": "Upper tilt",
+      "defaultValue": 0.5,
+      "tier": "advanced",
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "in": [
+              "rectangle",
+              "arch-over-rectangle"
+            ]
+          },
+          {
+            "field": "nTiers",
+            "gt": 0
+          },
+          {
+            "field": "tier1.dividerRail",
+            "truthy": true
+          },
+          {
+            "field": "tier1.splitTilt",
+            "truthy": true
+          }
+        ]
+      },
+      "control": {
+        "kind": "slider",
+        "min": 0,
+        "max": 1,
+        "step": 0.01,
+        "format": "percent"
+      }
+    },
+    {
+      "key": "tier1.lowerTilt",
+      "section": "louverTilt",
+      "label": "Lower tilt",
+      "defaultValue": 0.5,
+      "tier": "advanced",
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "in": [
+              "rectangle",
+              "arch-over-rectangle"
+            ]
+          },
+          {
+            "field": "nTiers",
+            "gt": 0
+          },
+          {
+            "field": "tier1.dividerRail",
+            "truthy": true
+          },
+          {
+            "field": "tier1.splitTilt",
+            "truthy": true
+          }
+        ]
+      },
+      "control": {
+        "kind": "slider",
+        "min": 0,
+        "max": 1,
+        "step": 0.01,
+        "format": "percent"
+      }
+    },
+    {
+      "key": "tier1.chordInches",
+      "section": "louverTilt",
+      "label": "Louver size",
+      "defaultValue": 3.5,
+      "visibleWhen": {
+        "anyOf": [
+          {
+            "allOf": [
+              {
+                "field": "shape",
+                "in": [
+                  "rectangle",
+                  "arch-over-rectangle",
+                  "oval",
+                  "irregular"
+                ]
+              },
+              {
+                "field": "nTiers",
+                "gt": 0
+              }
+            ]
+          },
+          {
+            "allOf": [
+              {
+                "field": "shape",
+                "equals": "arch"
+              },
+              {
+                "field": "arch.fill",
+                "equals": "horizontal"
+              },
+              {
+                "field": "nTiers",
+                "gt": 0
+              }
+            ]
+          }
+        ]
+      },
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": 1.5,
+            "label": "1 1/2 in"
+          },
+          {
+            "value": 1.875,
+            "label": "1 7/8 in"
+          },
+          {
+            "value": 2,
+            "label": "2 in"
+          },
+          {
+            "value": 2.5,
+            "label": "2 1/2 in"
+          },
+          {
+            "value": 3,
+            "label": "3 in"
+          },
+          {
+            "value": 3.5,
+            "label": "3 1/2 in"
+          },
+          {
+            "value": 4.5,
+            "label": "4 1/2 in"
+          }
+        ]
+      }
+    },
+    {
+      "key": "tier1.louverTilt",
+      "section": "louverTilt",
+      "label": "Tilt",
+      "defaultValue": 0.5,
+      "visibleWhen": {
+        "anyOf": [
+          {
+            "allOf": [
+              {
+                "field": "shape",
+                "in": [
+                  "rectangle",
+                  "arch-over-rectangle",
+                  "oval",
+                  "irregular"
+                ]
+              },
+              {
+                "field": "nTiers",
+                "gt": 0
+              }
+            ]
+          },
+          {
+            "allOf": [
+              {
+                "field": "shape",
+                "equals": "arch"
+              },
+              {
+                "field": "arch.fill",
+                "equals": "horizontal"
+              },
+              {
+                "field": "nTiers",
+                "gt": 0
+              }
+            ]
+          }
+        ]
+      },
+      "control": {
+        "kind": "slider",
+        "min": 0,
+        "max": 1,
+        "step": 0.01,
+        "format": "percent"
+      }
+    },
+    {
+      "key": "tier1.rodType",
+      "section": "louverTilt",
+      "label": "Tilt rods",
+      "defaultValue": "center",
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "in": [
+              "rectangle",
+              "arch-over-rectangle",
+              "oval"
+            ]
+          },
+          {
+            "field": "nTiers",
+            "gt": 0
+          }
+        ]
+      },
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "none",
+            "label": "None"
+          },
+          {
+            "value": "center",
+            "label": "Center"
+          },
+          {
+            "value": "invisible-left",
+            "label": "Hidden L"
+          },
+          {
+            "value": "invisible-right",
+            "label": "Hidden R"
+          }
+        ]
+      }
+    },
+    {
+      "key": "tier1.rodThicknessMm",
+      "section": "louverTilt",
+      "label": "Rod thickness",
+      "defaultValue": 14,
+      "tier": "advanced",
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "in": [
+              "rectangle",
+              "arch-over-rectangle",
+              "oval"
+            ]
+          },
+          {
+            "field": "nTiers",
+            "gt": 0
+          },
+          {
+            "not": {
+              "field": "tier1.rodType",
+              "equals": "none"
+            }
+          }
+        ]
+      },
+      "control": {
+        "kind": "slider",
+        "min": 6,
+        "max": 20,
+        "step": 1,
+        "unit": "mm",
+        "format": "imperial-from-mm"
+      }
+    },
+    {
+      "key": "tier2.columns",
+      "section": "layout",
+      "label": "Panel number",
+      "defaultValue": 2,
+      "visibleWhen": {
+        "allOf": [
+          {
+            "allOf": [
+              {
+                "field": "shape",
+                "in": [
+                  "rectangle",
+                  "arch-over-rectangle"
+                ]
+              },
+              {
+                "field": "nTiers",
+                "gt": 1
+              }
+            ]
+          },
+          {
+            "not": {
+              "field": "arch.composition",
+              "in": [
+                "half-left",
+                "half-right"
+              ]
+            }
+          }
+        ]
+      },
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": 1,
+            "label": "1"
+          },
+          {
+            "value": 2,
+            "label": "2"
+          },
+          {
+            "value": 3,
+            "label": "3"
+          },
+          {
+            "value": 4,
+            "label": "4"
+          }
+        ]
+      }
+    },
+    {
+      "key": "tier2.opening",
+      "section": "layout",
+      "label": "Opening",
+      "defaultValue": "bifold-left",
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "in": [
+              "rectangle",
+              "arch-over-rectangle"
+            ]
+          },
+          {
+            "field": "nTiers",
+            "gt": 1
+          }
+        ]
+      },
+      "optionsWhen": [
+        {
+          "when": {
+            "field": "tier2.columns",
+            "equals": 1
+          },
+          "allow": [
+            "fixed",
+            "hinge-left",
+            "hinge-right"
+          ],
+          "fallback": "fixed"
+        },
+        {
+          "when": {
+            "field": "tier2.columns",
+            "equals": 2
+          },
+          "allow": [
+            "bifold-left",
+            "bifold-right",
+            "hinge-double",
+            "sliding"
+          ],
+          "fallback": "bifold-left"
+        },
+        {
+          "when": {
+            "field": "tier2.columns",
+            "equals": 3
+          },
+          "allow": [
+            "hinge-2L-1R",
+            "hinge-1L-2R",
+            "hinge-3-left",
+            "hinge-3-right",
+            "sliding"
+          ],
+          "fallback": "hinge-2L-1R"
+        },
+        {
+          "when": {
+            "field": "tier2.columns",
+            "equals": 4
+          },
+          "allow": [
+            "hinge-2L-2R",
+            "hinge-3L-1R",
+            "hinge-1L-3R",
+            "hinge-4L",
+            "hinge-4R",
+            "sliding"
+          ],
+          "fallback": "hinge-2L-2R"
+        }
+      ],
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "fixed",
+            "label": "Fixed"
+          },
+          {
+            "value": "hinge-left",
+            "label": "Hinge L"
+          },
+          {
+            "value": "hinge-right",
+            "label": "Hinge R"
+          },
+          {
+            "value": "bifold-left",
+            "label": "Stack L"
+          },
+          {
+            "value": "bifold-right",
+            "label": "Stack R"
+          },
+          {
+            "value": "hinge-double",
+            "label": "Center pair"
+          },
+          {
+            "value": "sliding",
+            "label": "Bypass"
+          },
+          {
+            "value": "hinge-2L-1R",
+            "label": "2L / 1R"
+          },
+          {
+            "value": "hinge-1L-2R",
+            "label": "1L / 2R"
+          },
+          {
+            "value": "hinge-3-left",
+            "label": "3 Stack L"
+          },
+          {
+            "value": "hinge-3-right",
+            "label": "3 Stack R"
+          },
+          {
+            "value": "hinge-2L-2R",
+            "label": "2L / 2R"
+          },
+          {
+            "value": "hinge-3L-1R",
+            "label": "3L / 1R"
+          },
+          {
+            "value": "hinge-1L-3R",
+            "label": "1L / 3R"
+          },
+          {
+            "value": "hinge-4L",
+            "label": "4 Stack L"
+          },
+          {
+            "value": "hinge-4R",
+            "label": "4 Stack R"
+          }
+        ]
+      }
+    },
+    {
+      "key": "tier2.bypassSystem",
+      "section": "layout",
+      "label": "Bypass system",
+      "defaultValue": "open_louver_bypass",
+      "tier": "advanced",
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "in": [
+              "rectangle",
+              "arch-over-rectangle"
+            ]
+          },
+          {
+            "field": "nTiers",
+            "gt": 1
+          },
+          {
+            "field": "tier2.opening",
+            "equals": "sliding"
+          }
+        ]
+      },
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "closed_bypass",
+            "label": "Closed bypass"
+          },
+          {
+            "value": "open_louver_bypass",
+            "label": "Open louver"
+          },
+          {
+            "value": "triple_track",
+            "label": "Triple track"
+          }
+        ]
+      }
+    },
+    {
+      "key": "tier2.bypassTrackCount",
+      "section": "layout",
+      "label": "Track count",
+      "defaultValue": 2,
+      "tier": "advanced",
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "in": [
+              "rectangle",
+              "arch-over-rectangle"
+            ]
+          },
+          {
+            "field": "nTiers",
+            "gt": 1
+          },
+          {
+            "field": "tier2.opening",
+            "equals": "sliding"
+          }
+        ]
+      },
+      "optionsWhen": [
+        {
+          "when": {
+            "field": "tier2.bypassSystem",
+            "equals": "triple_track"
+          },
+          "allow": [
+            3
+          ],
+          "fallback": 3
+        }
+      ],
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": 2,
+            "label": "2"
+          },
+          {
+            "value": 3,
+            "label": "3"
+          }
+        ]
+      }
+    },
+    {
+      "key": "tier2.bypassSpacing",
+      "section": "layout",
+      "label": "Track spacing",
+      "defaultValue": "open_clear",
+      "tier": "advanced",
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "in": [
+              "rectangle",
+              "arch-over-rectangle"
+            ]
+          },
+          {
+            "field": "nTiers",
+            "gt": 1
+          },
+          {
+            "field": "tier2.opening",
+            "equals": "sliding"
+          }
+        ]
+      },
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "open_clear",
+            "label": "Open-clear (auto)"
+          },
+          {
+            "value": 1.625,
+            "label": "1 5/8 in"
+          },
+          {
+            "value": 2,
+            "label": "2 in"
+          },
+          {
+            "value": 2.5,
+            "label": "2 1/2 in"
+          },
+          {
+            "value": 3,
+            "label": "3 in"
+          },
+          {
+            "value": 3.5,
+            "label": "3 1/2 in"
+          },
+          {
+            "value": 4,
+            "label": "4 in"
+          },
+          {
+            "value": 4.5,
+            "label": "4 1/2 in"
+          },
+          {
+            "value": 5,
+            "label": "5 in"
+          },
+          {
+            "value": 6,
+            "label": "6 in"
+          }
+        ]
+      }
+    },
+    {
+      "key": "tier2.sameFill",
+      "section": "layout",
+      "label": "Same fill for all panels",
+      "defaultValue": true,
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "equals": "rectangle"
+          },
+          {
+            "field": "nTiers",
+            "gt": 1
+          },
+          {
+            "field": "tier2.columns",
+            "gte": 2
+          }
+        ]
+      },
+      "control": {
+        "kind": "toggle"
+      }
+    },
+    {
+      "key": "tier2.fill",
+      "section": "layout",
+      "label": "Panel fill",
+      "defaultValue": "louvered",
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "equals": "rectangle"
+          },
+          {
+            "field": "nTiers",
+            "gt": 1
+          },
+          {
+            "field": "tier2.sameFill",
+            "truthy": true
+          }
+        ]
+      },
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "louvered",
+            "label": "Louvered"
+          },
+          {
+            "value": "solid",
+            "label": "Solid"
+          },
+          {
+            "value": "empty",
+            "label": "Open"
+          }
+        ]
+      }
+    },
+    {
+      "key": "tier2.solidProfile",
+      "section": "layout",
+      "label": "Panel style",
+      "defaultValue": "raised",
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "equals": "rectangle"
+          },
+          {
+            "field": "nTiers",
+            "gt": 1
+          },
+          {
+            "anyOf": [
+              {
+                "allOf": [
+                  {
+                    "field": "tier2.sameFill",
+                    "truthy": true
+                  },
+                  {
+                    "field": "tier2.fill",
+                    "equals": "solid"
+                  }
+                ]
+              },
+              {
+                "allOf": [
+                  {
+                    "field": "tier2.sameFill",
+                    "equals": false
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "allOf": [
+                          {
+                            "field": "tier2.panel1.fill",
+                            "equals": "solid"
+                          },
+                          {
+                            "field": "tier2.columns",
+                            "gte": 1
+                          }
+                        ]
+                      },
+                      {
+                        "allOf": [
+                          {
+                            "field": "tier2.panel2.fill",
+                            "equals": "solid"
+                          },
+                          {
+                            "field": "tier2.columns",
+                            "gte": 2
+                          }
+                        ]
+                      },
+                      {
+                        "allOf": [
+                          {
+                            "field": "tier2.panel3.fill",
+                            "equals": "solid"
+                          },
+                          {
+                            "field": "tier2.columns",
+                            "gte": 3
+                          }
+                        ]
+                      },
+                      {
+                        "allOf": [
+                          {
+                            "field": "tier2.panel4.fill",
+                            "equals": "solid"
+                          },
+                          {
+                            "field": "tier2.columns",
+                            "gte": 4
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "raised",
+            "label": "Raised"
+          },
+          {
+            "value": "flat",
+            "label": "Flat"
+          }
+        ]
+      }
+    },
+    {
+      "key": "tier2.panel1.fill",
+      "section": "layout",
+      "label": "Panel 1",
+      "defaultValue": "louvered",
+      "tier": "advanced",
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "equals": "rectangle"
+          },
+          {
+            "field": "nTiers",
+            "gt": 1
+          },
+          {
+            "allOf": [
+              {
+                "field": "tier2.sameFill",
+                "equals": false
+              },
+              {
+                "field": "tier2.columns",
+                "gte": 1
+              }
+            ]
+          }
+        ]
+      },
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "louvered",
+            "label": "Louvered"
+          },
+          {
+            "value": "solid",
+            "label": "Solid"
+          },
+          {
+            "value": "empty",
+            "label": "Open"
+          }
+        ]
+      }
+    },
+    {
+      "key": "tier2.panel2.fill",
+      "section": "layout",
+      "label": "Panel 2",
+      "defaultValue": "louvered",
+      "tier": "advanced",
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "equals": "rectangle"
+          },
+          {
+            "field": "nTiers",
+            "gt": 1
+          },
+          {
+            "allOf": [
+              {
+                "field": "tier2.sameFill",
+                "equals": false
+              },
+              {
+                "field": "tier2.columns",
+                "gte": 2
+              }
+            ]
+          }
+        ]
+      },
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "louvered",
+            "label": "Louvered"
+          },
+          {
+            "value": "solid",
+            "label": "Solid"
+          },
+          {
+            "value": "empty",
+            "label": "Open"
+          }
+        ]
+      }
+    },
+    {
+      "key": "tier2.panel3.fill",
+      "section": "layout",
+      "label": "Panel 3",
+      "defaultValue": "louvered",
+      "tier": "advanced",
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "equals": "rectangle"
+          },
+          {
+            "field": "nTiers",
+            "gt": 1
+          },
+          {
+            "allOf": [
+              {
+                "field": "tier2.sameFill",
+                "equals": false
+              },
+              {
+                "field": "tier2.columns",
+                "gte": 3
+              }
+            ]
+          }
+        ]
+      },
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "louvered",
+            "label": "Louvered"
+          },
+          {
+            "value": "solid",
+            "label": "Solid"
+          },
+          {
+            "value": "empty",
+            "label": "Open"
+          }
+        ]
+      }
+    },
+    {
+      "key": "tier2.panel4.fill",
+      "section": "layout",
+      "label": "Panel 4",
+      "defaultValue": "louvered",
+      "tier": "advanced",
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "equals": "rectangle"
+          },
+          {
+            "field": "nTiers",
+            "gt": 1
+          },
+          {
+            "allOf": [
+              {
+                "field": "tier2.sameFill",
+                "equals": false
+              },
+              {
+                "field": "tier2.columns",
+                "gte": 4
+              }
+            ]
+          }
+        ]
+      },
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "louvered",
+            "label": "Louvered"
+          },
+          {
+            "value": "solid",
+            "label": "Solid"
+          },
+          {
+            "value": "empty",
+            "label": "Open"
+          }
+        ]
+      }
+    },
+    {
+      "key": "tier2.dividerRail",
+      "section": "layout",
+      "label": "Divider rail",
+      "defaultValue": false,
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "in": [
+              "rectangle",
+              "arch-over-rectangle"
+            ]
+          },
+          {
+            "field": "nTiers",
+            "gt": 1
+          }
+        ]
+      },
+      "control": {
+        "kind": "toggle"
+      }
+    },
+    {
+      "key": "tier2.dividerPos",
+      "section": "layout",
+      "label": "Rail position",
+      "defaultValue": 0.5,
+      "tier": "advanced",
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "in": [
+              "rectangle",
+              "arch-over-rectangle"
+            ]
+          },
+          {
+            "field": "nTiers",
+            "gt": 1
+          },
+          {
+            "field": "tier2.dividerRail",
+            "truthy": true
+          }
+        ]
+      },
+      "control": {
+        "kind": "slider",
+        "min": 0,
+        "max": 1,
+        "step": 0.01
+      }
+    },
+    {
+      "key": "tier2.splitTilt",
+      "section": "louverTilt",
+      "label": "Split tilt",
+      "defaultValue": false,
+      "tier": "advanced",
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "in": [
+              "rectangle",
+              "arch-over-rectangle"
+            ]
+          },
+          {
+            "field": "nTiers",
+            "gt": 1
+          },
+          {
+            "field": "tier2.dividerRail",
+            "truthy": true
+          }
+        ]
+      },
+      "control": {
+        "kind": "toggle"
+      }
+    },
+    {
+      "key": "tier2.upperTilt",
+      "section": "louverTilt",
+      "label": "Upper tilt",
+      "defaultValue": 0.5,
+      "tier": "advanced",
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "in": [
+              "rectangle",
+              "arch-over-rectangle"
+            ]
+          },
+          {
+            "field": "nTiers",
+            "gt": 1
+          },
+          {
+            "field": "tier2.dividerRail",
+            "truthy": true
+          },
+          {
+            "field": "tier2.splitTilt",
+            "truthy": true
+          }
+        ]
+      },
+      "control": {
+        "kind": "slider",
+        "min": 0,
+        "max": 1,
+        "step": 0.01,
+        "format": "percent"
+      }
+    },
+    {
+      "key": "tier2.lowerTilt",
+      "section": "louverTilt",
+      "label": "Lower tilt",
+      "defaultValue": 0.5,
+      "tier": "advanced",
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "in": [
+              "rectangle",
+              "arch-over-rectangle"
+            ]
+          },
+          {
+            "field": "nTiers",
+            "gt": 1
+          },
+          {
+            "field": "tier2.dividerRail",
+            "truthy": true
+          },
+          {
+            "field": "tier2.splitTilt",
+            "truthy": true
+          }
+        ]
+      },
+      "control": {
+        "kind": "slider",
+        "min": 0,
+        "max": 1,
+        "step": 0.01,
+        "format": "percent"
+      }
+    },
+    {
+      "key": "tier2.chordInches",
+      "section": "louverTilt",
+      "label": "Louver size",
+      "defaultValue": 3.5,
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "in": [
+              "rectangle",
+              "arch-over-rectangle",
+              "oval",
+              "irregular"
+            ]
+          },
+          {
+            "field": "nTiers",
+            "gt": 1
+          }
+        ]
+      },
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": 1.5,
+            "label": "1 1/2 in"
+          },
+          {
+            "value": 1.875,
+            "label": "1 7/8 in"
+          },
+          {
+            "value": 2,
+            "label": "2 in"
+          },
+          {
+            "value": 2.5,
+            "label": "2 1/2 in"
+          },
+          {
+            "value": 3,
+            "label": "3 in"
+          },
+          {
+            "value": 3.5,
+            "label": "3 1/2 in"
+          },
+          {
+            "value": 4.5,
+            "label": "4 1/2 in"
+          }
+        ]
+      }
+    },
+    {
+      "key": "tier2.louverTilt",
+      "section": "louverTilt",
+      "label": "Tilt",
+      "defaultValue": 0.5,
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "in": [
+              "rectangle",
+              "arch-over-rectangle",
+              "oval",
+              "irregular"
+            ]
+          },
+          {
+            "field": "nTiers",
+            "gt": 1
+          }
+        ]
+      },
+      "control": {
+        "kind": "slider",
+        "min": 0,
+        "max": 1,
+        "step": 0.01,
+        "format": "percent"
+      }
+    },
+    {
+      "key": "tier2.rodType",
+      "section": "louverTilt",
+      "label": "Tilt rods",
+      "defaultValue": "center",
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "in": [
+              "rectangle",
+              "arch-over-rectangle",
+              "oval"
+            ]
+          },
+          {
+            "field": "nTiers",
+            "gt": 1
+          }
+        ]
+      },
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "none",
+            "label": "None"
+          },
+          {
+            "value": "center",
+            "label": "Center"
+          },
+          {
+            "value": "invisible-left",
+            "label": "Hidden L"
+          },
+          {
+            "value": "invisible-right",
+            "label": "Hidden R"
+          }
+        ]
+      }
+    },
+    {
+      "key": "tier2.rodThicknessMm",
+      "section": "louverTilt",
+      "label": "Rod thickness",
+      "defaultValue": 14,
+      "tier": "advanced",
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "in": [
+              "rectangle",
+              "arch-over-rectangle",
+              "oval"
+            ]
+          },
+          {
+            "field": "nTiers",
+            "gt": 1
+          },
+          {
+            "not": {
+              "field": "tier2.rodType",
+              "equals": "none"
+            }
+          }
+        ]
+      },
+      "control": {
+        "kind": "slider",
+        "min": 6,
+        "max": 20,
+        "step": 1,
+        "unit": "mm",
+        "format": "imperial-from-mm"
+      }
+    },
+    {
+      "key": "tier3.columns",
+      "section": "layout",
+      "label": "Panel number",
+      "defaultValue": 2,
+      "visibleWhen": {
+        "allOf": [
+          {
+            "allOf": [
+              {
+                "field": "shape",
+                "in": [
+                  "rectangle",
+                  "arch-over-rectangle"
+                ]
+              },
+              {
+                "field": "nTiers",
+                "gt": 2
+              }
+            ]
+          },
+          {
+            "not": {
+              "field": "arch.composition",
+              "in": [
+                "half-left",
+                "half-right"
+              ]
+            }
+          }
+        ]
+      },
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": 1,
+            "label": "1"
+          },
+          {
+            "value": 2,
+            "label": "2"
+          },
+          {
+            "value": 3,
+            "label": "3"
+          },
+          {
+            "value": 4,
+            "label": "4"
+          }
+        ]
+      }
+    },
+    {
+      "key": "tier3.opening",
+      "section": "layout",
+      "label": "Opening",
+      "defaultValue": "bifold-left",
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "in": [
+              "rectangle",
+              "arch-over-rectangle"
+            ]
+          },
+          {
+            "field": "nTiers",
+            "gt": 2
+          }
+        ]
+      },
+      "optionsWhen": [
+        {
+          "when": {
+            "field": "tier3.columns",
+            "equals": 1
+          },
+          "allow": [
+            "fixed",
+            "hinge-left",
+            "hinge-right"
+          ],
+          "fallback": "fixed"
+        },
+        {
+          "when": {
+            "field": "tier3.columns",
+            "equals": 2
+          },
+          "allow": [
+            "bifold-left",
+            "bifold-right",
+            "hinge-double",
+            "sliding"
+          ],
+          "fallback": "bifold-left"
+        },
+        {
+          "when": {
+            "field": "tier3.columns",
+            "equals": 3
+          },
+          "allow": [
+            "hinge-2L-1R",
+            "hinge-1L-2R",
+            "hinge-3-left",
+            "hinge-3-right",
+            "sliding"
+          ],
+          "fallback": "hinge-2L-1R"
+        },
+        {
+          "when": {
+            "field": "tier3.columns",
+            "equals": 4
+          },
+          "allow": [
+            "hinge-2L-2R",
+            "hinge-3L-1R",
+            "hinge-1L-3R",
+            "hinge-4L",
+            "hinge-4R",
+            "sliding"
+          ],
+          "fallback": "hinge-2L-2R"
+        }
+      ],
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "fixed",
+            "label": "Fixed"
+          },
+          {
+            "value": "hinge-left",
+            "label": "Hinge L"
+          },
+          {
+            "value": "hinge-right",
+            "label": "Hinge R"
+          },
+          {
+            "value": "bifold-left",
+            "label": "Stack L"
+          },
+          {
+            "value": "bifold-right",
+            "label": "Stack R"
+          },
+          {
+            "value": "hinge-double",
+            "label": "Center pair"
+          },
+          {
+            "value": "sliding",
+            "label": "Bypass"
+          },
+          {
+            "value": "hinge-2L-1R",
+            "label": "2L / 1R"
+          },
+          {
+            "value": "hinge-1L-2R",
+            "label": "1L / 2R"
+          },
+          {
+            "value": "hinge-3-left",
+            "label": "3 Stack L"
+          },
+          {
+            "value": "hinge-3-right",
+            "label": "3 Stack R"
+          },
+          {
+            "value": "hinge-2L-2R",
+            "label": "2L / 2R"
+          },
+          {
+            "value": "hinge-3L-1R",
+            "label": "3L / 1R"
+          },
+          {
+            "value": "hinge-1L-3R",
+            "label": "1L / 3R"
+          },
+          {
+            "value": "hinge-4L",
+            "label": "4 Stack L"
+          },
+          {
+            "value": "hinge-4R",
+            "label": "4 Stack R"
+          }
+        ]
+      }
+    },
+    {
+      "key": "tier3.bypassSystem",
+      "section": "layout",
+      "label": "Bypass system",
+      "defaultValue": "open_louver_bypass",
+      "tier": "advanced",
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "in": [
+              "rectangle",
+              "arch-over-rectangle"
+            ]
+          },
+          {
+            "field": "nTiers",
+            "gt": 2
+          },
+          {
+            "field": "tier3.opening",
+            "equals": "sliding"
+          }
+        ]
+      },
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "closed_bypass",
+            "label": "Closed bypass"
+          },
+          {
+            "value": "open_louver_bypass",
+            "label": "Open louver"
+          },
+          {
+            "value": "triple_track",
+            "label": "Triple track"
+          }
+        ]
+      }
+    },
+    {
+      "key": "tier3.bypassTrackCount",
+      "section": "layout",
+      "label": "Track count",
+      "defaultValue": 2,
+      "tier": "advanced",
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "in": [
+              "rectangle",
+              "arch-over-rectangle"
+            ]
+          },
+          {
+            "field": "nTiers",
+            "gt": 2
+          },
+          {
+            "field": "tier3.opening",
+            "equals": "sliding"
+          }
+        ]
+      },
+      "optionsWhen": [
+        {
+          "when": {
+            "field": "tier3.bypassSystem",
+            "equals": "triple_track"
+          },
+          "allow": [
+            3
+          ],
+          "fallback": 3
+        }
+      ],
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": 2,
+            "label": "2"
+          },
+          {
+            "value": 3,
+            "label": "3"
+          }
+        ]
+      }
+    },
+    {
+      "key": "tier3.bypassSpacing",
+      "section": "layout",
+      "label": "Track spacing",
+      "defaultValue": "open_clear",
+      "tier": "advanced",
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "in": [
+              "rectangle",
+              "arch-over-rectangle"
+            ]
+          },
+          {
+            "field": "nTiers",
+            "gt": 2
+          },
+          {
+            "field": "tier3.opening",
+            "equals": "sliding"
+          }
+        ]
+      },
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "open_clear",
+            "label": "Open-clear (auto)"
+          },
+          {
+            "value": 1.625,
+            "label": "1 5/8 in"
+          },
+          {
+            "value": 2,
+            "label": "2 in"
+          },
+          {
+            "value": 2.5,
+            "label": "2 1/2 in"
+          },
+          {
+            "value": 3,
+            "label": "3 in"
+          },
+          {
+            "value": 3.5,
+            "label": "3 1/2 in"
+          },
+          {
+            "value": 4,
+            "label": "4 in"
+          },
+          {
+            "value": 4.5,
+            "label": "4 1/2 in"
+          },
+          {
+            "value": 5,
+            "label": "5 in"
+          },
+          {
+            "value": 6,
+            "label": "6 in"
+          }
+        ]
+      }
+    },
+    {
+      "key": "tier3.sameFill",
+      "section": "layout",
+      "label": "Same fill for all panels",
+      "defaultValue": true,
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "equals": "rectangle"
+          },
+          {
+            "field": "nTiers",
+            "gt": 2
+          },
+          {
+            "field": "tier3.columns",
+            "gte": 2
+          }
+        ]
+      },
+      "control": {
+        "kind": "toggle"
+      }
+    },
+    {
+      "key": "tier3.fill",
+      "section": "layout",
+      "label": "Panel fill",
+      "defaultValue": "louvered",
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "equals": "rectangle"
+          },
+          {
+            "field": "nTiers",
+            "gt": 2
+          },
+          {
+            "field": "tier3.sameFill",
+            "truthy": true
+          }
+        ]
+      },
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "louvered",
+            "label": "Louvered"
+          },
+          {
+            "value": "solid",
+            "label": "Solid"
+          },
+          {
+            "value": "empty",
+            "label": "Open"
+          }
+        ]
+      }
+    },
+    {
+      "key": "tier3.solidProfile",
+      "section": "layout",
+      "label": "Panel style",
+      "defaultValue": "raised",
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "equals": "rectangle"
+          },
+          {
+            "field": "nTiers",
+            "gt": 2
+          },
+          {
+            "anyOf": [
+              {
+                "allOf": [
+                  {
+                    "field": "tier3.sameFill",
+                    "truthy": true
+                  },
+                  {
+                    "field": "tier3.fill",
+                    "equals": "solid"
+                  }
+                ]
+              },
+              {
+                "allOf": [
+                  {
+                    "field": "tier3.sameFill",
+                    "equals": false
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "allOf": [
+                          {
+                            "field": "tier3.panel1.fill",
+                            "equals": "solid"
+                          },
+                          {
+                            "field": "tier3.columns",
+                            "gte": 1
+                          }
+                        ]
+                      },
+                      {
+                        "allOf": [
+                          {
+                            "field": "tier3.panel2.fill",
+                            "equals": "solid"
+                          },
+                          {
+                            "field": "tier3.columns",
+                            "gte": 2
+                          }
+                        ]
+                      },
+                      {
+                        "allOf": [
+                          {
+                            "field": "tier3.panel3.fill",
+                            "equals": "solid"
+                          },
+                          {
+                            "field": "tier3.columns",
+                            "gte": 3
+                          }
+                        ]
+                      },
+                      {
+                        "allOf": [
+                          {
+                            "field": "tier3.panel4.fill",
+                            "equals": "solid"
+                          },
+                          {
+                            "field": "tier3.columns",
+                            "gte": 4
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "raised",
+            "label": "Raised"
+          },
+          {
+            "value": "flat",
+            "label": "Flat"
+          }
+        ]
+      }
+    },
+    {
+      "key": "tier3.panel1.fill",
+      "section": "layout",
+      "label": "Panel 1",
+      "defaultValue": "louvered",
+      "tier": "advanced",
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "equals": "rectangle"
+          },
+          {
+            "field": "nTiers",
+            "gt": 2
+          },
+          {
+            "allOf": [
+              {
+                "field": "tier3.sameFill",
+                "equals": false
+              },
+              {
+                "field": "tier3.columns",
+                "gte": 1
+              }
+            ]
+          }
+        ]
+      },
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "louvered",
+            "label": "Louvered"
+          },
+          {
+            "value": "solid",
+            "label": "Solid"
+          },
+          {
+            "value": "empty",
+            "label": "Open"
+          }
+        ]
+      }
+    },
+    {
+      "key": "tier3.panel2.fill",
+      "section": "layout",
+      "label": "Panel 2",
+      "defaultValue": "louvered",
+      "tier": "advanced",
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "equals": "rectangle"
+          },
+          {
+            "field": "nTiers",
+            "gt": 2
+          },
+          {
+            "allOf": [
+              {
+                "field": "tier3.sameFill",
+                "equals": false
+              },
+              {
+                "field": "tier3.columns",
+                "gte": 2
+              }
+            ]
+          }
+        ]
+      },
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "louvered",
+            "label": "Louvered"
+          },
+          {
+            "value": "solid",
+            "label": "Solid"
+          },
+          {
+            "value": "empty",
+            "label": "Open"
+          }
+        ]
+      }
+    },
+    {
+      "key": "tier3.panel3.fill",
+      "section": "layout",
+      "label": "Panel 3",
+      "defaultValue": "louvered",
+      "tier": "advanced",
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "equals": "rectangle"
+          },
+          {
+            "field": "nTiers",
+            "gt": 2
+          },
+          {
+            "allOf": [
+              {
+                "field": "tier3.sameFill",
+                "equals": false
+              },
+              {
+                "field": "tier3.columns",
+                "gte": 3
+              }
+            ]
+          }
+        ]
+      },
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "louvered",
+            "label": "Louvered"
+          },
+          {
+            "value": "solid",
+            "label": "Solid"
+          },
+          {
+            "value": "empty",
+            "label": "Open"
+          }
+        ]
+      }
+    },
+    {
+      "key": "tier3.panel4.fill",
+      "section": "layout",
+      "label": "Panel 4",
+      "defaultValue": "louvered",
+      "tier": "advanced",
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "equals": "rectangle"
+          },
+          {
+            "field": "nTiers",
+            "gt": 2
+          },
+          {
+            "allOf": [
+              {
+                "field": "tier3.sameFill",
+                "equals": false
+              },
+              {
+                "field": "tier3.columns",
+                "gte": 4
+              }
+            ]
+          }
+        ]
+      },
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "louvered",
+            "label": "Louvered"
+          },
+          {
+            "value": "solid",
+            "label": "Solid"
+          },
+          {
+            "value": "empty",
+            "label": "Open"
+          }
+        ]
+      }
+    },
+    {
+      "key": "tier3.dividerRail",
+      "section": "layout",
+      "label": "Divider rail",
+      "defaultValue": false,
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "in": [
+              "rectangle",
+              "arch-over-rectangle"
+            ]
+          },
+          {
+            "field": "nTiers",
+            "gt": 2
+          }
+        ]
+      },
+      "control": {
+        "kind": "toggle"
+      }
+    },
+    {
+      "key": "tier3.dividerPos",
+      "section": "layout",
+      "label": "Rail position",
+      "defaultValue": 0.5,
+      "tier": "advanced",
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "in": [
+              "rectangle",
+              "arch-over-rectangle"
+            ]
+          },
+          {
+            "field": "nTiers",
+            "gt": 2
+          },
+          {
+            "field": "tier3.dividerRail",
+            "truthy": true
+          }
+        ]
+      },
+      "control": {
+        "kind": "slider",
+        "min": 0,
+        "max": 1,
+        "step": 0.01
+      }
+    },
+    {
+      "key": "tier3.splitTilt",
+      "section": "louverTilt",
+      "label": "Split tilt",
+      "defaultValue": false,
+      "tier": "advanced",
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "in": [
+              "rectangle",
+              "arch-over-rectangle"
+            ]
+          },
+          {
+            "field": "nTiers",
+            "gt": 2
+          },
+          {
+            "field": "tier3.dividerRail",
+            "truthy": true
+          }
+        ]
+      },
+      "control": {
+        "kind": "toggle"
+      }
+    },
+    {
+      "key": "tier3.upperTilt",
+      "section": "louverTilt",
+      "label": "Upper tilt",
+      "defaultValue": 0.5,
+      "tier": "advanced",
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "in": [
+              "rectangle",
+              "arch-over-rectangle"
+            ]
+          },
+          {
+            "field": "nTiers",
+            "gt": 2
+          },
+          {
+            "field": "tier3.dividerRail",
+            "truthy": true
+          },
+          {
+            "field": "tier3.splitTilt",
+            "truthy": true
+          }
+        ]
+      },
+      "control": {
+        "kind": "slider",
+        "min": 0,
+        "max": 1,
+        "step": 0.01,
+        "format": "percent"
+      }
+    },
+    {
+      "key": "tier3.lowerTilt",
+      "section": "louverTilt",
+      "label": "Lower tilt",
+      "defaultValue": 0.5,
+      "tier": "advanced",
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "in": [
+              "rectangle",
+              "arch-over-rectangle"
+            ]
+          },
+          {
+            "field": "nTiers",
+            "gt": 2
+          },
+          {
+            "field": "tier3.dividerRail",
+            "truthy": true
+          },
+          {
+            "field": "tier3.splitTilt",
+            "truthy": true
+          }
+        ]
+      },
+      "control": {
+        "kind": "slider",
+        "min": 0,
+        "max": 1,
+        "step": 0.01,
+        "format": "percent"
+      }
+    },
+    {
+      "key": "tier3.chordInches",
+      "section": "louverTilt",
+      "label": "Louver size",
+      "defaultValue": 3.5,
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "in": [
+              "rectangle",
+              "arch-over-rectangle",
+              "oval",
+              "irregular"
+            ]
+          },
+          {
+            "field": "nTiers",
+            "gt": 2
+          }
+        ]
+      },
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": 1.5,
+            "label": "1 1/2 in"
+          },
+          {
+            "value": 1.875,
+            "label": "1 7/8 in"
+          },
+          {
+            "value": 2,
+            "label": "2 in"
+          },
+          {
+            "value": 2.5,
+            "label": "2 1/2 in"
+          },
+          {
+            "value": 3,
+            "label": "3 in"
+          },
+          {
+            "value": 3.5,
+            "label": "3 1/2 in"
+          },
+          {
+            "value": 4.5,
+            "label": "4 1/2 in"
+          }
+        ]
+      }
+    },
+    {
+      "key": "tier3.louverTilt",
+      "section": "louverTilt",
+      "label": "Tilt",
+      "defaultValue": 0.5,
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "in": [
+              "rectangle",
+              "arch-over-rectangle",
+              "oval",
+              "irregular"
+            ]
+          },
+          {
+            "field": "nTiers",
+            "gt": 2
+          }
+        ]
+      },
+      "control": {
+        "kind": "slider",
+        "min": 0,
+        "max": 1,
+        "step": 0.01,
+        "format": "percent"
+      }
+    },
+    {
+      "key": "tier3.rodType",
+      "section": "louverTilt",
+      "label": "Tilt rods",
+      "defaultValue": "center",
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "in": [
+              "rectangle",
+              "arch-over-rectangle",
+              "oval"
+            ]
+          },
+          {
+            "field": "nTiers",
+            "gt": 2
+          }
+        ]
+      },
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "none",
+            "label": "None"
+          },
+          {
+            "value": "center",
+            "label": "Center"
+          },
+          {
+            "value": "invisible-left",
+            "label": "Hidden L"
+          },
+          {
+            "value": "invisible-right",
+            "label": "Hidden R"
+          }
+        ]
+      }
+    },
+    {
+      "key": "tier3.rodThicknessMm",
+      "section": "louverTilt",
+      "label": "Rod thickness",
+      "defaultValue": 14,
+      "tier": "advanced",
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "shape",
+            "in": [
+              "rectangle",
+              "arch-over-rectangle",
+              "oval"
+            ]
+          },
+          {
+            "field": "nTiers",
+            "gt": 2
+          },
+          {
+            "not": {
+              "field": "tier3.rodType",
+              "equals": "none"
+            }
+          }
+        ]
+      },
+      "control": {
+        "kind": "slider",
+        "min": 6,
+        "max": 20,
+        "step": 1,
+        "unit": "mm",
+        "format": "imperial-from-mm"
+      }
+    },
+    {
+      "key": "panelSwing",
+      "section": "louverTilt",
+      "label": "Swing",
+      "defaultValue": 0,
+      "visibleWhen": {
+        "field": "shape",
+        "in": [
+          "rectangle",
+          "arch-over-rectangle"
+        ]
+      },
+      "control": {
+        "kind": "slider",
+        "min": 0,
+        "max": 1,
+        "step": 0.01,
+        "format": "percent"
+      }
+    }
+  ]
+}

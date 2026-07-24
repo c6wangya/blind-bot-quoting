@@ -1,0 +1,186 @@
+{
+  "$comment": "DRAFT (Yan 2026-07-24, for Damon review). Commercial extension fields merged into product templates at seed time, alongside the render3d exports (render3d-*.json). Same TemplateField shape as render3d VariationDescriptor, origin='commercial'. Field keys camelCase; select value tokens snake_case following blind-bot EnumSpec canonical form where an axis exists. Evidence source: anchor customer's 11 order workbooks (motor/remote tables, accessory columns). importOverrides: excludeFields removes render3d fields that the quoting platform models elsewhere (dimensions are line-item fields in inches, not variations; free-text remoteBrand/remoteType are superseded by the structured motor chain below).",
+  "roller_shade": {
+    "importOverrides": {
+      "excludeFields": ["shadeWidth", "shadeDrop", "remoteBrand", "remoteType"]
+    },
+    "dimensions": [
+      { "key": "width", "label": "Width", "unit": "in", "min": 7, "max": 144, "step": 0.125, "display": "fraction_8th" },
+      { "key": "height", "label": "Height", "unit": "in", "min": 10, "max": 144, "step": 0.125, "display": "fraction_8th" }
+    ],
+    "sections": [
+      { "key": "motorization", "label": "Motorization", "visibleWhen": { "field": "control", "equals": "MOTORIZED" } },
+      { "key": "accessories", "label": "Accessories" }
+    ],
+    "fields": [
+      {
+        "key": "motorBrand", "label": "Motor Brand", "section": "motorization", "origin": "commercial",
+        "control": { "kind": "select", "options": [
+          { "value": "alpha", "label": "Alpha" },
+          { "value": "aok", "label": "AOK" },
+          { "value": "somfy", "label": "Somfy" },
+          { "value": "rollease", "label": "Rollease" },
+          { "value": "simple_touch", "label": "Simple Touch" },
+          { "value": "dooya", "label": "Dooya" }
+        ] },
+        "defaultValue": "alpha",
+        "visibleWhen": { "field": "control", "equals": "MOTORIZED" }
+      },
+      {
+        "key": "motorModel", "label": "Motor Model", "section": "motorization", "origin": "commercial",
+        "$comment": "Org narrows allowedValues to the models it stocks; labels/prices org-specific. Seed list from anchor workbooks.",
+        "control": { "kind": "select", "options": [
+          { "value": "battery_m", "label": "Battery (M)" },
+          { "value": "battery_l", "label": "Battery (L)" },
+          { "value": "wired_110v", "label": "Wired 110V" },
+          { "value": "low_volt_24v", "label": "Low Volt 24V" },
+          { "value": "battery_wand", "label": "Battery Wand" },
+          { "value": "solar", "label": "Solar" }
+        ] },
+        "defaultValue": "battery_m",
+        "visibleWhen": { "field": "control", "equals": "MOTORIZED" }
+      },
+      {
+        "key": "remoteChannels", "label": "Remote", "section": "motorization", "origin": "commercial",
+        "control": { "kind": "select", "options": [
+          { "value": "none", "label": "No Remote" },
+          { "value": "1ch", "label": "1 Channel" },
+          { "value": "2ch", "label": "2 Channel" },
+          { "value": "4ch", "label": "4 Channel" },
+          { "value": "5ch", "label": "5 Channel" },
+          { "value": "6ch", "label": "6 Channel" },
+          { "value": "8ch", "label": "8 Channel" },
+          { "value": "15ch", "label": "15 Channel" },
+          { "value": "16ch", "label": "16 Channel" }
+        ] },
+        "defaultValue": "1ch",
+        "visibleWhen": { "field": "control", "equals": "MOTORIZED" }
+      },
+      {
+        "key": "remoteChannelAssign", "label": "Assign Channel #", "section": "motorization", "origin": "commercial",
+        "control": { "kind": "text", "placeholder": "e.g. CH3" },
+        "defaultValue": "",
+        "visibleWhen": { "field": "control", "equals": "MOTORIZED" }
+      },
+      {
+        "key": "batteryPack", "label": "External Battery Pack", "section": "motorization", "origin": "commercial",
+        "control": { "kind": "toggle" }, "defaultValue": false,
+        "visibleWhen": { "field": "control", "equals": "MOTORIZED" }
+      },
+      {
+        "key": "charger", "label": "Charger", "section": "motorization", "origin": "commercial",
+        "control": { "kind": "select", "options": [
+          { "value": "none", "label": "None" },
+          { "value": "wall_charger", "label": "Wall Charger" },
+          { "value": "usb_10ft", "label": "10ft USB Charger" },
+          { "value": "usb_18ft", "label": "18ft USB Charger" },
+          { "value": "solar_panel", "label": "Solar Panel" }
+        ] },
+        "defaultValue": "none",
+        "visibleWhen": { "field": "control", "equals": "MOTORIZED" }
+      },
+      {
+        "key": "smartHub", "label": "Smart Hub", "section": "motorization", "origin": "commercial",
+        "control": { "kind": "toggle" }, "defaultValue": false,
+        "visibleWhen": { "field": "control", "equals": "MOTORIZED" }
+      },
+      {
+        "key": "holdDownMagnet", "label": "Hold Down (Magnet)", "section": "accessories", "origin": "commercial",
+        "control": { "kind": "toggle" }, "defaultValue": false
+      }
+    ]
+  },
+  "banded_shade": {
+    "$comment": "Zebra/banded shade — render3d line 'zebra_shade', subcategory key 'banded_shade'. Same motorization chain as roller.",
+    "render3dLine": "zebra_shade",
+    "importOverrides": {
+      "excludeFields": ["shadeWidth", "shadeDrop", "shadeState"]
+    },
+    "dimensions": [
+      { "key": "width", "label": "Width", "unit": "in", "min": 12, "max": 102, "step": 0.125, "display": "fraction_8th" },
+      { "key": "height", "label": "Height", "unit": "in", "min": 12, "max": 96, "step": 0.125, "display": "fraction_8th" }
+    ],
+    "sections": [
+      { "key": "motorization", "label": "Motorization", "visibleWhen": { "field": "control", "equals": "MOTORIZED" } }
+    ],
+    "fields": [
+      { "$ref": "roller_shade.motorBrand" },
+      { "$ref": "roller_shade.motorModel" },
+      { "$ref": "roller_shade.remoteChannels" },
+      { "$ref": "roller_shade.remoteChannelAssign" },
+      { "$ref": "roller_shade.batteryPack" },
+      { "$ref": "roller_shade.charger" },
+      { "$ref": "roller_shade.smartHub" }
+    ]
+  },
+  "plantation_shutter": {
+    "importOverrides": { "excludeFields": [] },
+    "dimensions": [
+      { "key": "width", "label": "Width", "unit": "in", "min": 7, "max": 204, "step": 0.125, "display": "fraction_8th" },
+      { "key": "height", "label": "Height", "unit": "in", "min": 10, "max": 118, "step": 0.125, "display": "fraction_8th" }
+    ],
+    "sections": [
+      { "key": "installationDetails", "label": "Installation Details" }
+    ],
+    "fields": [
+      {
+        "key": "sillCut", "label": "Sill Cut", "section": "installationDetails", "origin": "commercial",
+        "$comment": "Anchor workbooks allow multiple sides; v1 single-select, multi-select is a follow-up.",
+        "control": { "kind": "select", "options": [
+          { "value": "none", "label": "None" },
+          { "value": "sill_top", "label": "Sill Top" },
+          { "value": "sill_bottom", "label": "Sill Bottom" },
+          { "value": "sill_left", "label": "Sill Left" },
+          { "value": "sill_right", "label": "Sill Right" }
+        ] },
+        "defaultValue": "none"
+      },
+      {
+        "key": "frenchDoorCutout", "label": "French Door Cutout", "section": "installationDetails", "origin": "commercial",
+        "control": { "kind": "toggle" }, "defaultValue": false
+      },
+      {
+        "key": "hingeColor", "label": "Hinge Color", "section": "installationDetails", "origin": "commercial",
+        "control": { "kind": "select", "options": [
+          { "value": "factory_match", "label": "Factory Match" },
+          { "value": "white", "label": "White" },
+          { "value": "off_white", "label": "Off White" },
+          { "value": "stainless", "label": "Stainless Steel" },
+          { "value": "black", "label": "Black" }
+        ] },
+        "defaultValue": "factory_match"
+      }
+    ]
+  },
+  "drapery_panel": {
+    "$comment": "render3d line 'drapery'. Extensions from the anchor customer's curtain/Romalux workbooks.",
+    "render3dLine": "drapery",
+    "importOverrides": { "excludeFields": ["coverageWidth", "finishedHeight"] },
+    "dimensions": [
+      { "key": "width", "label": "Width", "unit": "in", "min": 12, "max": 300, "step": 0.125, "display": "fraction_8th" },
+      { "key": "height", "label": "Height", "unit": "in", "min": 24, "max": 270, "step": 0.125, "display": "fraction_8th" }
+    ],
+    "sections": [
+      { "key": "fabrication", "label": "Fabrication" }
+    ],
+    "fields": [
+      {
+        "key": "lining", "label": "Lining", "section": "fabrication", "origin": "commercial",
+        "control": { "kind": "select", "options": [
+          { "value": "unlined", "label": "Unlined" },
+          { "value": "privacy_lining", "label": "Privacy Lining" },
+          { "value": "blackout_lining", "label": "Blackout Lining" }
+        ] },
+        "defaultValue": "unlined"
+      },
+      {
+        "key": "sheerLayer", "label": "Sheer Layer", "section": "fabrication", "origin": "commercial",
+        "control": { "kind": "toggle" }, "defaultValue": false
+      },
+      {
+        "key": "tieback", "label": "Matching Tieback", "section": "fabrication", "origin": "commercial",
+        "control": { "kind": "toggle" }, "defaultValue": false
+      }
+    ]
+  }
+}

@@ -1,0 +1,305 @@
+{
+  "exportedAt": "2026-07-24T01:57:37.455Z",
+  "engineVersion": "1.0",
+  "productLine": "drapery",
+  "label": "Drapery",
+  "schemaVersion": 3,
+  "sections": [
+    {
+      "key": "rod",
+      "label": "Rod & Hardware"
+    },
+    {
+      "key": "fabric",
+      "label": "Fabric & Heading"
+    },
+    {
+      "key": "dimensions",
+      "label": "Dimensions"
+    },
+    {
+      "key": "operation",
+      "label": "Operation"
+    }
+  ],
+  "defaults": {
+    "rodStyle": "pole",
+    "rodDiameter": 0.035,
+    "rodFinish": "brushed_nickel",
+    "finialType": "ball",
+    "rodOverage": 0.2,
+    "fabric": "linen",
+    "fabricColor": "#cdbfa2",
+    "headingStyle": "ripplefold",
+    "fullness": 2.5,
+    "panelMode": "pair",
+    "coverageWidth": 2,
+    "finishedHeight": 2.4,
+    "floorClearance": 0,
+    "position": 0
+  },
+  "rules": [],
+  "variations": [
+    {
+      "key": "rodStyle",
+      "section": "rod",
+      "label": "Rod style",
+      "defaultValue": "pole",
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "pole",
+            "label": "Pole"
+          },
+          {
+            "value": "track",
+            "label": "Track"
+          }
+        ]
+      }
+    },
+    {
+      "key": "rodDiameter",
+      "section": "rod",
+      "label": "Rod diameter",
+      "defaultValue": 0.035,
+      "visibleWhen": {
+        "field": "rodStyle",
+        "equals": "pole"
+      },
+      "control": {
+        "kind": "slider",
+        "min": 0.019,
+        "max": 0.051,
+        "step": 0.002,
+        "unit": "m"
+      }
+    },
+    {
+      "key": "rodFinish",
+      "section": "rod",
+      "label": "Rod finish",
+      "defaultValue": "brushed_nickel",
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "matte_black",
+            "label": "Matte Black"
+          },
+          {
+            "value": "brushed_nickel",
+            "label": "Brushed Nickel"
+          },
+          {
+            "value": "brass",
+            "label": "Brass"
+          }
+        ]
+      }
+    },
+    {
+      "key": "finialType",
+      "section": "rod",
+      "label": "Finial",
+      "defaultValue": "ball",
+      "visibleWhen": {
+        "field": "rodStyle",
+        "equals": "pole"
+      },
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "ball",
+            "label": "Ball"
+          },
+          {
+            "value": "spear",
+            "label": "Spear"
+          },
+          {
+            "value": "cap",
+            "label": "End Cap"
+          },
+          {
+            "value": "none",
+            "label": "None"
+          }
+        ]
+      }
+    },
+    {
+      "key": "rodOverage",
+      "section": "rod",
+      "label": "Rod overage",
+      "defaultValue": 0.2,
+      "description": "Rod extension beyond the covered width, per side",
+      "control": {
+        "kind": "slider",
+        "min": 0,
+        "max": 0.4,
+        "step": 0.02,
+        "unit": "m"
+      }
+    },
+    {
+      "key": "fabric",
+      "section": "fabric",
+      "label": "Fabric",
+      "defaultValue": "linen",
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "sheer",
+            "label": "Sheer"
+          },
+          {
+            "value": "linen",
+            "label": "Linen"
+          },
+          {
+            "value": "velvet",
+            "label": "Velvet"
+          },
+          {
+            "value": "blackout",
+            "label": "Blackout"
+          }
+        ]
+      }
+    },
+    {
+      "key": "fabricColor",
+      "section": "fabric",
+      "label": "Fabric color",
+      "defaultValue": "#cdbfa2",
+      "control": {
+        "kind": "color"
+      }
+    },
+    {
+      "key": "headingStyle",
+      "section": "fabric",
+      "label": "Heading style",
+      "defaultValue": "ripplefold",
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "ripplefold",
+            "label": "Ripplefold"
+          },
+          {
+            "value": "pinch_pleat",
+            "label": "Pinch Pleat"
+          },
+          {
+            "value": "grommet",
+            "label": "Grommet"
+          }
+        ]
+      }
+    },
+    {
+      "key": "fullness",
+      "section": "fabric",
+      "label": "Fullness",
+      "defaultValue": 2.5,
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": 2,
+            "label": "2.0×"
+          },
+          {
+            "value": 2.5,
+            "label": "2.5×"
+          },
+          {
+            "value": 3,
+            "label": "3.0×"
+          }
+        ]
+      }
+    },
+    {
+      "key": "panelMode",
+      "section": "fabric",
+      "label": "Panels",
+      "defaultValue": "pair",
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "pair",
+            "label": "Pair"
+          },
+          {
+            "value": "single_left",
+            "label": "Single (Left)"
+          },
+          {
+            "value": "single_right",
+            "label": "Single (Right)"
+          }
+        ]
+      }
+    },
+    {
+      "key": "coverageWidth",
+      "section": "dimensions",
+      "label": "Coverage width",
+      "defaultValue": 2,
+      "control": {
+        "kind": "slider",
+        "min": 1,
+        "max": 4,
+        "step": 0.05,
+        "unit": "m"
+      }
+    },
+    {
+      "key": "finishedHeight",
+      "section": "dimensions",
+      "label": "Finished height",
+      "defaultValue": 2.4,
+      "control": {
+        "kind": "slider",
+        "min": 1,
+        "max": 3.2,
+        "step": 0.05,
+        "unit": "m"
+      }
+    },
+    {
+      "key": "floorClearance",
+      "section": "dimensions",
+      "label": "Floor clearance",
+      "defaultValue": 0,
+      "control": {
+        "kind": "slider",
+        "min": 0,
+        "max": 0.3,
+        "step": 0.01,
+        "unit": "m"
+      }
+    },
+    {
+      "key": "position",
+      "section": "operation",
+      "label": "Draw position",
+      "defaultValue": 0,
+      "description": "0 = fully closed (drawn), 1 = fully open (stacked)",
+      "control": {
+        "kind": "slider",
+        "min": 0,
+        "max": 1,
+        "step": 0.01
+      }
+    }
+  ]
+}

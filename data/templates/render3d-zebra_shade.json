@@ -1,0 +1,1130 @@
+{
+  "exportedAt": "2026-07-24T01:57:37.455Z",
+  "engineVersion": "1.0",
+  "productLine": "zebra_shade",
+  "label": "Zebra Shade",
+  "schemaVersion": 3,
+  "sections": [
+    {
+      "key": "topStyle",
+      "label": "Top Style"
+    },
+    {
+      "key": "topFabric",
+      "label": "Top Fabric",
+      "visibleWhen": {
+        "anyOf": [
+          {
+            "field": "topTreatment",
+            "equals": "VALANCE"
+          },
+          {
+            "allOf": [
+              {
+                "field": "frontFabric",
+                "truthy": true
+              },
+              {
+                "field": "topTreatment",
+                "in": [
+                  "CASSETTE_SQUARE",
+                  "CASSETTE_ROUND"
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "key": "fabricPanel",
+      "label": "Fabric Panel & Bands"
+    },
+    {
+      "key": "bottomRail",
+      "label": "Bottom Rail"
+    },
+    {
+      "key": "controlType",
+      "label": "Control Type"
+    },
+    {
+      "key": "mountRelated",
+      "label": "Mount Related"
+    },
+    {
+      "key": "viewer",
+      "label": "Viewer"
+    }
+  ],
+  "defaults": {
+    "topTreatment": "CASSETTE_ROUND",
+    "cassetteSize": "3",
+    "fasciaSize": "4",
+    "fasciaTopCap": true,
+    "valanceHeight": 0.1143,
+    "valanceSideCover": true,
+    "valanceDepth": 0.0762,
+    "topColor": "#eee8dc",
+    "endCapColor": "#eee8dc",
+    "frontFabric": true,
+    "rollDirection": "STANDARD",
+    "topFabricIndependent": false,
+    "topFabricColor": "#e7dfcf",
+    "topFabricTexture": "/default-pattern.png",
+    "topFabricTexSize": 0.3,
+    "fabricColor": "#e7dfcf",
+    "fabricTexture": "/default-pattern.png",
+    "texSize": 0.3,
+    "bandPatternsShared": false,
+    "sheerBandTexture": "/patterns/S_07_3962.png",
+    "sheerBandTexSize": 0.3,
+    "bandSize": "WIDE_3P5",
+    "sheerBandOpacity": "VERY_SHEER",
+    "bandPitch": 0.153,
+    "solidRatio": 0.58,
+    "sheerOpacity": 0.1,
+    "hembarStyle": "WRAPPED",
+    "hembarColor": "#c6c4be",
+    "control": "CORDLESS",
+    "controlSide": "RIGHT",
+    "cordPct": 0.56,
+    "chainStyle": "CORD",
+    "chainMaterial": "PLASTIC",
+    "chainColor": "#f0ece2",
+    "tensionerColor": "#e5e0d5",
+    "breakaway": false,
+    "motorPower": "IN_TUBE",
+    "antenna": false,
+    "wandLength": 0.6,
+    "wandMaterial": "METAL",
+    "wandColor": "#a0a2a8",
+    "mount": "INSIDE",
+    "shadeWidth": 1.45,
+    "shadeDrop": 1.1,
+    "openness": 1,
+    "shadeState": 1
+  },
+  "rules": [
+    {
+      "id": "enter-nofrontfabric-top",
+      "trigger": "onEnter",
+      "when": {
+        "field": "topTreatment",
+        "in": [
+          "OPEN_ROLL",
+          "FASCIA",
+          "ROUND_FASCIA",
+          "VALANCE",
+          "HIDDEN_ROLL"
+        ]
+      },
+      "description": "Fascia/valance/open-roll/hidden-roll expose no cassette interior — front fabric locks off (handleTopGroup)",
+      "set": {
+        "frontFabric": false
+      }
+    },
+    {
+      "id": "enter-exposed-hembar-seed",
+      "trigger": "onEnter",
+      "when": {
+        "field": "hembarStyle",
+        "in": [
+          "STANDARD",
+          "INSERT",
+          "EXTERNAL_OVAL"
+        ]
+      },
+      "description": "Entering an exposed rail family from a non-exposed one seeds the rail color from the housing color",
+      "copy": {
+        "hembarColor": "topColor"
+      }
+    },
+    {
+      "id": "enter-independent-top-fabric-seed",
+      "trigger": "onEnter",
+      "when": {
+        "field": "topFabricIndependent",
+        "truthy": true
+      },
+      "description": "Independent top fabric starts from the current panel fabric (handleTopFabricIndependent)",
+      "copy": {
+        "topFabricColor": "fabricColor",
+        "topFabricTexture": "fabricTexture",
+        "topFabricTexSize": "texSize"
+      }
+    },
+    {
+      "id": "round-top-standard-roll",
+      "trigger": "always",
+      "when": {
+        "field": "topTreatment",
+        "in": [
+          "CASSETTE_ROUND",
+          "ROUND_FASCIA"
+        ]
+      },
+      "description": "Round cassette/fascia bans reverse roll (curved profile + reversed winding reads wrong) — roll snaps back",
+      "set": {
+        "rollDirection": "STANDARD"
+      }
+    },
+    {
+      "id": "shared-band-patterns",
+      "trigger": "always",
+      "when": {
+        "field": "bandPatternsShared",
+        "truthy": true
+      },
+      "description": "Shared band patterns drive the sheer band from the opaque/zebra band (setBandPatternsShared)",
+      "copy": {
+        "sheerBandTexture": "fabricTexture",
+        "sheerBandTexSize": "texSize"
+      }
+    },
+    {
+      "id": "band-size-narrow",
+      "trigger": "always",
+      "when": {
+        "field": "bandSize",
+        "equals": "NARROW_2P4"
+      },
+      "description": "Band-height preset drives the underlying pitch + solid ratio",
+      "set": {
+        "bandPitch": 0.105,
+        "solidRatio": 0.58
+      }
+    },
+    {
+      "id": "band-size-standard",
+      "trigger": "always",
+      "when": {
+        "field": "bandSize",
+        "equals": "STANDARD_3"
+      },
+      "set": {
+        "bandPitch": 0.131,
+        "solidRatio": 0.58
+      }
+    },
+    {
+      "id": "band-size-wide",
+      "trigger": "always",
+      "when": {
+        "field": "bandSize",
+        "equals": "WIDE_3P5"
+      },
+      "set": {
+        "bandPitch": 0.153,
+        "solidRatio": 0.58
+      }
+    },
+    {
+      "id": "sheer-op-very",
+      "trigger": "always",
+      "when": {
+        "field": "sheerBandOpacity",
+        "equals": "VERY_SHEER"
+      },
+      "description": "Sheer-opacity preset drives the derived alpha",
+      "set": {
+        "sheerOpacity": 0.1
+      }
+    },
+    {
+      "id": "sheer-op-25",
+      "trigger": "always",
+      "when": {
+        "field": "sheerBandOpacity",
+        "equals": "SHEER_25"
+      },
+      "set": {
+        "sheerOpacity": 0.25
+      }
+    },
+    {
+      "id": "sheer-op-40",
+      "trigger": "always",
+      "when": {
+        "field": "sheerBandOpacity",
+        "equals": "SHEER_40"
+      },
+      "set": {
+        "sheerOpacity": 0.4
+      }
+    },
+    {
+      "id": "sheer-op-55",
+      "trigger": "always",
+      "when": {
+        "field": "sheerBandOpacity",
+        "equals": "SHEER_55"
+      },
+      "set": {
+        "sheerOpacity": 0.55
+      }
+    }
+  ],
+  "variations": [
+    {
+      "key": "topTreatment",
+      "section": "topStyle",
+      "label": "Top style",
+      "defaultValue": "CASSETTE_ROUND",
+      "tier": "common",
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "CASSETTE_SQUARE",
+            "label": "Cassette (Square)",
+            "description": "Enclosed housing, square profile"
+          },
+          {
+            "value": "CASSETTE_ROUND",
+            "label": "Cassette (Round)",
+            "description": "Enclosed housing, rounded front"
+          },
+          {
+            "value": "FASCIA",
+            "label": "Fascia",
+            "description": "Slim front board, square profile"
+          },
+          {
+            "value": "ROUND_FASCIA",
+            "label": "Fascia (Round)",
+            "description": "Slim front board, curved-arc front"
+          },
+          {
+            "value": "OPEN_ROLL",
+            "label": "Open Roll",
+            "description": "Exposed roller with end discs"
+          },
+          {
+            "value": "VALANCE",
+            "label": "Valance",
+            "description": "Decorative fabric-wrapped front board"
+          },
+          {
+            "value": "HIDDEN_ROLL",
+            "label": "Hidden Roll",
+            "description": "Roll recessed in a ceiling pocket"
+          }
+        ]
+      }
+    },
+    {
+      "key": "cassetteSize",
+      "section": "topStyle",
+      "label": "Size",
+      "defaultValue": "3",
+      "visibleWhen": {
+        "field": "topTreatment",
+        "in": [
+          "CASSETTE_SQUARE",
+          "CASSETTE_ROUND"
+        ]
+      },
+      "tier": "advanced",
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "3",
+            "label": "3\"",
+            "description": "Minimal profile (roll-clear floor)"
+          },
+          {
+            "value": "4",
+            "label": "4\""
+          },
+          {
+            "value": "5",
+            "label": "5\""
+          }
+        ]
+      }
+    },
+    {
+      "key": "fasciaSize",
+      "section": "topStyle",
+      "label": "Size",
+      "defaultValue": "4",
+      "visibleWhen": {
+        "field": "topTreatment",
+        "in": [
+          "FASCIA",
+          "ROUND_FASCIA"
+        ]
+      },
+      "tier": "advanced",
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "3",
+            "label": "3\""
+          },
+          {
+            "value": "4",
+            "label": "4\""
+          },
+          {
+            "value": "5",
+            "label": "5\""
+          }
+        ]
+      }
+    },
+    {
+      "key": "fasciaTopCap",
+      "section": "topStyle",
+      "label": "Top cap",
+      "defaultValue": true,
+      "visibleWhen": {
+        "field": "topTreatment",
+        "in": [
+          "FASCIA",
+          "ROUND_FASCIA"
+        ]
+      },
+      "tier": "advanced",
+      "description": "Close the fascia top (industry default is open-top)",
+      "control": {
+        "kind": "toggle"
+      }
+    },
+    {
+      "key": "valanceHeight",
+      "section": "topStyle",
+      "label": "Face height",
+      "defaultValue": 0.1143,
+      "visibleWhen": {
+        "field": "topTreatment",
+        "equals": "VALANCE"
+      },
+      "tier": "advanced",
+      "description": "Face board drop height (default 4.5\")",
+      "control": {
+        "kind": "slider",
+        "min": 0.06,
+        "max": 0.25,
+        "step": 0.005,
+        "unit": "m"
+      }
+    },
+    {
+      "key": "valanceSideCover",
+      "section": "topStyle",
+      "label": "Side covers",
+      "defaultValue": true,
+      "visibleWhen": {
+        "field": "topTreatment",
+        "equals": "VALANCE"
+      },
+      "tier": "advanced",
+      "description": "Include the left/right end return wings",
+      "control": {
+        "kind": "toggle"
+      }
+    },
+    {
+      "key": "valanceDepth",
+      "section": "topStyle",
+      "label": "Return depth",
+      "defaultValue": 0.0762,
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "topTreatment",
+            "equals": "VALANCE"
+          },
+          {
+            "field": "valanceSideCover",
+            "truthy": true
+          }
+        ]
+      },
+      "tier": "advanced",
+      "description": "Projection / side-return depth (default 3\")",
+      "control": {
+        "kind": "slider",
+        "min": 0.04,
+        "max": 0.15,
+        "step": 0.005,
+        "unit": "m"
+      }
+    },
+    {
+      "key": "topColor",
+      "section": "topStyle",
+      "label": "Housing color",
+      "defaultValue": "#eee8dc",
+      "tier": "common",
+      "visibleWhen": {
+        "not": {
+          "field": "topTreatment",
+          "equals": "OPEN_ROLL"
+        }
+      },
+      "control": {
+        "kind": "color"
+      }
+    },
+    {
+      "key": "endCapColor",
+      "section": "topStyle",
+      "label": "End cap color",
+      "defaultValue": "#eee8dc",
+      "tier": "advanced",
+      "description": "Cassette/fascia side end-caps (open-roll end discs too)",
+      "visibleWhen": {
+        "not": {
+          "field": "topTreatment",
+          "in": [
+            "VALANCE",
+            "HIDDEN_ROLL"
+          ]
+        }
+      },
+      "control": {
+        "kind": "color"
+      }
+    },
+    {
+      "key": "frontFabric",
+      "section": "topStyle",
+      "label": "Front fabric",
+      "defaultValue": true,
+      "tier": "common",
+      "description": "Wrap fabric over the cassette front (cassette only)",
+      "enabledWhen": {
+        "field": "topTreatment",
+        "in": [
+          "CASSETTE_SQUARE",
+          "CASSETTE_ROUND"
+        ]
+      },
+      "control": {
+        "kind": "toggle"
+      }
+    },
+    {
+      "key": "rollDirection",
+      "section": "topStyle",
+      "label": "Roll direction",
+      "defaultValue": "STANDARD",
+      "tier": "advanced",
+      "description": "Round cassette/fascia forces standard (curved reverse-winding reads wrong)",
+      "enabledWhen": {
+        "not": {
+          "field": "topTreatment",
+          "in": [
+            "CASSETTE_ROUND",
+            "ROUND_FASCIA"
+          ]
+        }
+      },
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "STANDARD",
+            "label": "Standard"
+          },
+          {
+            "value": "REVERSE",
+            "label": "Reverse"
+          }
+        ]
+      }
+    },
+    {
+      "key": "topFabricIndependent",
+      "section": "topFabric",
+      "label": "Custom fabric",
+      "defaultValue": false,
+      "tier": "advanced",
+      "description": "Off = top-treatment fabric follows the panel fabric",
+      "control": {
+        "kind": "toggle"
+      }
+    },
+    {
+      "key": "topFabricColor",
+      "section": "topFabric",
+      "label": "Fabric color",
+      "defaultValue": "#e7dfcf",
+      "visibleWhen": {
+        "field": "topFabricIndependent",
+        "truthy": true
+      },
+      "tier": "advanced",
+      "control": {
+        "kind": "color"
+      }
+    },
+    {
+      "key": "topFabricTexture",
+      "section": "topFabric",
+      "label": "Pattern",
+      "defaultValue": "/default-pattern.png",
+      "visibleWhen": {
+        "field": "topFabricIndependent",
+        "truthy": true
+      },
+      "tier": "advanced",
+      "control": {
+        "kind": "image"
+      }
+    },
+    {
+      "key": "fabricColor",
+      "section": "fabricPanel",
+      "label": "Fabric color",
+      "defaultValue": "#e7dfcf",
+      "tier": "common",
+      "control": {
+        "kind": "color"
+      }
+    },
+    {
+      "key": "fabricTexture",
+      "section": "fabricPanel",
+      "label": "Custom pattern",
+      "defaultValue": "/default-pattern.png",
+      "tier": "common",
+      "description": "Zebra-band swatch image URL / data URL; overrides fabric color",
+      "control": {
+        "kind": "image"
+      }
+    },
+    {
+      "key": "bandPatternsShared",
+      "section": "fabricPanel",
+      "label": "Shared band patterns",
+      "defaultValue": false,
+      "tier": "advanced",
+      "description": "On = the opaque/zebra band pattern also drives the sheer band",
+      "control": {
+        "kind": "toggle"
+      }
+    },
+    {
+      "key": "sheerBandTexture",
+      "section": "fabricPanel",
+      "label": "Sheer band pattern",
+      "defaultValue": "/patterns/S_07_3962.png",
+      "tier": "advanced",
+      "visibleWhen": {
+        "not": {
+          "field": "bandPatternsShared",
+          "truthy": true
+        }
+      },
+      "control": {
+        "kind": "image"
+      }
+    },
+    {
+      "key": "bandSize",
+      "section": "fabricPanel",
+      "label": "Band height",
+      "defaultValue": "WIDE_3P5",
+      "tier": "common",
+      "description": "Named preset (solid-band height); drives the underlying pitch",
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "NARROW_2P4",
+            "label": "2.4\"",
+            "description": "Fine rhythm, smaller windows"
+          },
+          {
+            "value": "STANDARD_3",
+            "label": "3.0\"",
+            "description": "Most common residential size"
+          },
+          {
+            "value": "WIDE_3P5",
+            "label": "3.5\"",
+            "description": "Bold stripe, large windows / patio doors"
+          }
+        ]
+      }
+    },
+    {
+      "key": "sheerBandOpacity",
+      "section": "fabricPanel",
+      "label": "Sheer opacity",
+      "defaultValue": "VERY_SHEER",
+      "tier": "common",
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "VERY_SHEER",
+            "label": "Very sheer 10%"
+          },
+          {
+            "value": "SHEER_25",
+            "label": "25%"
+          },
+          {
+            "value": "SHEER_40",
+            "label": "40%"
+          },
+          {
+            "value": "SHEER_55",
+            "label": "55%"
+          }
+        ]
+      }
+    },
+    {
+      "key": "bandPitch",
+      "section": "fabricPanel",
+      "label": "Band pitch",
+      "defaultValue": 0.153,
+      "tier": "advanced",
+      "description": "Raw solid + sheer tile height; the band-height preset overrides it",
+      "control": {
+        "kind": "slider",
+        "min": 0.06,
+        "max": 0.25,
+        "step": 0.005,
+        "unit": "m"
+      }
+    },
+    {
+      "key": "solidRatio",
+      "section": "fabricPanel",
+      "label": "Solid ratio",
+      "defaultValue": 0.58,
+      "tier": "advanced",
+      "description": "Fraction of the tile that is solid; the band-height preset overrides it",
+      "control": {
+        "kind": "slider",
+        "min": 0.3,
+        "max": 0.8,
+        "step": 0.01
+      }
+    },
+    {
+      "key": "sheerOpacity",
+      "section": "fabricPanel",
+      "label": "Sheer alpha",
+      "defaultValue": 0.1,
+      "tier": "advanced",
+      "description": "Derived from the sheer-opacity preset",
+      "control": {
+        "kind": "slider",
+        "min": 0.02,
+        "max": 0.6,
+        "step": 0.01
+      }
+    },
+    {
+      "key": "hembarStyle",
+      "section": "bottomRail",
+      "label": "Bottom rail style",
+      "defaultValue": "WRAPPED",
+      "tier": "common",
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "WRAPPED",
+            "label": "Full wrapped",
+            "description": "Fabric-covered rail"
+          },
+          {
+            "value": "INSERT",
+            "label": "Front insert",
+            "description": "Hardware frame + fabric face"
+          },
+          {
+            "value": "STANDARD",
+            "label": "Color-coordinated",
+            "description": "Matching rail color"
+          },
+          {
+            "value": "SEALED",
+            "label": "Low-profile",
+            "description": "Heat-sealed flat bar"
+          },
+          {
+            "value": "EXTERNAL_OVAL",
+            "label": "External oval",
+            "description": "Oval aluminium bar"
+          }
+        ]
+      }
+    },
+    {
+      "key": "hembarColor",
+      "section": "bottomRail",
+      "label": "Rail color",
+      "defaultValue": "#c6c4be",
+      "tier": "advanced",
+      "description": "Exposed rails only (STANDARD/INSERT/EXTERNAL_OVAL); wrapped/sealed follow the panel fabric",
+      "visibleWhen": {
+        "field": "hembarStyle",
+        "in": [
+          "STANDARD",
+          "INSERT",
+          "EXTERNAL_OVAL"
+        ]
+      },
+      "control": {
+        "kind": "color"
+      }
+    },
+    {
+      "key": "control",
+      "section": "controlType",
+      "label": "Control type",
+      "defaultValue": "CORDLESS",
+      "tier": "common",
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "CHAIN",
+            "label": "Chain",
+            "description": "Beaded loop + tensioner"
+          },
+          {
+            "value": "CORDLESS",
+            "label": "Cordless",
+            "description": "Spring lift, no exposed cord"
+          },
+          {
+            "value": "MOTORIZED",
+            "label": "Motorized"
+          },
+          {
+            "value": "WAND",
+            "label": "Wand",
+            "description": "Crank / twist wand"
+          }
+        ]
+      }
+    },
+    {
+      "key": "controlSide",
+      "section": "controlType",
+      "label": "Control side",
+      "defaultValue": "RIGHT",
+      "tier": "common",
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "RIGHT",
+            "label": "Right"
+          },
+          {
+            "value": "LEFT",
+            "label": "Left"
+          }
+        ]
+      }
+    },
+    {
+      "key": "cordPct",
+      "section": "controlType",
+      "label": "Cord/chain length",
+      "defaultValue": 0.56,
+      "visibleWhen": {
+        "field": "control",
+        "equals": "CHAIN"
+      },
+      "control": {
+        "kind": "slider",
+        "min": 0.1,
+        "max": 1,
+        "step": 0.01,
+        "unit": "× drop"
+      }
+    },
+    {
+      "key": "chainStyle",
+      "section": "controlType",
+      "label": "Chain style",
+      "defaultValue": "CORD",
+      "visibleWhen": {
+        "field": "control",
+        "equals": "CHAIN"
+      },
+      "tier": "advanced",
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "BEAD",
+            "label": "Bead"
+          },
+          {
+            "value": "CORD",
+            "label": "Cord"
+          }
+        ]
+      }
+    },
+    {
+      "key": "chainMaterial",
+      "section": "controlType",
+      "label": "Chain material",
+      "defaultValue": "PLASTIC",
+      "visibleWhen": {
+        "field": "control",
+        "equals": "CHAIN"
+      },
+      "tier": "advanced",
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "METAL",
+            "label": "Metal"
+          },
+          {
+            "value": "PLASTIC",
+            "label": "Plastic"
+          }
+        ]
+      }
+    },
+    {
+      "key": "chainColor",
+      "section": "controlType",
+      "label": "Chain color",
+      "defaultValue": "#f0ece2",
+      "visibleWhen": {
+        "field": "control",
+        "equals": "CHAIN"
+      },
+      "control": {
+        "kind": "color"
+      }
+    },
+    {
+      "key": "tensionerColor",
+      "section": "controlType",
+      "label": "Tensioner color",
+      "defaultValue": "#e5e0d5",
+      "visibleWhen": {
+        "field": "control",
+        "equals": "CHAIN"
+      },
+      "tier": "advanced",
+      "control": {
+        "kind": "color"
+      }
+    },
+    {
+      "key": "breakaway",
+      "section": "controlType",
+      "label": "Breakaway",
+      "defaultValue": false,
+      "visibleWhen": {
+        "field": "control",
+        "equals": "CHAIN"
+      },
+      "tier": "advanced",
+      "description": "Child-safety breakaway clasp",
+      "control": {
+        "kind": "toggle"
+      }
+    },
+    {
+      "key": "motorPower",
+      "section": "controlType",
+      "label": "Motor power",
+      "defaultValue": "IN_TUBE",
+      "visibleWhen": {
+        "field": "control",
+        "equals": "MOTORIZED"
+      },
+      "tier": "advanced",
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "IN_TUBE",
+            "label": "Tube"
+          },
+          {
+            "value": "BATTERY_WAND",
+            "label": "Wand"
+          },
+          {
+            "value": "HARDWIRED",
+            "label": "Wired"
+          },
+          {
+            "value": "SOLAR",
+            "label": "Solar"
+          }
+        ]
+      }
+    },
+    {
+      "key": "antenna",
+      "section": "controlType",
+      "label": "Antenna",
+      "defaultValue": false,
+      "visibleWhen": {
+        "field": "control",
+        "equals": "MOTORIZED"
+      },
+      "tier": "advanced",
+      "control": {
+        "kind": "toggle"
+      }
+    },
+    {
+      "key": "wandLength",
+      "section": "controlType",
+      "label": "Wand length",
+      "defaultValue": 0.6,
+      "visibleWhen": {
+        "field": "control",
+        "equals": "WAND"
+      },
+      "tier": "advanced",
+      "control": {
+        "kind": "slider",
+        "min": 0.3,
+        "max": 1.2,
+        "step": 0.05,
+        "unit": "m"
+      }
+    },
+    {
+      "key": "wandMaterial",
+      "section": "controlType",
+      "label": "Wand material",
+      "defaultValue": "METAL",
+      "visibleWhen": {
+        "field": "control",
+        "equals": "WAND"
+      },
+      "tier": "advanced",
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "METAL",
+            "label": "Metal"
+          },
+          {
+            "value": "ACRYLIC",
+            "label": "Acrylic"
+          }
+        ]
+      }
+    },
+    {
+      "key": "wandColor",
+      "section": "controlType",
+      "label": "Wand color",
+      "defaultValue": "#a0a2a8",
+      "visibleWhen": {
+        "allOf": [
+          {
+            "field": "control",
+            "equals": "WAND"
+          },
+          {
+            "field": "wandMaterial",
+            "equals": "METAL"
+          }
+        ]
+      },
+      "tier": "advanced",
+      "control": {
+        "kind": "color"
+      }
+    },
+    {
+      "key": "mount",
+      "section": "mountRelated",
+      "label": "Mount",
+      "defaultValue": "INSIDE",
+      "control": {
+        "kind": "select",
+        "options": [
+          {
+            "value": "INSIDE",
+            "label": "Inside"
+          },
+          {
+            "value": "OUTSIDE",
+            "label": "Outside"
+          }
+        ]
+      }
+    },
+    {
+      "key": "shadeWidth",
+      "section": "viewer",
+      "label": "Shade width",
+      "defaultValue": 1.45,
+      "tier": "advanced",
+      "description": "Embedded viewers drive size via the homography scale knob instead",
+      "control": {
+        "kind": "slider",
+        "min": 0.4,
+        "max": 3,
+        "step": 0.01,
+        "unit": "m"
+      }
+    },
+    {
+      "key": "shadeDrop",
+      "section": "viewer",
+      "label": "Shade drop",
+      "defaultValue": 1.1,
+      "tier": "advanced",
+      "description": "Embedded viewers drive size via the homography scale knob instead",
+      "control": {
+        "kind": "slider",
+        "min": 0.4,
+        "max": 3,
+        "step": 0.01,
+        "unit": "m"
+      }
+    },
+    {
+      "key": "openness",
+      "section": "viewer",
+      "label": "Shade position",
+      "defaultValue": 1,
+      "tier": "common",
+      "description": "0 = rolled up, 1 = fully extended",
+      "control": {
+        "kind": "slider",
+        "min": 0,
+        "max": 1,
+        "step": 0.01
+      }
+    },
+    {
+      "key": "shadeState",
+      "section": "viewer",
+      "label": "Band alignment",
+      "defaultValue": 1,
+      "tier": "common",
+      "description": "0 = closed (view blocked), 1 = open (bands aligned)",
+      "control": {
+        "kind": "slider",
+        "min": 0,
+        "max": 1,
+        "step": 0.01
+      }
+    }
+  ]
+}
