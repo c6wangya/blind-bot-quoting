@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { requireAdminPage } from "@/lib/auth/user";
+import { windowErpEnabled } from "@/lib/window/flags";
 import { getOrder } from "@/lib/db";
 import { isWindowConfig, formatInches, type WindowQuoteComputation } from "@/lib/window/quote";
 import { deriveAggregates } from "@/lib/window/production";
@@ -13,6 +14,7 @@ export const dynamic = "force-dynamic";
  * and the ship-to block. Admin-only, print-friendly.
  */
 export default async function PackingSlipPage(ctx: { params: Promise<{ id: string }> }) {
+  if (!windowErpEnabled()) notFound();
   await requireAdminPage("/orders");
   const id = Number((await ctx.params).id);
   if (!Number.isInteger(id)) notFound();

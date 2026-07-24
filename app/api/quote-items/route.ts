@@ -41,6 +41,7 @@ import { priceWindowLine } from "@/lib/window/price";
 import { validateWindowConfig } from "@/lib/window/validate";
 import { toQuoteComputation, windowFacts, type WindowQuoteConfig } from "@/lib/window/quote";
 import { WindowPricingError, type WindowLineConfig } from "@/lib/window/types";
+import { windowErpEnabled } from "@/lib/window/flags";
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -218,6 +219,7 @@ export async function POST(req: Request) {
     // re-prices (client price untrusted). Access: admins, or dealer users once the org's
     // dealerWindowAccess flag is on (their account resolved from the profile, never the body).
     if (body.window) {
+      if (!windowErpEnabled()) return NextResponse.json({ error: "Not found" }, { status: 404 });
       const dealerAccess = acting.isAdmin ? null : await windowDealerAccessFor(userId);
       if (!acting.isAdmin && dealerAccess == null) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });

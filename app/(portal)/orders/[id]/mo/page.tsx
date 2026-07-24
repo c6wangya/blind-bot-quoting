@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { requireAdminPage } from "@/lib/auth/user";
+import { windowErpEnabled } from "@/lib/window/flags";
 import { getDefaultOrgId, getOrder, listDeductionRows } from "@/lib/db";
 import { isWindowConfig, type WindowQuoteComputation } from "@/lib/window/quote";
 import { formatInches } from "@/lib/window/quote";
@@ -15,6 +16,7 @@ export const dynamic = "force-dynamic";
  * Admin-only; print-friendly.
  */
 export default async function ManufacturingOrderPage(ctx: { params: Promise<{ id: string }> }) {
+  if (!windowErpEnabled()) notFound();
   await requireAdminPage("/orders");
   const id = Number((await ctx.params).id);
   if (!Number.isInteger(id)) notFound();

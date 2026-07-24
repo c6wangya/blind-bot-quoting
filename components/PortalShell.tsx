@@ -26,6 +26,7 @@ export default function PortalShell({
   actingAsId,
   nudgePassword,
   windowCatalog = false,
+  windowErp = false,
   children,
 }: {
   draftCount: number;
@@ -39,6 +40,7 @@ export default function PortalShell({
   actingAsId: string | null;
   nudgePassword: boolean;
   windowCatalog?: boolean;
+  windowErp?: boolean;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -119,6 +121,7 @@ export default function PortalShell({
         retailers={retailers}
         actingAsId={actingAsId}
         windowCatalog={windowCatalog}
+        windowErp={windowErp}
         open={open}
         onClose={close}
       />

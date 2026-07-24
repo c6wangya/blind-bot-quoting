@@ -39,7 +39,7 @@ type NavItem = {
   children?: { href: string; label: string; adminOnly?: boolean; disabled?: boolean }[];
 };
 
-const NAV: { section: string; adminOnly?: boolean; items: NavItem[] }[] = [
+const NAV: { section: string; adminOnly?: boolean; windowErp?: boolean; items: NavItem[] }[] = [
   {
     section: "Retailer Portal",
     items: [
@@ -65,6 +65,7 @@ const NAV: { section: string; adminOnly?: boolean; items: NavItem[] }[] = [
     // Catalog entry appears only for dealer users after the org opens dealerWindowAccess.
     // The whole section disappears when none of its items are visible.
     section: "Window ERP",
+    windowErp: true,
     items: [
       { href: "/window-catalog", label: "Catalog", icon: Blinds, windowCatalog: true },
       { href: "/window-products", label: "Products", icon: Blinds, adminOnly: true },
@@ -99,6 +100,7 @@ export default function Sidebar({
   retailers,
   actingAsId,
   windowCatalog = false,
+  windowErp = false,
   open,
   onClose,
 }: {
@@ -112,6 +114,7 @@ export default function Sidebar({
   retailers: RetailerOption[];
   actingAsId: string | null;
   windowCatalog?: boolean;
+  windowErp?: boolean;
   open: boolean;
   onClose: () => void;
 }) {
@@ -176,7 +179,9 @@ export default function Sidebar({
       </Link>
 
       <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-2">
-        {NAV.filter((group) => (!group.adminOnly || isAdmin) && group.items.some(visible)).map((group) => (
+        {NAV.filter(
+          (group) => (!group.adminOnly || isAdmin) && (!group.windowErp || windowErp) && group.items.some(visible)
+        ).map((group) => (
           <div key={group.section}>
             <div className="px-2.5 pb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/35">
               {group.section}

@@ -49,6 +49,7 @@ import { isWindowConfig, type WindowQuoteComputation } from "@/lib/window/quote"
 import WindowLineControls from "@/components/WindowLineControls";
 import WindowShipMethod from "@/components/WindowShipMethod";
 import { computeWindowFreight } from "@/lib/window/freight";
+import { windowErpEnabled } from "@/lib/window/flags";
 
 function DetailBlock({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -144,7 +145,7 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
   // Window-line freight preview: the quote's chosen method (ground/will-call) against the org's
   // freight rules — mirrors exactly what submit will bake into the amount. Loaded only when the
   // quote has window lines, so plain accessory/product quotes stay untouched.
-  const hasWindowLines = quote.items.some((i) => isWindowConfig(i.config));
+  const hasWindowLines = windowErpEnabled() && quote.items.some((i) => isWindowConfig(i.config));
   let windowShip: { method: string; methods: { method: string; label: string }[]; amount: number } | null = null;
   if (hasWindowLines) {
     try {
