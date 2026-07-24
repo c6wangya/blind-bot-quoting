@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth/api";
-import { getWindowProduct, getWindowTemplateByLine, getWindowTemplate, updateWindowProduct } from "@/lib/db";
+import { getWindowProduct, getWindowTemplate, updateWindowProduct } from "@/lib/db";
 import type { FieldPolicy } from "@/lib/window/types";
 
 /** Product detail + its pinned template (the editor needs both to render policies over fields). */

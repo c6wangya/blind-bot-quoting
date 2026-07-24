@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
+  Blinds,
   BookOpen,
   ChevronUp,
   Cpu,
@@ -58,6 +59,8 @@ const NAV: { section: string; adminOnly?: boolean; items: NavItem[] }[] = [
     adminOnly: true,
     items: [
       { href: "/messages", label: "Messages", icon: MessageSquare },
+      // Window-coverings ERP (v1: admin-only surface — invisible to retailers until rollout).
+      { href: "/window-products", label: "Window Products", icon: Blinds },
       { href: "/motors", label: "Motors", icon: Cpu },
       { href: "/supplier", label: "Supplier Console", icon: Factory },
       { href: "/pricing", label: "Pricing Versions", icon: Tag },
