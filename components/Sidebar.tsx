@@ -6,8 +6,10 @@ import { useEffect, useRef, useState } from "react";
 import {
   Blinds,
   BookOpen,
+  CalendarClock,
   ChevronUp,
   Cpu,
+  FileSpreadsheet,
   Factory,
   FileText,
   KeyRound,
@@ -16,8 +18,10 @@ import {
   type LucideIcon,
   MessageSquare,
   Package,
+  Ruler,
   Settings,
   Tag,
+  Users,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { BRAND } from "@/lib/brand";
@@ -49,13 +53,25 @@ const NAV: { section: string; adminOnly?: boolean; items: NavItem[] }[] = [
           { href: "/catalog/accessories", label: "Accessory" },
         ],
       },
-      // Dealer window-coverings catalog — rendered only when the org has opened dealer access
-      // AND this user is linked to a dealer account (invisible to everyone else).
-      { href: "/window-catalog", label: "Window Products", icon: Blinds, windowCatalog: true },
       { href: "/quotes", label: "Quotes", icon: FileText },
       { href: "/orders", label: "Orders", icon: Package },
       // Retailer's own support chat. Admins reach the inbox from Admin Console instead.
       { href: "/messages", label: "Messages", icon: MessageSquare, retailerOnly: true },
+    ],
+  },
+  {
+    // Window-coverings ERP — its own blade, fully separate from the live retailer/admin
+    // surfaces while this area is being polished. Admin items are admin-only; the dealer
+    // Catalog entry appears only for dealer users after the org opens dealerWindowAccess.
+    // The whole section disappears when none of its items are visible.
+    section: "Window ERP",
+    items: [
+      { href: "/window-catalog", label: "Catalog", icon: Blinds, windowCatalog: true },
+      { href: "/window-products", label: "Products", icon: Blinds, adminOnly: true },
+      { href: "/window-crm", label: "CRM", icon: CalendarClock, adminOnly: true },
+      { href: "/window-products/deductions", label: "Deductions", icon: Ruler, adminOnly: true },
+      { href: "/window-products/dealers", label: "Dealers", icon: Users, adminOnly: true },
+      { href: "/window-products/import", label: "Price Books", icon: FileSpreadsheet, adminOnly: true },
     ],
   },
   {
@@ -64,8 +80,6 @@ const NAV: { section: string; adminOnly?: boolean; items: NavItem[] }[] = [
     adminOnly: true,
     items: [
       { href: "/messages", label: "Messages", icon: MessageSquare },
-      // Window-coverings ERP (v1: admin-only surface — invisible to retailers until rollout).
-      { href: "/window-products", label: "Window Products", icon: Blinds },
       { href: "/motors", label: "Motors", icon: Cpu },
       { href: "/supplier", label: "Supplier Console", icon: Factory },
       { href: "/pricing", label: "Pricing Versions", icon: Tag },
@@ -126,7 +140,9 @@ export default function Sidebar({
       ? pathname === "/"
       : href === "/catalog"
         ? pathname === "/catalog" || pathname.startsWith("/configure")
-        : pathname.startsWith(href);
+        : href === "/window-products"
+          ? pathname === "/window-products" || /^\/window-products\/\d/.test(pathname)
+          : pathname.startsWith(href);
   const initials =
     accountName.trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase() || "?";
   // Item-level visibility (Messages differs by role); groups are filtered separately.
@@ -160,7 +176,7 @@ export default function Sidebar({
       </Link>
 
       <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-2">
-        {NAV.filter((group) => !group.adminOnly || isAdmin).map((group) => (
+        {NAV.filter((group) => (!group.adminOnly || isAdmin) && group.items.some(visible)).map((group) => (
           <div key={group.section}>
             <div className="px-2.5 pb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/35">
               {group.section}

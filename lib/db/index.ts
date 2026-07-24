@@ -32,3 +32,4 @@ export * from "./window-pricing";
 export * from "./window-org";
 export * from "./window-quote";
 export * from "./window-production";
+export * from "./window-crm";
