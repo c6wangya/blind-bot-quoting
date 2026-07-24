@@ -22,26 +22,43 @@ import { Button, Card, Input, Select, cx } from "./ui";
 
 const usd = (n: number) => n.toLocaleString("en-US", { style: "currency", currency: "USD" });
 
+type InitialLine = {
+  itemId: number;
+  quoteId: number;
+  quoteRef: string;
+  config: {
+    widthIn: number;
+    heightIn: number;
+    room?: string;
+    selections: Record<string, unknown>;
+    specialInstructions?: string;
+  };
+  qty: number;
+};
+
 type Props = {
   product: WindowProduct;
   template: WindowTemplate;
   dealers: { id: number; name: string }[];
+  /** Present = editing an existing quote line (update-in-place instead of add). */
+  initial?: InitialLine;
 };
 
-export default function WindowConfigurator({ product, template, dealers }: Props) {
+export default function WindowConfigurator({ product, template, dealers, initial }: Props) {
   const router = useRouter();
-  const [selections, setSelections] = useState<Record<string, unknown>>({});
-  const [widthIn, setWidthIn] = useState("36");
-  const [heightIn, setHeightIn] = useState("60");
-  const [room, setRoom] = useState("");
-  const [notes, setNotes] = useState("");
-  const [qty, setQty] = useState(1);
+  const [selections, setSelections] = useState<Record<string, unknown>>(initial?.config.selections ?? {});
+  const [widthIn, setWidthIn] = useState(initial ? String(initial.config.widthIn) : "36");
+  const [heightIn, setHeightIn] = useState(initial ? String(initial.config.heightIn) : "60");
+  const [room, setRoom] = useState(initial?.config.room ?? "");
+  const [notes, setNotes] = useState(initial?.config.specialInstructions ?? "");
+  const [qty, setQty] = useState(initial?.qty ?? 1);
   const [dealerAccountId, setDealerAccountId] = useState(0);
   const [price, setPrice] = useState<WindowComputation | null>(null);
   const [issues, setIssues] = useState<ValidationIssue[]>([]);
   const [pricing, setPricing] = useState(false);
   const [adding, setAdding] = useState(false);
   const [added, setAdded] = useState<string | null>(null);
+  const [addedQuoteId, setAddedQuoteId] = useState<number | null>(initial?.quoteId ?? null);
 
   const effective = useMemo(
     () => effectiveSelections(template, product, selections),
@@ -109,6 +126,7 @@ export default function WindowConfigurator({ product, template, dealers }: Props
             room: room || undefined,
             selections,
             specialInstructions: notes || undefined,
+            ...(initial ? { itemId: initial.itemId } : {}),
           },
         }),
       });
@@ -118,6 +136,7 @@ export default function WindowConfigurator({ product, template, dealers }: Props
         return;
       }
       setAdded(out.quoteRef);
+      setAddedQuoteId(out.quoteId ?? null);
       router.refresh();
     } finally {
       setAdding(false);
@@ -262,11 +281,15 @@ export default function WindowConfigurator({ product, template, dealers }: Props
             </div>
           )}
           <Button className="mt-4 w-full" onClick={addToQuote} disabled={adding || !price}>
-            {adding ? "Adding…" : "Add to quote"}
+            {adding ? (initial ? "Updating…" : "Adding…") : initial ? "Update line" : "Add to quote"}
           </Button>
           {added && (
             <div className="mt-2 text-center text-xs text-emerald-700">
-              Added to quote <span className="font-semibold">{added}</span> ✓
+              {initial ? "Updated" : "Added to"} quote{" "}
+              <a href={addedQuoteId ? `/quotes/${addedQuoteId}` : "/quotes"} className="font-semibold underline">
+                {added}
+              </a>{" "}
+              ✓
             </div>
           )}
         </Card>

@@ -36,6 +36,9 @@ import {
   getExclusionGroupsMap,
   type VariationType,
   loadCatalog,
+  getDefaultOrgId,
+  getWindowShipMethod,
+  listFreightRules,
 } from "@/lib/db";
 import { computeShipping, type MotorRate } from "@/lib/shipping";
 import { canInvoiceQuote } from "@/lib/invoice";
@@ -43,6 +46,9 @@ import { describeConfig } from "@/lib/describe";
 import { fmtDate, usd } from "@/lib/format";
 import { isAccessoryConfig, isAdjustmentConfig } from "@/lib/types";
 import { isWindowConfig, type WindowQuoteComputation } from "@/lib/window/quote";
+import WindowLineControls from "@/components/WindowLineControls";
+import WindowShipMethod from "@/components/WindowShipMethod";
+import { computeWindowFreight } from "@/lib/window/freight";
 
 function DetailBlock({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -134,6 +140,29 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
     if (m) itemRates[itemId] = { shipGround: m.shipGround, shipExpedite: m.shipExpedite, shipMode: m.shipMode };
   }
   const ship = computeShipping(quote.items, catalog, itemRates, expedite, netTotal, waivers);
+
+  // Window-line freight preview: the quote's chosen method (ground/will-call) against the org's
+  // freight rules — mirrors exactly what submit will bake into the amount. Loaded only when the
+  // quote has window lines, so plain accessory/product quotes stay untouched.
+  const hasWindowLines = quote.items.some((i) => isWindowConfig(i.config));
+  let windowShip: { method: string; methods: { method: string; label: string }[]; amount: number } | null = null;
+  if (hasWindowLines) {
+    try {
+      const [rules, method] = await Promise.all([
+        listFreightRules(await getDefaultOrgId()),
+        getWindowShipMethod(quote.id),
+      ]);
+      const seen = new Map<string, string>();
+      for (const r of rules) if (!seen.has(r.method)) seen.set(r.method, r.label ?? r.method);
+      windowShip = {
+        method,
+        methods: [...seen.entries()].map(([m, label]) => ({ method: m, label })),
+        amount: computeWindowFreight(quote.items, rules, method),
+      };
+    } catch {
+      windowShip = null; // freight not configured yet — quote page must still render
+    }
+  }
   // Admin-priced expedite (migration 0026): the customer requests it, an admin sets one flat fee.
   // The system reference (old per-line accumulation, always-charged → rawAmount) is shown to the
   // admin as a suggestion; the quoted fee folds into the total once set.
@@ -487,6 +516,26 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
                         {cfg.specialInstructions && (
                           <div className="mt-1 text-[11.5px] italic text-muted">Note: {cfg.specialInstructions}</div>
                         )}
+                        {editable && (
+                          <WindowLineControls
+                            itemId={item.id}
+                            qty={item.qty}
+                            editHref={
+                              viewerIsAdmin
+                                ? `/window-products/${cfg.productId}/configure?quote=${quote.id}&item=${item.id}`
+                                : `/window-catalog/${cfg.productId}?quote=${quote.id}&item=${item.id}`
+                            }
+                            window={{
+                              productId: cfg.productId,
+                              templateRevision: cfg.templateRevision,
+                              widthIn: cfg.widthIn,
+                              heightIn: cfg.heightIn,
+                              room: cfg.room,
+                              selections: cfg.selections,
+                              specialInstructions: cfg.specialInstructions,
+                            }}
+                          />
+                        )}
                       </div>
                       <div className="text-right">
                         <div className="font-semibold tabular-nums text-ink">
@@ -625,6 +674,18 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
                     <div className="flex justify-between text-brass">
                       <dt>Discount ({discountPct}%)</dt>
                       <dd className="font-medium tabular-nums">−{usd(discountAmt)}</dd>
+                    </div>
+                  )}
+                  {windowShip && windowShip.methods.length > 0 && (
+                    <div className="flex items-center justify-between text-[13px]">
+                      <dt>
+                        {editable ? (
+                          <WindowShipMethod quoteId={quote.id} current={windowShip.method} methods={windowShip.methods} />
+                        ) : (
+                          <span className="text-muted">Window shipping · {windowShip.method}</span>
+                        )}
+                      </dt>
+                      <dd className="tabular-nums text-ink-soft">{usd(windowShip.amount)}</dd>
                     </div>
                   )}
                   <ShippingSummaryRow

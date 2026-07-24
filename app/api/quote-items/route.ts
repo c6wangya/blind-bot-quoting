@@ -189,8 +189,8 @@ export async function POST(req: Request) {
        *  resolve to a brand-agnostic source model, so productId alone loses the browsed brand — this
        *  carries it through so the one-brand-per-quote guard fires on the brand the user chose. */
       brand?: string;
-      /** Window-coverings ERP line (admin-only v1) — handled by its own branch below. */
-      window?: WindowLineConfig;
+      /** Window-coverings ERP line — handled by its own branch below. itemId = update-in-place. */
+      window?: WindowLineConfig & { itemId?: number };
       /** Admin: price the window line for a specific dealer account (MSRP preview otherwise). */
       dealerAccountId?: number;
     };
@@ -262,15 +262,33 @@ export async function POST(req: Request) {
         // Snapshot the FULL effective config (defaults included), not just the user's picks —
         // production derivation (MO cut sheets) must never need the live template/product.
         config.selections = effective;
+        const snapshot = toQuoteComputation(computation, windowFacts(template, config, effective));
+
+        // Update-in-place: re-configuring an existing window line (?item= flow). The RLS-scoped
+        // client guards ownership (the item lookup 404s unless the quote is visible to this user).
+        const editItemId = Number.isInteger((w as { itemId?: number }).itemId)
+          ? (w as { itemId?: number }).itemId!
+          : undefined;
+        if (editItemId !== undefined) {
+          const { data: existingItem } = await sb
+            .from("quote_items")
+            .select("id, quote_id, line_id")
+            .eq("id", editItemId)
+            .maybeSingle();
+          if (!existingItem || existingItem.line_id !== "window-product") {
+            return NextResponse.json({ error: "Line not found" }, { status: 404 });
+          }
+          const target = await getQuote(existingItem.quote_id, sb);
+          if (!target) return NextResponse.json({ error: "Quote not found" }, { status: 404 });
+          if (target.status !== "draft") {
+            return NextResponse.json({ error: "This quote is no longer editable" }, { status: 409 });
+          }
+          await updateQuoteItem(editItemId, { config: config as unknown as ItemConfig, computation: snapshot, qty }, sb);
+          return NextResponse.json({ quoteId: target.id, quoteRef: target.ref, itemId: editItemId });
+        }
+
         const quote = await resolveTargetQuote(userId, sb, quoteId);
-        const item = await addWindowQuoteItem(
-          quote.id,
-          product.id,
-          config,
-          qty,
-          toQuoteComputation(computation, windowFacts(template, config, effective)),
-          sb
-        );
+        const item = await addWindowQuoteItem(quote.id, product.id, config, qty, snapshot, sb);
         return NextResponse.json({ quoteId: quote.id, quoteRef: quote.ref, item });
       } catch (err) {
         if (err instanceof WindowPricingError) {
