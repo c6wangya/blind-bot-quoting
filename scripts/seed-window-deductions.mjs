@@ -29,24 +29,37 @@ const db = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABA
 const { data: org } = await db.from("orgs").select("id").order("id").limit(1).single();
 const orgId = org.id;
 
+const reset = process.argv.includes("--reset");
 const { count } = await db
   .from("deduction_tables")
   .select("*", { count: "exact", head: true })
   .eq("org_id", orgId);
-if ((count ?? 0) > 0) {
-  console.log(`deduction tables already seeded (${count} rows) — nothing to do`);
+if ((count ?? 0) > 0 && !reset) {
+  console.log(`deduction tables already seeded (${count} rows) — pass --reset to replace`);
   process.exit(0);
+}
+if (reset && (count ?? 0) > 0) {
+  await db.from("deduction_tables").delete().eq("org_id", orgId);
+  console.log(`--reset: removed ${count} existing rows`);
 }
 
 const CASSETTES = ["CASSETTE_SQUARE", "CASSETTE_ROUND"];
 const FASCIAS = ["FASCIA", "ROUND_FASCIA"];
 
-const comp = (offset, base, label) => ({ offset, base, label });
+const comp = (offset, base, label, multiplier) => ({ offset, base, label, ...(multiplier ? { multiplier } : {}) });
+
+// Anchor hardware rules: brackets step by width (≤60 → 2, ≤96 → 3, wider → 4); screws = 2×brackets.
+const PARTS = [
+  { key: "bracket", label: "Brackets", qtyRule: { kind: "width_band", breaks: [60, 96, 999], values: [2, 3, 4] } },
+  { key: "screw", label: "Screws", qtyRule: { kind: "width_band", breaks: [60, 96, 999], values: [4, 6, 8] } },
+];
 
 const rows = [];
 let order = 0;
 for (const lineKey of ["roller_shade", "banded_shade"]) {
-  const fabricLenOffset = 12; // roller: +12″ wrap; zebra loop doubling handled at derivation later
+  // Roller fabric length = drop + 12″ wrap; zebra = 2×drop + 12 (banded fabric is a doubled loop).
+  const fabricLenMult = lineKey === "banded_shade" ? 2 : undefined;
+  const fabricLenOffset = 12;
   for (const [mount, valOff, tubeOff, fabWOff, railOff] of [
     ["INSIDE", -0.375, -1.25, -1.25, -1.625],
     ["OUTSIDE", -0.25, -1.125, -1.125, -1.5],
@@ -62,9 +75,10 @@ for (const lineKey of ["roller_shade", "banded_shade"]) {
         valance: comp(valOff, "width", "Cassette / Valance"),
         tube: comp(tubeOff, "width", "Tube"),
         fabricWidth: comp(fabWOff, "width", "Fabric Width"),
-        fabricLength: comp(fabricLenOffset, "height", "Fabric Length"),
+        fabricLength: comp(fabricLenOffset, "height", "Fabric Length", fabricLenMult),
         bottomRail: comp(railOff, "width", "Bottom Rail (Pocket Hem)"),
       },
+      parts: PARTS,
       note: "Anchor MO form, cassette family",
     });
   }
@@ -83,9 +97,10 @@ for (const lineKey of ["roller_shade", "banded_shade"]) {
         valance: comp(valOff, "width", "Fascia"),
         tube: comp(tubeOff, "width", "Tube"),
         fabricWidth: comp(tubeOff, "width", "Fabric Width"),
-        fabricLength: comp(12, "height", "Fabric Length"),
+        fabricLength: comp(fabricLenOffset, "height", "Fabric Length", fabricLenMult),
         bottomRail: comp(railOff, "width", "Bottom Rail (Pocket Hem)"),
       },
+      parts: PARTS,
       note: "Anchor MO form, fascia family",
     });
   }
@@ -103,9 +118,10 @@ for (const lineKey of ["roller_shade", "banded_shade"]) {
       components: {
         tube: comp(tubeOff, "width", "Tube"),
         fabricWidth: comp(tubeOff, "width", "Fabric Width"),
-        fabricLength: comp(12, "height", "Fabric Length"),
+        fabricLength: comp(fabricLenOffset, "height", "Fabric Length", fabricLenMult),
         bottomRail: comp(tubeOff - 0.375, "width", "Bottom Rail"),
       },
+      parts: PARTS,
       note: "Anchor MO form, no-cassette family",
     });
   }

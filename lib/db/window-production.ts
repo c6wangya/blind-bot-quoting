@@ -6,7 +6,7 @@ import type { DeductionRow } from "@/lib/window/production";
 // via service role like the other pricing internals.
 
 const DEDUCTION_COLS =
-  "id, lineKey:line_key, label, matcher, components, sortOrder:sort_order, note, effectiveTo:effective_to";
+  "id, lineKey:line_key, label, matcher, components, parts, sortOrder:sort_order, note, effectiveTo:effective_to";
 
 export async function listDeductionRows(
   orgId: number,
@@ -33,6 +33,7 @@ export async function addDeductionRow(
       label: row.label,
       matcher: row.matcher,
       components: row.components,
+      parts: row.parts ?? [],
       sort_order: row.sortOrder,
       note: row.note ?? null,
     })
@@ -47,7 +48,7 @@ export async function addDeductionRow(
 export async function reviseDeductionRow(
   orgId: number,
   id: number,
-  patch: { components?: DeductionRow["components"]; label?: string; note?: string },
+  patch: { components?: DeductionRow["components"]; parts?: DeductionRow["parts"]; label?: string; note?: string },
   client: SupabaseClient = admin()
 ): Promise<DeductionRow> {
   const { data: current, error: readErr } = await client
@@ -67,6 +68,7 @@ export async function reviseDeductionRow(
     label: patch.label ?? cur.label,
     matcher: cur.matcher,
     components: patch.components ?? cur.components,
+    parts: patch.parts ?? cur.parts,
     sortOrder: cur.sortOrder,
     note: patch.note ?? cur.note,
   }, client);

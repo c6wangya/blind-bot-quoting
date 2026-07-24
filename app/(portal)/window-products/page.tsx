@@ -36,6 +36,9 @@ export default async function WindowProductsPage() {
             <Link href="/window-products/import" className="rounded-lg border border-line px-3 py-1.5 text-sm font-medium text-ink hover:bg-black/[.03]">
               Import price book
             </Link>
+            <Link href="/window-products/deductions" className="rounded-lg border border-line px-3 py-1.5 text-sm font-medium text-ink hover:bg-black/[.03]">
+              Deductions
+            </Link>
             <Link href="/window-products/dealers" className="rounded-lg border border-line px-3 py-1.5 text-sm font-medium text-ink hover:bg-black/[.03]">
               Dealer accounts
             </Link>
