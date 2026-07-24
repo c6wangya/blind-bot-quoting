@@ -17,7 +17,21 @@ export default async function WindowDeductionsPage() {
         title="Deductions"
         description="How ordered sizes become cut sizes — per mount × top style. These drive the MO cut sheets; every edit is a dated revision."
       />
-      <WindowDeductionsAdmin initialRows={rows} lineKeys={templates.map((t) => t.lineKey)} />
+      <WindowDeductionsAdmin
+        initialRows={rows}
+        lines={templates.map((t) => ({
+          lineKey: t.lineKey,
+          label: t.label,
+          fields: t.fields.map((f) => ({
+            key: f.key,
+            label: f.label,
+            options:
+              f.control.kind === "select" || f.control.kind === "color"
+                ? (f.control.options ?? []).map((o) => ({ value: String(o.value), label: o.label }))
+                : [],
+          })),
+        }))}
+      />
     </div>
   );
 }

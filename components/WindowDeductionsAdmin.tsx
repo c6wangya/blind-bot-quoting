@@ -8,14 +8,22 @@ import { Badge, Button, Card, Input, Select, cx } from "./ui";
 // by the factory (the anchor customer re-tunes these monthly and tracks changes in hand-kept
 // Log sheets; here every save is an effective-dated revision, history preserved automatically).
 
-type Props = { initialRows: DeductionRow[]; lineKeys: string[] };
+/** Template vocabulary for humanizing matcher tokens (mount=INSIDE → "Mount: Inside"). */
+export type LineVocab = {
+  lineKey: string;
+  label: string;
+  fields: { key: string; label: string; options: { value: string; label: string }[] }[];
+};
 
-export default function WindowDeductionsAdmin({ initialRows, lineKeys }: Props) {
+type Props = { initialRows: DeductionRow[]; lines: LineVocab[] };
+
+export default function WindowDeductionsAdmin({ initialRows, lines }: Props) {
   const [rows, setRows] = useState(initialRows);
-  const [lineKey, setLineKey] = useState(lineKeys[0] ?? "roller_shade");
+  const [lineKey, setLineKey] = useState(lines[0]?.lineKey ?? "roller_shade");
   const [error, setError] = useState<string | null>(null);
 
   const visible = useMemo(() => rows.filter((r) => r.lineKey === lineKey), [rows, lineKey]);
+  const vocab = useMemo(() => lines.find((l) => l.lineKey === lineKey), [lines, lineKey]);
 
   async function post(body: Record<string, unknown>) {
     setError(null);
@@ -41,9 +49,9 @@ export default function WindowDeductionsAdmin({ initialRows, lineKeys }: Props) 
     <div className="mt-4 space-y-4">
       <div className="flex items-center justify-between">
         <Select value={lineKey} onChange={(e) => setLineKey(e.target.value)} className="w-56">
-          {lineKeys.map((k) => (
-            <option key={k} value={k}>
-              {k}
+          {lines.map((l) => (
+            <option key={l.lineKey} value={l.lineKey}>
+              {l.label}
             </option>
           ))}
         </Select>
@@ -54,7 +62,7 @@ export default function WindowDeductionsAdmin({ initialRows, lineKeys }: Props) 
       {error && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-xs text-red-700">{error}</div>}
 
       {visible.map((row) => (
-        <RuleCard key={row.id} row={row} onPost={post} onDone={refresh} />
+        <RuleCard key={row.id} row={row} vocab={vocab} onPost={post} onDone={refresh} />
       ))}
       {visible.length === 0 && (
         <Card className="p-5 text-sm text-muted">No deduction rules for this line yet.</Card>
@@ -63,12 +71,33 @@ export default function WindowDeductionsAdmin({ initialRows, lineKeys }: Props) 
   );
 }
 
+/** "mount = INSIDE" → "Mount: Inside" using the template's field/option labels; raw tokens
+ *  stay in the tooltip for debugging. */
+function humanizeMatcher(m: DeductionRow["matcher"][number], vocab: LineVocab | undefined): string {
+  const field = vocab?.fields.find((f) => f.key === m.fieldKey);
+  const fieldLabel = field?.label ?? m.fieldKey;
+  const valueLabel = (token: string) => field?.options.find((o) => o.value === token)?.label ?? token;
+  if (m.truthy !== undefined) return `${fieldLabel}: ${m.truthy ? "on" : "off"}`;
+  if (m.anyOf) return `${fieldLabel}: ${m.anyOf.map(valueLabel).join(" or ")}`;
+  if (m.valueToken !== undefined) return `${fieldLabel}: ${valueLabel(m.valueToken)}`;
+  return `${fieldLabel}: any`;
+}
+
+function rawMatcher(m: DeductionRow["matcher"][number]): string {
+  if (m.truthy !== undefined) return `${m.fieldKey} truthy=${m.truthy}`;
+  if (m.anyOf) return `${m.fieldKey} ∈ {${m.anyOf.join(", ")}}`;
+  if (m.valueToken !== undefined) return `${m.fieldKey} = ${m.valueToken}`;
+  return m.fieldKey;
+}
+
 function RuleCard({
   row,
+  vocab,
   onPost,
   onDone,
 }: {
   row: DeductionRow;
+  vocab: LineVocab | undefined;
   onPost: (b: Record<string, unknown>) => Promise<unknown>;
   onDone: () => Promise<void>;
 }) {
@@ -130,10 +159,9 @@ function RuleCard({
           <div className="text-sm font-semibold text-ink">{row.label}</div>
           <div className="mt-0.5 flex flex-wrap gap-1.5">
             {row.matcher.map((m, i) => (
-              <Badge key={i} className="border-line bg-black/[.03] text-ink-soft">
-                {m.fieldKey}
-                {m.valueToken ? ` = ${m.valueToken}` : m.anyOf ? ` ∈ {${m.anyOf.join(", ")}}` : m.truthy ? " on" : ""}
-              </Badge>
+              <span key={i} title={rawMatcher(m)}>
+                <Badge className="border-line bg-black/[.03] text-ink-soft">{humanizeMatcher(m, vocab)}</Badge>
+              </span>
             ))}
           </div>
         </div>
