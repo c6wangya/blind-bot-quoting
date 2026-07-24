@@ -15,14 +15,17 @@ type Props = {
   initialAccounts: AccountWithFactors[];
   initialUsers: DealerUser[];
   initialAccess: boolean;
+  initialTaxPct: number;
   lineKeys: string[];
   products: { id: number; name: string }[];
 };
 
-export default function WindowDealersAdmin({ initialAccounts, initialUsers, initialAccess, lineKeys, products }: Props) {
+export default function WindowDealersAdmin({ initialAccounts, initialUsers, initialAccess, initialTaxPct, lineKeys, products }: Props) {
   const [accounts, setAccounts] = useState(initialAccounts);
   const [users, setUsers] = useState(initialUsers);
   const [access, setAccess] = useState(initialAccess);
+  const [taxPct, setTaxPct] = useState(String(initialTaxPct));
+  const [taxSaved, setTaxSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function post(body: Record<string, unknown>): Promise<Record<string, unknown>> {
@@ -72,6 +75,37 @@ export default function WindowDealersAdmin({ initialAccounts, initialUsers, init
         >
           {access ? "Turn off" : "Turn on"}
         </Button>
+      </Card>
+
+      {/* window sales tax */}
+      <Card className="flex items-center justify-between p-5">
+        <div>
+          <div className="text-sm font-semibold text-ink">Sales tax on window lines</div>
+          <p className="mt-1 max-w-xl text-xs text-muted">
+            Applied at submit to the window-product share of the order (accessory orders never see it).
+            0 = no tax. Anchor model: CA 8.75–10.5%.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Input
+            value={taxPct}
+            onChange={(e) => { setTaxPct(e.target.value); setTaxSaved(false); }}
+            className="w-20 text-right"
+            inputMode="decimal"
+          />
+          <span className="text-sm text-muted">%</span>
+          <Button
+            variant="secondary"
+            disabled={taxSaved || !Number.isFinite(Number(taxPct))}
+            onClick={async () => {
+              const out = await post({ setWindowTaxPct: Number(taxPct) });
+              setTaxPct(String(out.windowTaxPct ?? 0));
+              setTaxSaved(true);
+            }}
+          >
+            {taxSaved ? "Saved ✓" : "Save"}
+          </Button>
+        </div>
       </Card>
 
       {/* accounts + factors */}

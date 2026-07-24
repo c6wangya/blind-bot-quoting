@@ -499,9 +499,14 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
             {adminUser && <PurchaseOrderMenu orderId={order.id} brands={brandGroups.map((g) => g.brand)} />}
             {/* Manufacturing Order (cut sheet) — only when the order has window-product lines. */}
             {adminUser && order.quote.items.some((it) => isWindowConfig(it.config)) && (
-              <LinkButton href={`/orders/${order.id}/mo`} variant="secondary" target="_blank">
-                MO / Cut Sheet
-              </LinkButton>
+              <>
+                <LinkButton href={`/orders/${order.id}/mo`} variant="secondary" target="_blank">
+                  MO / Cut Sheet
+                </LinkButton>
+                <LinkButton href={`/orders/${order.id}/packing`} variant="secondary" target="_blank">
+                  Packing Slip
+                </LinkButton>
+              </>
             )}
           </div>
         }

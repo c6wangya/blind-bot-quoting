@@ -3,7 +3,7 @@ import { requireAdminPage } from "@/lib/auth/user";
 import { getDefaultOrgId, getOrder, listDeductionRows } from "@/lib/db";
 import { isWindowConfig, type WindowQuoteComputation } from "@/lib/window/quote";
 import { formatInches } from "@/lib/window/quote";
-import { deriveCutList, matchDeductionRow } from "@/lib/window/production";
+import { deriveAggregates, deriveCutList, derivePartsList, matchDeductionRow } from "@/lib/window/production";
 import { BackLink, Badge, Card, PageHeader } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -46,6 +46,64 @@ export default async function ManufacturingOrderPage(ctx: { params: Promise<{ id
           .filter(Boolean)
           .join(" · ")}
       />
+
+      {/* QC / production summary — the anchor QC sheet's auto part counts. */}
+      {(() => {
+        const agg = deriveAggregates(
+          windowItems.map((it) => ({
+            selections: (it.config as unknown as { selections: Record<string, unknown> }).selections ?? {},
+            qty: it.qty,
+          }))
+        );
+        const parts = new Map<string, { label: string; qty: number }>();
+        for (const it of windowItems) {
+          const cfg = it.config as unknown as { selections: Record<string, unknown>; widthIn: number };
+          const row = matchDeductionRow(deductions, (it.computation as WindowQuoteComputation).window.lineKey, cfg.selections);
+          if (!row) continue;
+          for (const p of derivePartsList(row, { widthIn: cfg.widthIn })) {
+            const cur = parts.get(p.key) ?? { label: p.label, qty: 0 };
+            cur.qty += p.qty * it.qty;
+            parts.set(p.key, cur);
+          }
+        }
+        const stats: [string, number][] = [
+          ["Units", agg.totalUnits],
+          ["Motorized", agg.motorizedUnits],
+          ["Cordless", agg.cordlessUnits],
+          ["Remotes", agg.remoteUnits],
+          ["Chargers", agg.chargerUnits],
+          ["Hubs", agg.hubUnits],
+          ["Battery packs", agg.batteryPackUnits],
+          ["Side channels", agg.sideChannelUnits],
+          ["Reverse rolls", agg.reverseRollUnits],
+          ["Hold-downs", agg.holdDownUnits],
+          ...[...parts.values()].map((p): [string, number] => [p.label, p.qty]),
+        ];
+        return (
+          <Card className="mb-4 p-5 print:break-inside-avoid">
+            <div className="text-sm font-semibold text-ink">Production summary / QC counts</div>
+            <div className="mt-3 flex flex-wrap gap-x-6 gap-y-2">
+              {stats
+                .filter(([, n]) => n > 0)
+                .map(([label, n]) => (
+                  <label key={label} className="flex items-center gap-1.5 text-xs text-ink-soft">
+                    <input type="checkbox" className="size-3.5 accent-ink" />
+                    <span className="font-semibold tabular-nums text-ink">{n}</span> {label}
+                  </label>
+                ))}
+            </div>
+            {Object.keys(agg.fabricColorCounts).length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-muted">
+                {Object.entries(agg.fabricColorCounts).map(([c, n]) => (
+                  <span key={c} className="flex items-center gap-1 rounded-full border border-line px-2 py-0.5">
+                    <span className="size-2.5 rounded-full border border-black/10" style={{ background: c }} /> × {n}
+                  </span>
+                ))}
+              </div>
+            )}
+          </Card>
+        );
+      })()}
 
       <div className="space-y-4">
         {windowItems.map((item, idx) => {
@@ -92,7 +150,9 @@ export default async function ManufacturingOrderPage(ctx: { params: Promise<{ id
                             <td className="py-1.5 pr-4 font-medium text-ink">{c.label}</td>
                             <td className="py-1.5 pr-4 tabular-nums text-ink">{c.display}</td>
                             <td className="py-1.5 text-xs tabular-nums text-muted">
-                              {component.base} {component.offset >= 0 ? "+" : "−"}
+                              {component.base}
+                              {component.multiplier && component.multiplier !== 1 ? ` × ${component.multiplier}` : ""}{" "}
+                              {component.offset >= 0 ? "+" : "−"}
                               {formatInches(Math.abs(component.offset))}
                             </td>
                           </tr>
@@ -100,6 +160,15 @@ export default async function ManufacturingOrderPage(ctx: { params: Promise<{ id
                       })}
                     </tbody>
                   </table>
+                </div>
+              )}
+
+              {row && (row.parts ?? []).length > 0 && (
+                <div className="mt-2 text-xs text-ink-soft">
+                  Hardware:{" "}
+                  {derivePartsList(row, cfg)
+                    .map((p) => `${p.label} × ${p.qty * item.qty}`)
+                    .join(" · ")}
                 </div>
               )}
 

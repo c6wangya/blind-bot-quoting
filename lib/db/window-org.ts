@@ -35,6 +35,9 @@ export type OrgSettings = {
   /** When true, dealer users (profiles with a dealer_account_id) see the Window Catalog and can
    *  price/order window products at their account factor. Default OFF — retailers notice nothing. */
   dealerWindowAccess?: boolean;
+  /** Sales-tax percent applied at submit to the WINDOW-line subtotal only (accessory orders are
+   *  never affected). 0/absent = no tax. Anchor model: CA 8.75–10.5%. */
+  windowTaxPct?: number;
 };
 
 export async function getOrgSettings(client: SupabaseClient = admin()): Promise<OrgSettings> {

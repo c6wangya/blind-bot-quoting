@@ -37,6 +37,7 @@ export default async function WindowDealersPage() {
         initialAccounts={accounts.map((a, i) => ({ ...a, factors: factors[i] }))}
         initialUsers={users}
         initialAccess={settings.dealerWindowAccess === true}
+        initialTaxPct={Number(settings.windowTaxPct ?? 0)}
         lineKeys={templates.map((t) => t.lineKey)}
         products={products.map((p) => ({ id: p.id, name: p.name }))}
       />

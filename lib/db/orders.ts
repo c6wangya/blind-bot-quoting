@@ -25,7 +25,8 @@ import { isAccessoryConfig, isAdjustmentConfig, PRE_SHIPMENT_STATUSES, REFUNDABL
 import { isWindowConfig } from "@/lib/window/quote";
 import { computeWindowFreight } from "@/lib/window/freight";
 import { listFreightRules } from "./window-pricing";
-import { getDefaultOrgId } from "./window-org";
+import { getDefaultOrgId, getOrgSettings } from "./window-org";
+import { getWindowShipMethod } from "./window-quote";
 
 /**
  * Orders needing admin action — only `acknowledged` ones: that's the state an admin has to push
@@ -118,15 +119,29 @@ export async function submitPreOrder(
       throw new Error("The quote changed since the expedited price was set — please re-confirm the expedite price before paying.");
     }
     const expediteFee = exp.status === "quoted" ? round2(exp.fee ?? 0) : 0;
-    // Window-product freight (org freight_rules, e.g. UPS Ground per-unit with an oversize step).
-    // Entirely additive: quotes without window lines skip this and behave exactly as before.
-    // v1 charges the 'ground' method; a ship-method picker for window orders is a follow-up.
+    // Window-product freight + tax (org freight_rules / settings). Entirely additive: quotes
+    // without window lines skip this block and behave exactly as before. Freight follows the
+    // quote's chosen window ship method (ground / will_call); tax applies to the WINDOW share
+    // of the net subtotal only — accessory orders never see it.
     let windowFreight = 0;
+    let windowTax = 0;
     if (quote.items.some((i) => isWindowConfig(i.config))) {
       const orgId = await getDefaultOrgId();
-      windowFreight = computeWindowFreight(quote.items, await listFreightRules(orgId), "ground");
+      const [rules, method, settings] = await Promise.all([
+        listFreightRules(orgId),
+        getWindowShipMethod(quoteId),
+        getOrgSettings(),
+      ]);
+      windowFreight = computeWindowFreight(quote.items, rules, method);
+      const taxPct = Number(settings.windowTaxPct ?? 0);
+      if (taxPct > 0) {
+        const windowSubtotal = quote.items
+          .filter((i) => isWindowConfig(i.config))
+          .reduce((s, i) => s + i.computation.unitPrice * i.qty, 0);
+        windowTax = round2(windowSubtotal * (1 - discountPct / 100) * (taxPct / 100));
+      }
     }
-    const amount = Math.max(0, round2(net + ship.amount + expediteFee + windowFreight));
+    const amount = Math.max(0, round2(net + ship.amount + expediteFee + windowFreight + windowTax));
     // Accessory-only orders use the collapsed 3-step flow (auto-ack + manual tracking); any product
     // line keeps the full 6-step pipeline. Ad-hoc adjustment lines (surcharge/discount) are money-only
     // and don't affect which flow applies — judge by the real goods lines.

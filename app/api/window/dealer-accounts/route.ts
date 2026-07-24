@@ -29,6 +29,7 @@ export async function GET() {
       accounts: accounts.map((a, i) => ({ ...a, factors: factors[i] })),
       users,
       dealerWindowAccess: settings.dealerWindowAccess === true,
+      windowTaxPct: Number(settings.windowTaxPct ?? 0),
     });
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 500 });
@@ -51,6 +52,15 @@ export async function POST(req: Request) {
     if (typeof body.setDealerWindowAccess === "boolean") {
       const settings = await setOrgSetting("dealerWindowAccess", body.setDealerWindowAccess);
       return NextResponse.json({ dealerWindowAccess: settings.dealerWindowAccess === true });
+    }
+
+    if (body.setWindowTaxPct !== undefined) {
+      const pct = Number(body.setWindowTaxPct);
+      if (!Number.isFinite(pct) || pct < 0 || pct > 30) {
+        return NextResponse.json({ error: "tax percent must be between 0 and 30" }, { status: 400 });
+      }
+      const settings = await setOrgSetting("windowTaxPct", pct);
+      return NextResponse.json({ windowTaxPct: Number(settings.windowTaxPct ?? 0) });
     }
 
     if (typeof body.assignUserId === "string" && body.assignUserId) {

@@ -172,6 +172,30 @@ check("2-on-1 child priced 0", child.unitPrice, 0);
   check("deduction row matched (fascia OM)", om?.label ?? null, "Fascia · Outside Mount");
 }
 
+// 9b. Formula + parts: zebra fabric length = 2×drop + 12; brackets/screws by width band.
+{
+  const { deriveCutList, derivePartsList, matchDeductionRow } = await import("../lib/window/production");
+  const ded = await db
+    .from("deduction_tables")
+    .select("id, lineKey:line_key, label, matcher, components, parts, sortOrder:sort_order, note")
+    .is("effective_to", null);
+  if (ded.error) throw ded.error;
+  const rows = ded.data as never[];
+  const zrow = matchDeductionRow(rows as never, "banded_shade", { mount: "INSIDE", topTreatment: "CASSETTE_SQUARE" });
+  check("zebra deduction row matched", zrow?.label ?? null, "Cassette · Inside Mount");
+  if (zrow) {
+    const cuts = deriveCutList(zrow, { widthIn: 36, heightIn: 60 });
+    check("  zebra fabric length = 2×60 + 12", cuts.find((c) => c.componentKey === "fabricLength")?.inches, 132);
+    const parts36 = derivePartsList(zrow, { widthIn: 36 });
+    check("  brackets ≤60″ → 2", parts36.find((p) => p.key === "bracket")?.qty, 2);
+    const parts80 = derivePartsList(zrow, { widthIn: 80 });
+    check("  brackets ≤96″ → 3", parts80.find((p) => p.key === "bracket")?.qty, 3);
+    const parts120 = derivePartsList(zrow, { widthIn: 120 });
+    check("  brackets >96″ → 4", parts120.find((p) => p.key === "bracket")?.qty, 4);
+    check("  screws ≤60″ → 4", parts36.find((p) => p.key === "screw")?.qty, 4);
+  }
+}
+
 // 10. Freight: ground $7/unit, oversize step $95/unit over 93.875″, will_call free.
 {
   const { computeWindowFreight } = await import("../lib/window/freight");
